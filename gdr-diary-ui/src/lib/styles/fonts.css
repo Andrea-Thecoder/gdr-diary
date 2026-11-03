@@ -1,0 +1,14 @@
+@font-face {
+	font-family: 'Grenze Gotisch';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 700;
+	src:
+		url('../../../node_modules/@fontsource/grenze-gotisch/files/grenze-gotisch-latin-700-normal.woff2')
+			format('woff2'),
+		url('../../../node_modules/@fontsource/grenze-gotisch/files/grenze-gotisch-latin-700-normal.woff')
+			format('woff');
+	ascent-override: 88%;
+	descent-override: 16%;
+	line-gap-override: 0%;
+}

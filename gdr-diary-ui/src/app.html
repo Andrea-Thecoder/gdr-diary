@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="theme-color" content="#F1E6CC" />
+		<meta name="text-scale" content="scale" />
+		<script>
+			(function () {
+				var root = document.documentElement;
+				var themes = ['pergamena', 'viola'];
+				var colors = { pergamena: '#F1E6CC', viola: '#12031F' };
+				var media = window.matchMedia('(prefers-color-scheme: dark)');
+				function stored() {
+					var entry = document.cookie.split('; ').find(function (part) {
+						return part.indexOf('gdr-theme=') === 0;
+					});
+					var value = entry ? entry.slice('gdr-theme='.length) : null;
+					return themes.indexOf(value) === -1 ? null : value;
+				}
+				function apply() {
+					var theme = stored() || (media.matches ? 'viola' : 'pergamena');
+					root.setAttribute('data-theme', theme);
+					var meta = document.querySelector('meta[name="theme-color"]');
+					if (meta) {
+						meta.setAttribute('content', colors[theme]);
+					}
+				}
+				apply();
+				media.addEventListener('change', apply);
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

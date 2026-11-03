@@ -1,0 +1,2845 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GDR Diary API",
+    "description": "API to manage role-playing characters, their diaries and the diary pages.",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api/v1/gdr-diary-api",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Diaries",
+      "description": "Manage the diaries of the characters of the logged-in user"
+    },
+    {
+      "name": "Characters",
+      "description": "Manage the role-playing characters of the logged-in user"
+    },
+    {
+      "name": "Users",
+      "description": "The logged-in user"
+    },
+    {
+      "name": "Diary pages",
+      "description": "Manage the pages of the diaries of the logged-in user (maximum 100 pages per diary)"
+    }
+  ],
+  "paths": {
+    "/pages/{id}": {
+      "put": {
+        "tags": [
+          "Diary pages"
+        ],
+        "summary": "Update a page",
+        "description": "Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size. The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next update.",
+        "operationId": "updateDiaryPage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Page identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDiaryPageDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Page updated, with the new version of the page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseDiaryPageDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example empty content or missing version), content that is not a valid diary document, content too large, or page identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Page not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The page was modified in the meantime (another tab or device, or a deletion that renumbered it): nothing is saved and the page must be read again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Diary pages"
+        ],
+        "summary": "Delete a page",
+        "description": "Deletes a page of a diary of a character owned by the logged-in user. The pages that follow are renumbered, so the numbers stay consecutive. The identifiers of the pages do not change.",
+        "operationId": "deleteDiaryPage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Page identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Page identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Page not found, its character is owned by another user, or the page was deleted at the same time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A page of the diary was modified at the same time by another request: nothing is deleted, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/avatar": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Set the profile image of the logged-in user",
+        "description": "Uploads an image (png, jpeg or webp) as profile image of the logged-in user. The real content of the file is checked, not only the declared type: the file type must be an allowed image, the declared content type must be present and, like the extension, must match the content and the size must not exceed the configured limit. The previous profile image, if any, is replaced and its file is deleted. Returns a temporary URL of the new image, valid for a few minutes.",
+        "operationId": "updateAppUserAvatar",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The image to use as profile image (png, jpeg or webp)"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile image set, with its temporary URL as payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOString"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file part, malformed multipart request, empty file, unsupported file type, missing or mismatching content type, extension not matching the content, or file too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "404": {
+            "description": "The user has not been created yet (call POST /me first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The user was modified at the same time by another request: the profile image is not changed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Remove the profile image of the logged-in user",
+        "description": "Removes the profile image of the logged-in user and deletes its file.",
+        "operationId": "deleteAppUserAvatar",
+        "responses": {
+          "200": {
+            "description": "Profile image removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "404": {
+            "description": "The user has not been created yet (call POST /me first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The user was modified at the same time by another request: the profile image is not removed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/diaries/{id}": {
+      "get": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Get a diary",
+        "description": "Returns a single diary of a character owned by the logged-in user.",
+        "operationId": "getDiaryById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested diary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Update a diary",
+        "description": "Replaces all the editable fields of a diary. Fields not sent are set to empty. The diary cannot be moved to another character.",
+        "operationId": "updateDiary",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDiaryDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Diary updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example blank title or malformed color), or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Delete a diary",
+        "description": "Deletes a diary together with all its pages and its cover image. The operation cannot be undone.",
+        "operationId": "deleteDiary",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diary deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary changed while it was being deleted (for example it was modified at the same time): nothing is deleted, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/diaries/{id}/cover": {
+      "put": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Set the cover of a diary",
+        "description": "Uploads an image (png, jpeg or webp) as cover of a diary of a character owned by the logged-in user. The real content of the file is checked, not only the declared type: the file type must be an allowed image, the declared content type must be present and, like the extension, must match the content and the size must not exceed the configured limit. The previous cover, if any, is replaced and its file is deleted.",
+        "operationId": "updateDiaryCover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The image to use as cover (png, jpeg or webp)"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cover set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file part, malformed multipart request, empty file, unsupported file type, missing or mismatching content type, extension not matching the content, file too large, or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary was modified at the same time by another request: the cover is not changed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Remove the cover of a diary",
+        "description": "Removes the cover of a diary of a character owned by the logged-in user and deletes its file.",
+        "operationId": "deleteDiaryCover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cover removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary was modified at the same time by another request: the cover is not removed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/characters/{id}": {
+      "get": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Get a character",
+        "description": "Returns a single character owned by the logged-in user.",
+        "operationId": "getGameCharacterById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested character",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailGameCharacterDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Update a character",
+        "description": "Replaces all the editable fields of a character owned by the logged-in user. Fields not sent are set to empty.",
+        "operationId": "updateGameCharacter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGameCharacterDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Character updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailGameCharacterDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example blank name or malformed color), or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The character was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Delete a character",
+        "description": "Deletes a character owned by the logged-in user, together with all its diaries, their pages and the images of the character and of its diaries. The operation cannot be undone.",
+        "operationId": "deleteGameCharacter",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Character deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The character changed while it was being deleted (for example a diary or a page was added, or it was modified at the same time): nothing is deleted, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/characters/{id}/avatar": {
+      "put": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Set the avatar of a character",
+        "description": "Uploads an image (png, jpeg or webp) as avatar of a character owned by the logged-in user. The real content of the file is checked, not only the declared type: the file type must be an allowed image, the declared content type must be present and, like the extension, must match the content and the size must not exceed the configured limit. The previous avatar, if any, is replaced and its file is deleted.",
+        "operationId": "updateGameCharacterAvatar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The image to use as avatar (png, jpeg or webp)"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Avatar set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailGameCharacterDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file part, malformed multipart request, empty file, unsupported file type, missing or mismatching content type, extension not matching the content, file too large, or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The character was modified at the same time by another request: the avatar is not changed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Remove the avatar of a character",
+        "description": "Removes the avatar of a character owned by the logged-in user and deletes its file.",
+        "operationId": "deleteGameCharacterAvatar",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avatar removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The character was modified at the same time by another request: the avatar is not removed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get the logged-in user",
+        "description": "Returns the email, the premium flag and the settings of the logged-in user, identified by the access token.",
+        "operationId": "getAppUserBySubject",
+        "responses": {
+          "200": {
+            "description": "The logged-in user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailAppUserDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "404": {
+            "description": "The user has not been created yet (call POST /me first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Sign in the logged-in user",
+        "description": "To be called once after every login. Creates the user in the backend the first time, otherwise keeps the email aligned with the access token, and returns the identifier of the user. It is idempotent: calling it again returns the same identifier. Call it again after the email has been changed on the authentication server and the access token has been refreshed: the stored email is aligned with the one in the token.",
+        "operationId": "createAppUser",
+        "responses": {
+          "200": {
+            "description": "The identifier of the logged-in user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOUUID"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The token has no email address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "409": {
+            "description": "The user was modified at the same time by another request, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Delete all the data of the logged-in user",
+        "description": "Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. Everything is deleted in a single transaction: if something fails nothing is deleted. The account on the authentication server is not touched: the client deletes it after this call. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.",
+        "operationId": "deleteAppUser",
+        "responses": {
+          "200": {
+            "description": "Data deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token, or the last login with the password is older than app.user.delete-max-auth-age (the answer carries WWW-Authenticate with error insufficient_user_authentication and the client must ask for the password again)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/diaries/{diaryId}/pages": {
+      "get": {
+        "tags": [
+          "Diary pages"
+        ],
+        "summary": "List the pages of a diary",
+        "description": "Returns two pages at a time of a diary of a character owned by the logged-in user, with their content, sorted by page number. Use page=1 for pages 1 and 2, page=2 for pages 3 and 4, and so on. The last spread can contain a single page. A page beyond the end returns an empty list.",
+        "operationId": "findAllDiaryPagesByDiary",
+        "parameters": [
+          {
+            "name": "diaryId",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Number of the spread to read (1-based), two pages at a time",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "1",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of diary pages (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseDiaryPageDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid page parameter (below 1 or not a number), or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Diary pages"
+        ],
+        "summary": "Create a page",
+        "description": "Adds a page at the end of a diary of a character owned by the logged-in user. The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size.",
+        "operationId": "createDiaryPage",
+        "parameters": [
+          {
+            "name": "diaryId",
+            "in": "path",
+            "description": "Identifier of the diary the page belongs to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertDiaryPageDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Page created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseDiaryPageDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example empty content), content that is not a valid diary document, diary full (100 pages), page added at the same time by another request, content too large, or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, its character is owned by another user, or the diary was deleted while the page was being created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/characters": {
+      "get": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "List characters",
+        "description": "Returns a page of the characters owned by the logged-in user, filtered and sorted according to the search parameters (default order: name). The user is created automatically on first access.",
+        "operationId": "findAllGameCharacters",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Case-insensitive text contained in the character name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the character name",
+              "examples": [
+                "Aragorn"
+              ],
+              "maxLength": 255,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "campaignName",
+            "in": "query",
+            "description": "Case-insensitive text contained in the campaign name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the campaign name",
+              "examples": [
+                "Lost Mine"
+              ],
+              "maxLength": 255,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of characters of the logged-in user (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseGameCharacterDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1 or size above 100)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Characters"
+        ],
+        "summary": "Create a character",
+        "description": "Creates a new character owned by the logged-in user. Only the name is required.",
+        "operationId": "createGameCharacter",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertGameCharacterDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Character created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailGameCharacterDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example blank name or malformed color)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "The user has not been created yet (call POST /me first), or was deleted while the character was being created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/characters/{characterId}/diaries": {
+      "get": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "List the diaries of a character",
+        "description": "Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: title).",
+        "operationId": "findAllDiariesByCharacter",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Case-insensitive text contained in the diary title",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the diary title",
+              "examples": [
+                "Chapter"
+              ],
+              "maxLength": 255,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of diaries of the character (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1 or size above 100), or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Create a diary",
+        "description": "Creates a new diary for a character owned by the logged-in user. Only the title is required.",
+        "operationId": "createDiary",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Identifier of the character the diary belongs to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertDiaryDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Diary created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example blank title or malformed color), or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, owned by another user, or deleted while the diary was being created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/settings": {
+      "patch": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update the settings of the logged-in user",
+        "description": "Merges the settings sent into the stored ones: a key replaces the stored value, a key with a null value is removed, keys that are not sent are left untouched. Nothing but the settings is changed. Returns the settings after the update (an empty object if none are stored).",
+        "operationId": "updateAppUserSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsAppUserDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings updated, with the settings of the logged-in user after the update as payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOMapStringObject"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body missing or malformed, settings missing or empty, settings with characters that cannot be stored, or settings too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "404": {
+            "description": "The user has not been created yet (call POST /me first)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The settings were modified at the same time by another request: nothing is saved, read them again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UpdateDiaryPageDTO": {
+        "type": "object",
+        "description": "Data to update a page of a diary",
+        "properties": {
+          "content": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "New content of the page as a rich text document (JSON). Only the nodes and marks of the diary editor are accepted: doc, paragraph (with textAlign), blockquote, bulletList, orderedList (with start and type), listItem, horizontalRule, hardBreak and text, with the marks bold, italic, underline and title (with level 1 or 2)",
+            "examples": [
+              {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Day one on the road to Erebor."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "minProperties": 1
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Version of the page the client last read, as returned by the server. The update is rejected with 409 if the page has been modified since",
+            "examples": [
+              3
+            ]
+          }
+        },
+        "required": [
+          "content",
+          "version"
+        ]
+      },
+      "ExceptionResponse": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            }
+          }
+        }
+      },
+      "Violation": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "BaseDiaryPageDTO": {
+        "type": "object",
+        "description": "A page of a diary, used in the list of the pages",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Page identifier",
+            "examples": [
+              "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+            ]
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Page number inside the diary",
+            "examples": [
+              1
+            ]
+          },
+          "content": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Content of the page as a rich text document (JSON)",
+            "examples": [
+              {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Day one on the road to Erebor."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Version of the page: to be sent back when the page is updated, so that changes made elsewhere in the meantime are detected",
+            "examples": [
+              3
+            ]
+          }
+        }
+      },
+      "SimpleResultDTOString": {
+        "type": "object",
+        "description": "Generic single-item response envelope used by all non-paginated endpoints",
+        "properties": {
+          "payload": {
+            "type": "string",
+            "description": "The response payload; null when the operation returns no content (e.g. delete)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable message accompanying the response",
+            "examples": [
+              "Ship successfully deleted"
+            ]
+          }
+        }
+      },
+      "UpdateDiaryDTO": {
+        "type": "object",
+        "description": "Data to fully replace a diary",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Diary title",
+            "examples": [
+              "Chronicles of the Lonely Mountain"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "description": "Free text description of the diary",
+            "examples": [
+              "Notes from the journey to Erebor"
+            ],
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "coverColor": {
+            "type": "string",
+            "description": "Cover color in HEX format (#RRGGBB)",
+            "examples": [
+              "#7B1E1E"
+            ],
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "font": {
+            "type": "string",
+            "description": "Font used to display the pages. If empty, the user setting is used",
+            "examples": [
+              "Merriweather"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "fontSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Font size in points. If empty, the user setting is used",
+            "examples": [
+              16
+            ],
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "DetailDiaryDTO": {
+        "type": "object",
+        "description": "A diary of a character of the logged-in user",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Diary identifier",
+            "examples": [
+              "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+            ]
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the diary belongs to",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Diary title",
+            "examples": [
+              "Chronicles of the Lonely Mountain"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free text description of the diary",
+            "examples": [
+              "Notes from the journey to Erebor"
+            ]
+          },
+          "coverColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover color in HEX format (#RRGGBB)",
+            "examples": [
+              "#7B1E1E"
+            ]
+          },
+          "font": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Font used to display the pages. Null means the user setting is used",
+            "examples": [
+              "Merriweather"
+            ]
+          },
+          "fontSize": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Font size in points. Null means the user setting is used",
+            "examples": [
+              16
+            ]
+          },
+          "coverDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Identifier of the cover document. Null if the diary has no cover",
+            "examples": [
+              "9a3f6c52-1d7b-4e0a-8c35-6b2d9e4f7a10"
+            ]
+          },
+          "coverUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Temporary URL of the cover image, valid for a few minutes. Null if the diary has no cover",
+            "examples": [
+              "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "UpdateGameCharacterDTO": {
+        "type": "object",
+        "description": "Data to fully replace a character",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Character name",
+            "examples": [
+              "Thorin Oakenshield"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "description": "Free text description of the character",
+            "examples": [
+              "Dwarf fighter, exiled king of Erebor"
+            ],
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "campaignName": {
+            "type": "string",
+            "description": "Name of the campaign the character plays in",
+            "examples": [
+              "The Lost Mine"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "backgroundColor": {
+            "type": "string",
+            "description": "Background color in HEX format (#RRGGBB)",
+            "examples": [
+              "#3B2F2F"
+            ],
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "DetailGameCharacterDTO": {
+        "type": "object",
+        "description": "A character of the logged-in user",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Character identifier",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Character name",
+            "examples": [
+              "Thorin Oakenshield"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "Kind of character: PLAYER or GAME_MASTER",
+            "enum": [
+              "PLAYER",
+              "GAME_MASTER"
+            ],
+            "examples": [
+              "PLAYER"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Free text description of the character",
+            "examples": [
+              "Dwarf fighter, exiled king of Erebor"
+            ]
+          },
+          "campaignName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the campaign the character plays in",
+            "examples": [
+              "The Lost Mine"
+            ]
+          },
+          "backgroundColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Background color in HEX format (#RRGGBB)",
+            "examples": [
+              "#3B2F2F"
+            ]
+          },
+          "avatarDocumentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Identifier of the avatar document. Null if the character has no avatar",
+            "examples": [
+              "9a3f6c52-1d7b-4e0a-8c35-6b2d9e4f7a10"
+            ]
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Temporary URL of the avatar image, valid for a few minutes. Null if the character has no avatar",
+            "examples": [
+              "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "SimpleResultDTOUUID": {
+        "type": "object",
+        "description": "Generic single-item response envelope used by all non-paginated endpoints",
+        "properties": {
+          "payload": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The response payload; null when the operation returns no content (e.g. delete)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable message accompanying the response",
+            "examples": [
+              "Ship successfully deleted"
+            ]
+          }
+        }
+      },
+      "InsertDiaryPageDTO": {
+        "type": "object",
+        "description": "Data to create a page of a diary. The page number is assigned by the server",
+        "properties": {
+          "content": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Content of the page as a rich text document (JSON). Only the nodes and marks of the diary editor are accepted: doc, paragraph (with textAlign), blockquote, bulletList, orderedList (with start and type), listItem, horizontalRule, hardBreak and text, with the marks bold, italic, underline and title (with level 1 or 2)",
+            "examples": [
+              {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Day one on the road to Erebor."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "InsertGameCharacterDTO": {
+        "type": "object",
+        "description": "Data to create a character",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Character name",
+            "examples": [
+              "Thorin Oakenshield"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "kind": {
+            "type": "string",
+            "description": "Kind of character: PLAYER for a character played by the user, GAME_MASTER for a game master profile. It cannot be changed after creation",
+            "enum": [
+              "PLAYER",
+              "GAME_MASTER"
+            ],
+            "examples": [
+              "PLAYER"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "Free text description of the character",
+            "examples": [
+              "Dwarf fighter, exiled king of Erebor"
+            ],
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "campaignName": {
+            "type": "string",
+            "description": "Name of the campaign the character plays in",
+            "examples": [
+              "The Lost Mine"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "backgroundColor": {
+            "type": "string",
+            "description": "Background color in HEX format (#RRGGBB)",
+            "examples": [
+              "#3B2F2F"
+            ],
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ]
+      },
+      "InsertDiaryDTO": {
+        "type": "object",
+        "description": "Data to create a diary",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Diary title",
+            "examples": [
+              "Chronicles of the Lonely Mountain"
+            ],
+            "maxLength": 255,
+            "minLength": 0
+          },
+          "description": {
+            "type": "string",
+            "description": "Free text description of the diary",
+            "examples": [
+              "Notes from the journey to Erebor"
+            ],
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "coverColor": {
+            "type": "string",
+            "description": "Cover color in HEX format (#RRGGBB)",
+            "examples": [
+              "#7B1E1E"
+            ],
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          "font": {
+            "type": "string",
+            "description": "Font used to display the pages. If empty, the user setting is used",
+            "examples": [
+              "Merriweather"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "fontSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Font size in points. If empty, the user setting is used",
+            "examples": [
+              16
+            ],
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateSettingsAppUserDTO": {
+        "type": "object",
+        "description": "Partial update of the logged-in user. Only the settings can be changed",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Settings to change, merged into the stored ones: a key replaces the stored value, a key with a null value is removed, keys that are not sent are left untouched. It must contain at least one key",
+            "examples": [
+              {
+                "font": "Lora",
+                "fontSize": 16,
+                "darkMode": true
+              }
+            ],
+            "minProperties": 1
+          }
+        },
+        "required": [
+          "settings"
+        ]
+      },
+      "SimpleResultDTOMapStringObject": {
+        "type": "object",
+        "description": "Generic single-item response envelope used by all non-paginated endpoints",
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The response payload; null when the operation returns no content (e.g. delete)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable message accompanying the response",
+            "examples": [
+              "Ship successfully deleted"
+            ]
+          }
+        }
+      },
+      "DetailAppUserDTO": {
+        "type": "object",
+        "description": "The logged-in user",
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Email of the user",
+            "examples": [
+              "mario.rossi@example.com"
+            ]
+          },
+          "premium": {
+            "type": "boolean",
+            "description": "True if the user has a premium account. Read-only: it can only be changed by the backend",
+            "examples": [
+              false
+            ]
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Free-form settings of the user. An empty object if none are stored: the client then uses its own defaults"
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Temporary URL of the profile image, valid for a few minutes. Null if the user has no profile image",
+            "examples": [
+              "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBaseDiaryPageDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseDiaryPageDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "BaseGameCharacterDTO": {
+        "type": "object",
+        "description": "Summary of a character of the logged-in user, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Character identifier",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Character name",
+            "examples": [
+              "Thorin Oakenshield"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "Kind of character: PLAYER or GAME_MASTER",
+            "enum": [
+              "PLAYER",
+              "GAME_MASTER"
+            ],
+            "examples": [
+              "PLAYER"
+            ]
+          },
+          "campaignName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the campaign the character plays in",
+            "examples": [
+              "The Lost Mine"
+            ]
+          },
+          "backgroundColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Background color in HEX format (#RRGGBB)",
+            "examples": [
+              "#3B2F2F"
+            ]
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Temporary URL of the avatar image, valid for a few minutes. Null if the character has no avatar",
+            "examples": [
+              "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBaseGameCharacterDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseGameCharacterDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "BaseDiaryDTO": {
+        "type": "object",
+        "description": "Summary of a diary of a character, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Diary identifier",
+            "examples": [
+              "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+            ]
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the diary belongs to",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Diary title",
+            "examples": [
+              "Chronicles of the Lonely Mountain"
+            ]
+          },
+          "coverColor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cover color in HEX format (#RRGGBB)",
+            "examples": [
+              "#7B1E1E"
+            ]
+          },
+          "coverUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Temporary URL of the cover image, valid for a few minutes. Null if the diary has no cover",
+            "examples": [
+              "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBaseDiaryDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseDiaryDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "SimpleResultDTOVoid": {
+        "type": "object",
+        "description": "Generic single-item response envelope used by all non-paginated endpoints",
+        "properties": {
+          "payload": {
+            "description": "The response payload; null when the operation returns no content (e.g. delete)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable message accompanying the response",
+            "examples": [
+              "Ship successfully deleted"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "description": "JWT access token issued by Keycloak",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

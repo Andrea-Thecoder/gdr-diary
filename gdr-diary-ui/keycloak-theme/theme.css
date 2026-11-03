@@ -1,0 +1,4 @@
+@import 'tailwindcss' source(none);
+@import './.build/fonts.css';
+@import '../src/lib/styles/tokens.css';
+@source './themes/gdr-diary/login';

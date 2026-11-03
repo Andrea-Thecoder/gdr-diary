@@ -1,0 +1,82 @@
+---
+title: Diario GDR - Entity (MVP)
+---
+classDiagram
+    direction TB
+
+    class AbstractAuditable {
+        <<abstract>>
+        String createdBy
+        String updatedBy
+        Instant createdAt
+        Instant updatedAt
+        Long version
+    }
+
+    class AppUser {
+        UUID id
+        String keycloakId
+        String email
+        Map settings
+        boolean premium
+    }
+
+    class GameCharacter {
+        UUID id
+        String name
+        String description
+        String campaignName
+        String backgroundColor
+        GameCharacterKind kind
+    }
+
+    class GameCharacterKind {
+        <<enumeration>>
+        PLAYER
+        GAME_MASTER
+    }
+
+    class Diary {
+        UUID id
+        String title
+        String description
+        String coverColor
+        String font
+        Short fontSize
+    }
+
+    class DiaryPage {
+        UUID id
+        Short pageNumber
+        Map content
+    }
+
+    class Document {
+        UUID id
+        String name
+        Long size
+        String mimeType
+        String bucket
+        String objectKey
+    }
+
+    AbstractAuditable <|-- AppUser
+    AbstractAuditable <|-- GameCharacter
+    AbstractAuditable <|-- Diary
+    AbstractAuditable <|-- DiaryPage
+    AbstractAuditable <|-- Document
+
+    GameCharacter "0..*" --> "1" AppUser : owner_id
+    Diary "0..*" --> "1" GameCharacter : character_id
+    DiaryPage "0..*" --> "1" Diary : diary_id
+    AppUser "0..*" --> "0..1" Document : avatar_document_id
+    GameCharacter "0..*" --> "0..1" Document : avatar_document_id
+    Diary "0..*" --> "0..1" Document : cover_document_id
+    GameCharacter ..> GameCharacterKind : kind
+
+    note for AbstractAuditable "Tutte le entity la estendono: contiene solo audit e version. L'id sta in ogni entity. createdBy e updatedBy sono il sub del token in testo, senza chiave esterna."
+    note for DiaryPage "page_number da 1 a 100, unico per diario (vincolo rimandabile). content e il JSON di Tiptap (jsonb)."
+    note for Diary "font e fontSize null: si usano le impostazioni dell'utente."
+    note for GameCharacter "kind si sceglie alla creazione e non si cambia."
+    note for AppUser "settings null nel database: si usano i default del frontend."
+    note for Document "Il file sta nello storage S3 (SeaweedFS in locale), bucket privato. bucket e objectKey non escono mai nei DTO."

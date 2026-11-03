@@ -1,0 +1,243 @@
+import { page } from 'vitest/browser';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render } from 'vitest-browser-svelte';
+import '../../layout.css';
+
+const { api } = vi.hoisted(() => ({
+	api: { PATCH: vi.fn<(...args: unknown[]) => Promise<unknown>>() }
+}));
+
+vi.mock('#lib/api/index.js', () => ({ getApi: () => api }));
+vi.mock('$app/state', () => ({ page: { url: { pathname: '/settings' } } }));
+
+import { preferences } from '#lib/settings/preferences.svelte.js';
+import { required } from '#lib/test-support.js';
+import { DEFAULT_PREFERENCES } from '#lib/settings/preferences.js';
+import Page from './+page.svelte';
+
+describe('settings page', () => {
+	function clearCookie(): void {
+		document.cookie = 'gdr-theme=; Path=/; Max-Age=0';
+	}
+
+	function storedTheme(): string | null {
+		return /(?:^|; )gdr-theme=([^;]*)/.exec(document.cookie)?.[1] ?? null;
+	}
+
+	beforeEach(async () => {
+		api.PATCH.mockReset();
+		api.PATCH.mockResolvedValue({ data: { payload: { theme: 'viola' } } });
+		clearCookie();
+		preferences.value = { ...DEFAULT_PREFERENCES };
+		await page.viewport(1280, 800);
+	});
+
+	afterEach(() => {
+		clearCookie();
+		delete document.documentElement.dataset['theme'];
+	});
+
+	it('shows the title and the three theme choices', async () => {
+		render(Page);
+
+		await expect.element(page.getByRole('heading', { level: 1 })).toHaveTextContent('Impostazioni');
+		await expect.element(page.getByRole('radio', { name: /sistema/ })).toBeChecked();
+		await expect.element(page.getByRole('radio', { name: /chiaro/ })).toBeVisible();
+		await expect.element(page.getByRole('radio', { name: /scuro/ })).toBeVisible();
+	});
+
+	it('switches to the dark theme and remembers it', async () => {
+		render(Page);
+
+		await page.getByText('scuro', { exact: true }).click();
+
+		await expect.element(page.getByRole('radio', { name: /scuro/ })).toBeChecked();
+		expect(document.documentElement.dataset['theme']).toBe('viola');
+		expect(storedTheme()).toBe('viola');
+	});
+
+	it('switches to the light theme', async () => {
+		render(Page);
+
+		await page.getByText('chiaro', { exact: true }).click();
+
+		expect(document.documentElement.dataset['theme']).toBe('pergamena');
+		expect(storedTheme()).toBe('pergamena');
+	});
+
+	it('goes back to following the device', async () => {
+		document.cookie = 'gdr-theme=viola; Path=/';
+		render(Page);
+		await expect.element(page.getByRole('radio', { name: /scuro/ })).toBeChecked();
+
+		await page.getByText('sistema', { exact: true }).click();
+
+		expect(storedTheme()).toBeNull();
+	});
+
+	for (const width of [280, 320, 390, 768, 1280, 3440]) {
+		it(`fits a ${String(width)} px wide screen`, async () => {
+			await page.viewport(width, 800);
+			render(Page);
+			await expect.element(page.getByRole('radio', { name: /scuro/ })).toBeVisible();
+
+			expect(document.documentElement.scrollWidth - document.documentElement.clientWidth).toBe(0);
+		});
+	}
+
+	it('saves the chosen theme on the account', async () => {
+		render(Page);
+
+		await page.getByText('scuro', { exact: true }).click();
+
+		await expect.element(page.getByText('Salvato sul tuo account.')).toBeVisible();
+		const options = api.PATCH.mock.calls[0]?.[1] as { body: unknown };
+		expect(api.PATCH.mock.calls[0]?.[0]).toBe('/me/settings');
+		expect(options.body).toEqual({ settings: { theme: 'viola' } });
+	});
+
+	it('saves the system choice too, so other devices follow it', async () => {
+		render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+
+		await page.getByText('sistema', { exact: true }).click();
+
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(2);
+		expect((api.PATCH.mock.calls[1]?.[1] as { body: unknown }).body).toEqual({
+			settings: { theme: 'system' }
+		});
+	});
+
+	it('keeps the choice on the device and says so when saving fails', async () => {
+		api.PATCH.mockResolvedValue({ error: { title: 'Down', status: 500 } });
+		render(Page);
+
+		await page.getByText('scuro', { exact: true }).click();
+
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent('la scelta resta su questo dispositivo');
+		expect(storedTheme()).toBe('viola');
+	});
+	it('shows the writing and appearance fields from the design', async () => {
+		render(Page);
+
+		await expect.element(page.getByRole('heading', { name: 'Scrittura' })).toBeVisible();
+		await expect.element(page.getByLabelText('Font dei diari')).toBeVisible();
+		await expect.element(page.getByLabelText('Dimensione del testo')).toBeVisible();
+		await expect.element(page.getByRole('radio', { name: 'Normale' })).toBeChecked();
+		await expect
+			.element(page.getByRole('switch', { name: 'Salvataggio automatico' }))
+			.toBeChecked();
+		await expect.element(page.getByRole('switch', { name: 'Effetto sfoglio' })).toBeChecked();
+		await expect
+			.element(page.getByRole('switch', { name: 'Animazioni ridotte' }))
+			.not.toBeChecked();
+	});
+
+	it('has no save bar until something changes', async () => {
+		render(Page);
+
+		expect(page.getByRole('button', { name: 'Salva le impostazioni' }).elements()).toHaveLength(0);
+
+		await page.getByRole('switch', { name: 'Animazioni ridotte' }).click();
+
+		await expect.element(page.getByRole('button', { name: 'Salva le impostazioni' })).toBeVisible();
+	});
+
+	it('sends only the changed keys when saving', async () => {
+		api.PATCH.mockResolvedValue({
+			data: { payload: { fontSize: 20, lineSpacing: 'wide' } }
+		});
+		render(Page);
+		await page.getByText('Ampia', { exact: true }).click();
+		await page.getByLabelText('Dimensione del testo').fill('20');
+
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(1);
+		expect((api.PATCH.mock.calls[0]?.[1] as { body: unknown }).body).toEqual({
+			settings: { lineSpacing: 'wide', fontSize: 20 }
+		});
+		expect(preferences.value.fontSize).toBe(20);
+		expect(preferences.value.lineSpacing).toBe('wide');
+		await expect
+			.element(page.getByRole('button', { name: 'Salva le impostazioni' }))
+			.not.toBeInTheDocument();
+	});
+
+	it('drops the changes with Annulla', async () => {
+		render(Page);
+		await page.getByRole('switch', { name: 'Effetto sfoglio' }).click();
+
+		await page.getByRole('button', { name: 'Annulla' }).click();
+
+		await expect.element(page.getByRole('switch', { name: 'Effetto sfoglio' })).toBeChecked();
+		expect(api.PATCH).not.toHaveBeenCalled();
+	});
+
+	it('keeps the changes and says why when saving fails', async () => {
+		api.PATCH.mockResolvedValue({ error: { title: 'Settings too large', status: 400 } });
+		render(Page);
+		await page.getByRole('switch', { name: 'Animazioni ridotte' }).click();
+
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.element(page.getByRole('alert')).toHaveTextContent('Settings too large');
+		await expect.element(page.getByRole('switch', { name: 'Animazioni ridotte' })).toBeChecked();
+	});
+
+	for (const width of [320, 390, 768, 1280]) {
+		it(`has no horizontal scroll at ${String(width)} px`, async () => {
+			await page.viewport(width, 800);
+			render(Page);
+
+			await expect.element(page.getByRole('heading', { level: 1 })).toBeVisible();
+			expect(document.documentElement.scrollWidth - document.documentElement.clientWidth).toBe(0);
+		});
+	}
+});
+
+describe('settings page on tablets', () => {
+	beforeEach(() => {
+		preferences.value = { ...DEFAULT_PREFERENCES };
+	});
+
+	function index(): HTMLElement | null {
+		return document.querySelector<HTMLElement>('nav[aria-label="In questa pagina"]');
+	}
+
+	it('puts the index above the form as a row of pills below 900 px', async () => {
+		await page.viewport(768, 1024);
+		render(Page);
+
+		const nav = required(index(), 'Indice');
+		const form = required(document.querySelector('form'), 'Modulo');
+		const links = [...nav.querySelectorAll('a')];
+		const tops = links.map((link) => Math.round(link.getBoundingClientRect().top));
+		const heights = links.map((link) => link.getBoundingClientRect().height);
+		expect(links.length).toBeGreaterThanOrEqual(2);
+		expect(nav.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+			form.getBoundingClientRect().top
+		);
+		expect(
+			Math.abs(nav.getBoundingClientRect().width - form.getBoundingClientRect().width)
+		).toBeLessThan(2);
+		expect(new Set(tops).size).toBe(1);
+		expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+	});
+
+	it('keeps the index as a column beside the form from 900 px', async () => {
+		await page.viewport(1024, 800);
+		render(Page);
+
+		const nav = required(index(), 'Indice');
+		const form = required(document.querySelector('form'), 'Modulo');
+		const links = [...nav.querySelectorAll('a')];
+		expect(nav.getBoundingClientRect().right).toBeLessThanOrEqual(
+			form.getBoundingClientRect().left
+		);
+		const tops = links.map((link) => Math.round(link.getBoundingClientRect().top));
+		expect(new Set(tops).size).toBe(links.length);
+	});
+});

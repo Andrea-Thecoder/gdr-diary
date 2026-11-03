@@ -1,0 +1,120 @@
+services:
+  postgres-keycloak:
+    image: "postgres:16"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5433:5432/tcp"
+    networks:
+      - gdr-diary-api-net
+    volumes:
+      - type: volume
+        source: postgres-keycloak-data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+  keycloak:
+    image: "quay.io/keycloak/keycloak:26.7.0"
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm", "--features=update-email"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: secret
+      KC_HEALTH_ENABLED: "true"
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres-keycloak:5432/keycloak"
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: secret
+    ports:
+      - "8180:8080/tcp"
+    networks:
+      - gdr-diary-api-net
+    volumes:
+      - type: bind
+        source: ./keycloak/gdr-diary-dev-realm.json
+        target: /opt/keycloak/data/import/gdr-diary-dev-realm.json
+        read_only: true
+      - type: bind
+        source: ../../gdr-diary-ui/keycloak-theme/themes
+        target: /opt/keycloak/themes
+        read_only: true
+      - type: bind
+        source: ./keycloak/providers
+        target: /opt/keycloak/providers
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+  mailpit:
+    image: "axllent/mailpit:v1.32.0"
+    restart: unless-stopped
+    ports:
+      - "8025:8025/tcp"
+      - "1025:1025/tcp"
+    networks:
+      - gdr-diary-api-net
+  postgres:
+    image: "postgres:16"
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gdr-diary-api
+      POSTGRES_USER: gdr-diary-api
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432/tcp"
+    networks:
+      - gdr-diary-api-net
+    volumes:
+      - type: volume
+        source: postgres-data
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: ./init-db-postgres.sql
+        target: /docker-entrypoint-initdb.d/init-db.sql
+        read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gdr-diary-api -d gdr-diary-api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  seaweedfs:
+    image: "chrislusf/seaweedfs:4.48"
+    restart: unless-stopped
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: secret
+      S3_BUCKET: diary-documents
+    ports:
+      - "8333:8333/tcp"
+    networks:
+      - gdr-diary-api-net
+    volumes:
+      - type: volume
+        source: seaweedfs-data
+        target: /data
+
+networks:
+  gdr-diary-api-net:
+    driver: bridge
+
+volumes:
+  postgres-keycloak-data:
+  postgres-data:
+  seaweedfs-data:

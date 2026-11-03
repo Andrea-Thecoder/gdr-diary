@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+@import '../lib/styles/fonts.css';
+@import '@fontsource/cinzel/latin-500.css';
+@import '@fontsource/cinzel/latin-600.css';
+@import '@fontsource/eb-garamond/latin-400.css';
+@import '@fontsource/eb-garamond/latin-500.css';
+@import '@fontsource/eb-garamond/latin-400-italic.css';
+@import '@fontsource/caveat/latin-500.css';
+@import '../lib/styles/tokens.css';
+@import '../lib/styles/diary-page.css';
+@plugin 'daisyui' {
+	themes: false;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'pergamena';
+	default: true;
+	color-scheme: light;
+	--color-base-100: #f1e6cc;
+	--color-base-200: #e4d3ae;
+	--color-base-300: #d9c89c;
+	--color-base-content: #2a1f16;
+	--color-primary: var(--accent);
+	--color-primary-content: #fbf4e4;
+	--color-secondary: #2f4b43;
+	--color-secondary-content: #f1e6cc;
+	--color-accent: #b8923a;
+	--color-accent-content: #2a1f16;
+	--color-neutral: #26382f;
+	--color-neutral-content: #f6ecd3;
+	--color-info: #2f5d7c;
+	--color-info-content: #f1e6cc;
+	--color-success: #2f6b4f;
+	--color-success-content: #f1e6cc;
+	--color-warning: #b8923a;
+	--color-warning-content: #2a1f16;
+	--color-error: #8b2b22;
+	--color-error-content: #fbf4e4;
+	--radius-selector: 0.25rem;
+	--radius-field: 0.25rem;
+	--radius-box: 0.375rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+	name: 'viola';
+	prefersdark: true;
+	color-scheme: dark;
+	--color-base-100: #050208;
+	--color-base-200: #0b0314;
+	--color-base-300: #12051f;
+	--color-base-content: #f4eaff;
+	--color-primary: var(--accent);
+	--color-primary-content: #fff8e6;
+	--color-secondary: #e2be6a;
+	--color-secondary-content: #050208;
+	--color-accent: #a78bfa;
+	--color-accent-content: #050208;
+	--color-neutral: #030105;
+	--color-neutral-content: #f4eaff;
+	--color-info: #a78bfa;
+	--color-info-content: #050208;
+	--color-success: #6ee7a8;
+	--color-success-content: #050208;
+	--color-warning: #e2be6a;
+	--color-warning-content: #050208;
+	--color-error: #f87171;
+	--color-error-content: #050208;
+	--radius-selector: 0.25rem;
+	--radius-field: 0.25rem;
+	--radius-box: 0.375rem;
+	--size-selector: 0.25rem;
+	--size-field: 0.25rem;
+	--border: 1px;
+	--depth: 0;
+	--noise: 0;
+}
+
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+	animation-duration: 0.01ms !important;
+	animation-iteration-count: 1 !important;
+	transition-duration: 0.01ms !important;
+	scroll-behavior: auto !important;
+}
