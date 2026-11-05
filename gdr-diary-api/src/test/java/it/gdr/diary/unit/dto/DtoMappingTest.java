@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import it.gdr.diary.dto.app_user.DetailAppUserDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
+import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary_page.BaseDiaryPageDTO;
 import it.gdr.diary.dto.game_character.BaseGameCharacterDTO;
@@ -144,5 +145,24 @@ class DtoMappingTest {
         BaseDiaryPageDTO dto = BaseDiaryPageDTO.from(page);
 
         assertThat(dto).isEqualTo(new BaseDiaryPageDTO(pageId, (short) 3, Map.of("type", "doc"), 7L));
+    }
+
+    @Test
+    void bookmarkFrom_page_returnsIdAndNumber() {
+        DiaryPage page = new DiaryPage();
+        UUID pageId = UUID.randomUUID();
+        page.setId(pageId);
+        page.setPageNumber((short) 12);
+
+        BookmarkDiaryDTO dto = BookmarkDiaryDTO.from(page);
+
+        assertThat(dto).isEqualTo(new BookmarkDiaryDTO(pageId, (short) 12));
+    }
+
+    @Test
+    void bookmarkFrom_noPage_returnsEmptyBookmark() {
+        BookmarkDiaryDTO dto = BookmarkDiaryDTO.from(null);
+
+        assertThat(dto).isEqualTo(new BookmarkDiaryDTO(null, null));
     }
 }

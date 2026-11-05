@@ -150,6 +150,20 @@ class InputEdgeIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void findAllGameCharacters_filterQueryParameter_returnsOk() {
+        createAppUser();
+
+        assertThat(mvc.get().uri("/characters?filter=abc")).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
+    void findAllDiariesByCharacter_filterQueryParameter_returnsOk() {
+        UUID characterId = createCharacterId();
+
+        assertThat(mvc.get().uri("/characters/{id}/diaries?filter=abc", characterId)).hasStatus(HttpStatus.OK);
+    }
+
+    @Test
     void updateAppUserAvatar_pdfContent_reportsUnsupportedFileTypeMessage() {
         createAppUser();
         MockMultipartFile pdf = new MockMultipartFile("file", "doc.pdf", MediaType.APPLICATION_PDF_VALUE, "%PDF-1.7 content".getBytes());

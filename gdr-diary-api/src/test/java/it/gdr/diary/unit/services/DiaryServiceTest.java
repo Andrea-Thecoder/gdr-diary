@@ -20,8 +20,10 @@ import io.ebean.PagedList;
 import io.ebean.Transaction;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
+import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary.InsertDiaryDTO;
+import it.gdr.diary.dto.diary.UpdateBookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.model.Diary;
@@ -54,6 +56,7 @@ class DiaryServiceTest {
     private static final String SUBJECT = "6f1c2a8e-3b4d-4e5f-9a0b-1c2d3e4f5a6b";
     private static final UUID CHARACTER_ID = UUID.fromString("0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10");
     private static final UUID DIARY_ID = UUID.fromString("5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4");
+    private static final UUID PAGE_ID = UUID.fromString("7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45");
 
     @Mock
     private Database database;
@@ -86,6 +89,19 @@ class DiaryServiceTest {
         diary.setTitle(title);
         diary.setCharacter(character());
         return diary;
+    }
+
+    private DiaryPage page(int number) {
+        DiaryPage page = new DiaryPage();
+        page.setId(PAGE_ID);
+        page.setPageNumber((short) number);
+        return page;
+    }
+
+    private QueryStub<DiaryPage> givenPageOfDiary(DiaryPage page) {
+        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+        when(pages.where().findOne()).thenReturn(page);
+        return pages;
     }
 
     private Document document(String name) {
@@ -614,5 +630,152 @@ class DiaryServiceTest {
         doThrow(failure).when(database).delete(diary);
 
         assertThatThrownBy(() -> service.deleteDiary(DIARY_ID)).isSameAs(failure);
+    }
+
+    @Test
+    void getDiaryBookmark_diaryWithBookmark_returnsPageIdAndNumber() {
+        Diary diary = diary("Chapter one");
+        diary.setBookmarkPage(page(12));
+        givenOwnedDiary(diary);
+
+        BookmarkDiaryDTO result = service.getDiaryBookmark(DIARY_ID);
+
+        assertThat(result).isEqualTo(new BookmarkDiaryDTO(PAGE_ID, (short) 12));
+    }
+
+    @Test
+    void getDiaryBookmark_diaryWithoutBookmark_returnsEmptyBookmark() {
+        givenOwnedDiary(diary("Chapter one"));
+
+        BookmarkDiaryDTO result = service.getDiaryBookmark(DIARY_ID);
+
+        assertThat(result).isEqualTo(new BookmarkDiaryDTO(null, null));
+    }
+
+    @Test
+    void getDiaryBookmark_anyId_filtersByIdAndOwnerOfCharacter() {
+        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
+
+        service.getDiaryBookmark(DIARY_ID);
+
+        verify(diaries.where()).idEq(DIARY_ID);
+        verify(diaries.where()).eq("character.owner.keycloakId", SUBJECT);
+    }
+
+    @Test
+    void getDiaryBookmark_notOwnedOrMissing_throwsNotFound() {
+        givenOwnedDiary(null);
+
+        assertThatThrownBy(() -> service.getDiaryBookmark(DIARY_ID))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfDiary_savesDiaryWithBookmark() {
+        Diary diary = diary("Chapter one");
+        DiaryPage page = page(3);
+        givenOwnedDiary(diary);
+        givenPageOfDiary(page);
+
+        service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
+
+        verify(database).save(diary);
+        assertThat(diary.getBookmarkPage()).isSameAs(page);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfDiary_returnsBookmark() {
+        givenOwnedDiary(diary("Chapter one"));
+        givenPageOfDiary(page(3));
+
+        BookmarkDiaryDTO result = service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
+
+        assertThat(result).isEqualTo(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
+    }
+
+    @Test
+    void updateDiaryBookmark_anyPage_looksThePageUpInTheSameDiary() {
+        givenOwnedDiary(diary("Chapter one"));
+        QueryStub<DiaryPage> pages = givenPageOfDiary(page(3));
+
+        service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
+
+        verify(pages.where()).idEq(PAGE_ID);
+        verify(pages.where()).eq("diary.id", DIARY_ID);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageNotInDiary_throwsNotFound() {
+        givenOwnedDiary(diary("Chapter one"));
+        givenPageOfDiary(null);
+
+        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void updateDiaryBookmark_pageNotInDiary_savesNothing() {
+        givenOwnedDiary(diary("Chapter one"));
+        givenPageOfDiary(null);
+
+        catchThrowable(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)));
+
+        verify(database, never()).save(any(Diary.class));
+    }
+
+    @Test
+    void updateDiaryBookmark_pageDeletedBeforeSave_throwsNotFound() {
+        Diary diary = diary("Chapter one");
+        givenOwnedDiary(diary);
+        givenPageOfDiary(page(3));
+        doThrow(foreignKeyViolation()).when(database).save(diary);
+
+        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void updateDiaryBookmark_otherDatabaseError_rethrowsIt() {
+        Diary diary = diary("Chapter one");
+        givenOwnedDiary(diary);
+        givenPageOfDiary(page(3));
+        PersistenceException failure = new PersistenceException("connection lost", new SQLException("gone", "08006"));
+        doThrow(failure).when(database).save(diary);
+
+        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
+                .isSameAs(failure);
+    }
+
+    @Test
+    void updateDiaryBookmark_notOwnedOrMissingDiary_throwsNotFound() {
+        givenOwnedDiary(null);
+
+        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    void deleteDiaryBookmark_diaryWithBookmark_clearsBookmarkAndSaves() {
+        Diary diary = diary("Chapter one");
+        diary.setBookmarkPage(page(3));
+        givenOwnedDiary(diary);
+
+        service.deleteDiaryBookmark(DIARY_ID);
+
+        verify(database).save(diary);
+        assertThat(diary.getBookmarkPage()).isNull();
+    }
+
+    @Test
+    void deleteDiaryBookmark_notOwnedOrMissing_throwsNotFound() {
+        givenOwnedDiary(null);
+
+        assertThatThrownBy(() -> service.deleteDiaryBookmark(DIARY_ID))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

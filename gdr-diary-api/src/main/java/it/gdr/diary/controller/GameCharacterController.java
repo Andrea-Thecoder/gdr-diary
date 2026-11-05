@@ -40,7 +40,7 @@ public class GameCharacterController {
             summary = "List characters",
             description = "Returns a page of the characters owned by the logged-in user, filtered and sorted "
                     + "according to the search parameters (default order: name). "
-                    + "The user is created automatically on first access.")
+                    + "Returns an empty page if the user has not been created yet with POST /me.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page of characters of the logged-in user (empty list if none)"),
             @ApiResponse(responseCode = "400", description = "Invalid search parameters (for example page below 1 or size above 100)",

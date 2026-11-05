@@ -29,7 +29,7 @@ public class GameCharacterSearchRequest extends BaseSearchRequest {
     @Schema(description = "Case-insensitive text contained in the campaign name", examples = {"Lost Mine"})
     private String campaignName;
 
-    public void setFilter(ExpressionList<GameCharacter> exl){
+    public void applyFilter(ExpressionList<GameCharacter> exl){
         if (StringUtils.isNotBlank(name)) {
             exl.icontains("name", name.trim());
         }

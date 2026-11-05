@@ -14,14 +14,17 @@ import io.ebean.ExpressionList;
 import it.gdr.diary.controller.DiaryController;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
+import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary.InsertDiaryDTO;
+import it.gdr.diary.dto.diary.UpdateBookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.exception.ExceptionMapper;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.services.DiaryService;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,8 @@ class DiaryControllerTest {
 
     private static final UUID CHARACTER_ID = UUID.fromString("0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10");
     private static final UUID DIARY_ID = UUID.fromString("5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4");
+    private static final UUID PAGE_ID = UUID.fromString("7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45");
+    private static final String BOOKMARK_BODY = "{\"pageId\":\"" + PAGE_ID + "\"}";
     private static final String VALID_BODY = """
             {"title":"Chapter one","description":"The journey begins","coverColor":"#1A2B3C","font":"Lora","fontSize":16}
             """;
@@ -381,5 +386,88 @@ class DiaryControllerTest {
         verify(service).findAllDiariesByCharacter(eq(CHARACTER_ID), request.capture());
         request.getValue().applySortAndPagination(query, "title");
         verify(query).orderBy("title asc, id asc");
+    }
+
+    @Test
+    void getDiaryBookmark_diaryWithBookmark_returnsPageIdAndNumber() {
+        when(service.getDiaryBookmark(DIARY_ID)).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 12));
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", DIARY_ID)).bodyJson()
+                .extractingPath("$['pageId','pageNumber']")
+                .isEqualTo(Map.of("pageId", PAGE_ID.toString(), "pageNumber", 12));
+    }
+
+    @Test
+    void getDiaryBookmark_notFound_returnsNotFound() {
+        when(service.getDiaryBookmark(DIARY_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateDiaryBookmark_validBody_returnsBookmark() {
+        when(service.updateDiaryBookmark(eq(DIARY_ID), any())).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
+
+        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY))
+                .bodyJson().extractingPath("$.pageNumber").isEqualTo(3);
+    }
+
+    @Test
+    void updateDiaryBookmark_validBody_passesPageIdToService() {
+        ArgumentCaptor<UpdateBookmarkDiaryDTO> request = ArgumentCaptor.forClass(UpdateBookmarkDiaryDTO.class);
+        when(service.updateDiaryBookmark(eq(DIARY_ID), any())).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
+
+        mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY).exchange();
+
+        verify(service).updateDiaryBookmark(eq(DIARY_ID), request.capture());
+        assertThat(request.getValue().pageId()).isEqualTo(PAGE_ID);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"pageId\":null}", "{\"pageId\":\"abc\"}", "{\"pageId\":12}", ""})
+    void updateDiaryBookmark_invalidBody_returnsBadRequest(String body) {
+        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateDiaryBookmark_invalidBody_doesNotCallService() {
+        mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageNotFound_returnsNotFound() {
+        when(service.updateDiaryBookmark(eq(DIARY_ID), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found"));
+
+        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY))
+                .hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteDiaryBookmark_ownedDiary_returnsConfirmationMessage() {
+        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID)).bodyJson()
+                .extractingPath("$.message").isEqualTo("Bookmark removed");
+    }
+
+    @Test
+    void deleteDiaryBookmark_ownedDiary_deletesThroughService() {
+        mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID).exchange();
+
+        verify(service).deleteDiaryBookmark(DIARY_ID);
+    }
+
+    @Test
+    void deleteDiaryBookmark_notFound_returnsNotFound() {
+        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found")).when(service).deleteDiaryBookmark(DIARY_ID);
+
+        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
     }
 }

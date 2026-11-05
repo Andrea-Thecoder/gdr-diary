@@ -565,4 +565,161 @@ class DiaryIT extends AbstractIntegrationTest {
 
         assertThat(statuses).isSubsetOf(200, 409);
     }
+
+    private MvcTestResult putBookmark(UUID diaryId, UUID pageId) {
+        return mvc.put().uri("/diaries/{id}/bookmark", diaryId)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"pageId\":\"" + pageId + "\"}").exchange();
+    }
+
+    private UUID storedBookmark(UUID diaryId) {
+        return jdbc.queryForObject("select bookmark_page_id from diary where id = ?", UUID.class, diaryId);
+    }
+
+    @Test
+    void getDiaryBookmark_diaryWithoutBookmark_returnsEmptyObject() {
+        UUID diaryId = createDiaryWithOwner();
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", diaryId)).bodyJson().isStrictlyEqualTo("{}");
+    }
+
+    @Test
+    void getDiaryBookmark_diaryOfOtherUser_returnsNotFound() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", othersDiary)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfOwnDiary_storesBookmark() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+
+        putBookmark(diaryId, pages.get(1));
+
+        assertThat(storedBookmark(diaryId)).isEqualTo(pages.get(1));
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfOwnDiary_returnsPageNumber() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+
+        assertThat(putBookmark(diaryId, pages.get(1))).bodyJson().extractingPath("$.pageNumber").isEqualTo(2);
+    }
+
+    @Test
+    void getDiaryBookmark_afterUpdate_returnsTheBookmarkedPage() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+        putBookmark(diaryId, pages.get(2));
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", diaryId)).bodyJson()
+                .extractingPath("$.pageId").isEqualTo(pages.get(2).toString());
+    }
+
+    @Test
+    void updateDiaryBookmark_secondBookmark_replacesTheFirst() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+        putBookmark(diaryId, pages.get(0));
+
+        putBookmark(diaryId, pages.get(2));
+
+        assertThat(storedBookmark(diaryId)).isEqualTo(pages.get(2));
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfAnotherDiary_returnsNotFound() {
+        UUID diaryId = createDiaryWithOwner();
+        UUID otherDiary = createDiary(jdbc.queryForObject("select character_id from diary where id = ?", UUID.class, diaryId), "Notes");
+        UUID otherPage = createDiaryPage(otherDiary, "Elsewhere");
+
+        assertThat(putBookmark(diaryId, otherPage)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfAnotherDiary_storesNothing() {
+        UUID diaryId = createDiaryWithOwner();
+        UUID otherDiary = createDiary(jdbc.queryForObject("select character_id from diary where id = ?", UUID.class, diaryId), "Notes");
+        UUID otherPage = createDiaryPage(otherDiary, "Elsewhere");
+
+        putBookmark(diaryId, otherPage);
+
+        assertThat(storedBookmark(diaryId)).isNull();
+    }
+
+    @Test
+    void updateDiaryBookmark_diaryOfOtherUser_returnsNotFound() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID othersPage = createDiaryPage(othersDiary, "Secret", TestJwt.otherUser());
+
+        assertThat(putBookmark(othersDiary, othersPage)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateDiaryBookmark_missingPageId_returnsBadRequest() {
+        UUID diaryId = createDiaryWithOwner();
+
+        assertThat(mvc.put().uri("/diaries/{id}/bookmark", diaryId)
+                .contentType(MediaType.APPLICATION_JSON).content("{}").exchange())
+                .hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void deleteDiaryBookmark_existingBookmark_clearsIt() {
+        UUID diaryId = createDiaryWithOwner();
+        putBookmark(diaryId, createDiaryPage(diaryId, "First"));
+
+        mvc.delete().uri("/diaries/{id}/bookmark", diaryId).exchange();
+
+        assertThat(storedBookmark(diaryId)).isNull();
+    }
+
+    @Test
+    void deleteDiaryBookmark_withoutBookmark_returnsOk() {
+        UUID diaryId = createDiaryWithOwner();
+
+        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", diaryId)).hasStatusOk();
+    }
+
+    @Test
+    void deleteDiaryBookmark_diaryOfOtherUser_returnsNotFound() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+
+        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", othersDiary)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteDiaryPage_bookmarkedPage_clearsTheBookmark() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+        putBookmark(diaryId, pages.get(1));
+
+        mvc.delete().uri("/pages/{id}", pages.get(1)).exchange();
+
+        assertThat(storedBookmark(diaryId)).isNull();
+    }
+
+    @Test
+    void deleteDiaryPage_pageBeforeTheBookmark_keepsTheBookmarkOnTheSamePage() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = createDiaryPages(diaryId, 3);
+        putBookmark(diaryId, pages.get(2));
+
+        mvc.delete().uri("/pages/{id}", pages.get(0)).exchange();
+
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", diaryId)).bodyJson()
+                .extractingPath("$['pageId','pageNumber']")
+                .isEqualTo(Map.of("pageId", pages.get(2).toString(), "pageNumber", 2));
+    }
+
+    @Test
+    void deleteDiary_withBookmark_deletesTheDiary() {
+        UUID diaryId = createDiaryWithOwner();
+        putBookmark(diaryId, createDiaryPage(diaryId, "First"));
+
+        mvc.delete().uri("/diaries/{id}", diaryId).exchange();
+
+        assertThat(countRows("diary")).isZero();
+    }
 }

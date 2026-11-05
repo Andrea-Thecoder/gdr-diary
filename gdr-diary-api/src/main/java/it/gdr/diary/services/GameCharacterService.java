@@ -42,7 +42,7 @@ public class GameCharacterService {
                 .fetch("avatarDocument")
                 .where()
                 .eq("owner.keycloakId", jwtInspector.getSubject());
-        request.setFilter(query);
+        request.applyFilter(query);
         request.applySortAndPagination(query, "name");
         return PagedResultDTO.of(query.findPagedList(),
                 character -> BaseGameCharacterDTO.from(character,

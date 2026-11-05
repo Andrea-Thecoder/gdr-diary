@@ -59,6 +59,9 @@ class DiaryPageContentValidatorTest {
                 argumentSet("paragraph with null alignment", doc("{\"type\":\"paragraph\",\"attrs\":{\"textAlign\":null},\"content\":[" + text("Day one") + "]}")),
                 argumentSet("all marks on text", textWithMarks("[{\"type\":\"bold\"},{\"type\":\"italic\"},{\"type\":\"underline\"},{\"type\":\"title\",\"attrs\":{\"level\":2}}]")),
                 argumentSet("title without attrs", textWithMarks("[{\"type\":\"title\"}]")),
+                argumentSet("text color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"red\"}}]")),
+                argumentSet("text color with other marks", textWithMarks("[{\"type\":\"bold\"},{\"type\":\"textColor\",\"attrs\":{\"color\":\"teal\"}},{\"type\":\"italic\"}]")),
+                argumentSet("colored hard break", doc(paragraph(text("a") + ",{\"type\":\"hardBreak\",\"marks\":[{\"type\":\"textColor\",\"attrs\":{\"color\":\"green\"}}]}," + text("b")))),
                 argumentSet("marked hard break", doc(paragraph(text("a") + ",{\"type\":\"hardBreak\",\"marks\":[{\"type\":\"bold\"}]}," + text("b")))),
                 argumentSet("horizontal rule", doc("{\"type\":\"horizontalRule\"}," + paragraph(text("after")))),
                 argumentSet("nested blockquotes", doc("{\"type\":\"blockquote\",\"content\":[" + paragraph(text("quote")) + ",{\"type\":\"blockquote\",\"content\":[" + paragraph(text("nested")) + "]}]}")),
@@ -99,7 +102,11 @@ class DiaryPageContentValidatorTest {
                 argumentSet("blockquote attrs", doc("{\"type\":\"blockquote\",\"attrs\":{\"cite\":\"x\"},\"content\":[{\"type\":\"paragraph\"}]}")),
                 argumentSet("bold attrs", textWithMarks("[{\"type\":\"bold\",\"attrs\":{\"class\":\"x\"}}]")),
                 argumentSet("style on mark", textWithMarks("[{\"type\":\"bold\",\"style\":\"x\"}]")),
-                argumentSet("extra title attr", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":1,\"style\":\"x\"}}]")));
+                argumentSet("extra title attr", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":1,\"style\":\"x\"}}]")),
+                argumentSet("style on text color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"red\",\"style\":\"color:red\"}}]")),
+                argumentSet("level on text color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"level\":1}}]")),
+                argumentSet("color on bold", textWithMarks("[{\"type\":\"bold\",\"attrs\":{\"color\":\"red\"}}]")),
+                argumentSet("color on title", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"color\":\"red\"}}]")));
     }
 
     static Stream<Arguments> attributeValuesNotAllowed() {
@@ -113,7 +120,19 @@ class DiaryPageContentValidatorTest {
                 argumentSet("object start", orderedList("{\"start\":{}}")),
                 argumentSet("title level 3", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":3}}]")),
                 argumentSet("string title level", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":\"1\"}}]")),
-                argumentSet("decimal title level", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":1.5}}]")));
+                argumentSet("decimal title level", textWithMarks("[{\"type\":\"title\",\"attrs\":{\"level\":1.5}}]")),
+                argumentSet("color outside the palette", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"pink\"}}]")),
+                argumentSet("css color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"#ff0000\"}}]")),
+                argumentSet("css function color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"rgb(255,0,0)\"}}]")),
+                argumentSet("css injection in color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"red; background:url(https://evil.example/x)\"}}]")),
+                argumentSet("uppercase color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"RED\"}}]")),
+                argumentSet("empty color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"\"}}]")),
+                argumentSet("null color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":null}}]")),
+                argumentSet("numeric color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":1}}]")),
+                argumentSet("object color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":{}}}]")),
+                argumentSet("text color with empty attrs", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{}}]")),
+                argumentSet("text color without attrs", textWithMarks("[{\"type\":\"textColor\"}]")),
+                argumentSet("text color with attrs as array", textWithMarks("[{\"type\":\"textColor\",\"attrs\":[]}]")));
     }
 
     static Stream<Arguments> malformedTextNodes() {
@@ -138,6 +157,7 @@ class DiaryPageContentValidatorTest {
                 argumentSet("marks on paragraph", doc("{\"type\":\"paragraph\",\"marks\":[{\"type\":\"bold\"}]}")),
                 argumentSet("marks on horizontal rule", doc("{\"type\":\"horizontalRule\",\"marks\":[{\"type\":\"bold\"}]}")),
                 argumentSet("duplicated mark", textWithMarks("[{\"type\":\"bold\"},{\"type\":\"bold\"}]")),
+                argumentSet("duplicated text color", textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"red\"}},{\"type\":\"textColor\",\"attrs\":{\"color\":\"blue\"}}]")),
                 argumentSet("marks as object", textWithMarks("{\"type\":\"bold\"}")),
                 argumentSet("mark as string", textWithMarks("[\"bold\"]")));
     }
@@ -187,6 +207,14 @@ class DiaryPageContentValidatorTest {
     @ValueSource(strings = {"1", "a", "A", "i", "I"})
     void validate_orderedListTypeOfferedByEditor_accepts(String type) {
         Map<String, Object> content = parse(orderedList("{\"start\":1,\"type\":\"" + type + "\"}"));
+
+        assertThatCode(() -> validator.validate(content)).doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"red", "orange", "green", "teal", "blue", "purple", "magenta", "brown"})
+    void validate_textColorOfThePalette_accepts(String color) {
+        Map<String, Object> content = parse(textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"" + color + "\"}}]"));
 
         assertThatCode(() -> validator.validate(content)).doesNotThrowAnyException();
     }
@@ -282,6 +310,24 @@ class DiaryPageContentValidatorTest {
         Map<String, Object> content = parse(nestedQuotes(6));
 
         assertThatThrownBy(() -> shallowValidator.validate(content)).isInstanceOf(ServiceException.class);
+    }
+
+    @Test
+    void validate_textColorOutsideThePalette_reportsPathAndReason() {
+        Map<String, Object> content = parse(textWithMarks("[{\"type\":\"textColor\",\"attrs\":{\"color\":\"pink\"}}]"));
+
+        assertThatThrownBy(() -> validator.validate(content))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid page content at $.content[0].content[0].marks[0].attrs: color is not in the palette");
+    }
+
+    @Test
+    void validate_textColorWithoutAttrs_reportsPathAndReason() {
+        Map<String, Object> content = parse(textWithMarks("[{\"type\":\"textColor\"}]"));
+
+        assertThatThrownBy(() -> validator.validate(content))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid page content at $.content[0].content[0].marks[0]: color is required");
     }
 
     @Test

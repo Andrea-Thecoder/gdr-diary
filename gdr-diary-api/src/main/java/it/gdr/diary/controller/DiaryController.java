@@ -11,8 +11,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.SimpleResultDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
+import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary.InsertDiaryDTO;
+import it.gdr.diary.dto.diary.UpdateBookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.exception.ExceptionResponse;
@@ -215,5 +217,81 @@ public class DiaryController {
             @PathVariable UUID id) {
         service.deleteDiaryCover(id);
         return SimpleResultDTO.<Void>builder().message("Cover removed").build();
+    }
+
+    @Operation(
+            summary = "Get the bookmark of a diary",
+            description = "Returns the page the reader left the bookmark on, in a diary of a character owned by the logged-in user. "
+                    + "Both fields of the response are null when the diary has no bookmark.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "The bookmark of the diary (empty if there is none)"),
+            @ApiResponse(responseCode = "400", description = "Diary identifier that is not a UUID",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing, expired or invalid token", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The user has neither the user nor the admin role", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Diary not found, or its character is owned by another user",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class)))
+    })
+    @GetMapping(path = "/diaries/{id}/bookmark", produces = MediaType.APPLICATION_JSON_VALUE)
+    public BookmarkDiaryDTO getDiaryBookmark(
+            @Parameter(description = "Diary identifier", example = "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4")
+            @PathVariable UUID id) {
+        return service.getDiaryBookmark(id);
+    }
+
+    @Operation(
+            summary = "Set the bookmark of a diary",
+            description = "Puts the bookmark of a diary of a character owned by the logged-in user on one of its pages. "
+                    + "A diary has at most one bookmark: the previous one, if any, is replaced. "
+                    + "When the bookmarked page is deleted the bookmark disappears.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Bookmark set"),
+            @ApiResponse(responseCode = "400", description = "Invalid request body (for example missing or malformed page identifier), or diary identifier that is not a UUID",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing, expired or invalid token", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The user has neither the user nor the admin role", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Diary not found or its character is owned by another user, or the page does not belong to the diary (or was deleted meanwhile)",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The diary was modified at the same time by another request: the bookmark is not changed, try again",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class)))
+    })
+    @PutMapping(path = "/diaries/{id}/bookmark",
+            consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public BookmarkDiaryDTO updateDiaryBookmark(
+            @Parameter(description = "Diary identifier", example = "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4")
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateBookmarkDiaryDTO request) {
+        return service.updateDiaryBookmark(id, request);
+    }
+
+    @Operation(
+            summary = "Remove the bookmark of a diary",
+            description = "Removes the bookmark of a diary of a character owned by the logged-in user. "
+                    + "The operation succeeds also when the diary has no bookmark.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Bookmark removed"),
+            @ApiResponse(responseCode = "400", description = "Diary identifier that is not a UUID",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing, expired or invalid token", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The user has neither the user nor the admin role", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Diary not found, or its character is owned by another user",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "409", description = "The diary was modified at the same time by another request: the bookmark is not removed, try again",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class)))
+    })
+    @DeleteMapping(path = "/diaries/{id}/bookmark", produces = MediaType.APPLICATION_JSON_VALUE)
+    public SimpleResultDTO<Void> deleteDiaryBookmark(
+            @Parameter(description = "Diary identifier", example = "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4")
+            @PathVariable UUID id) {
+        service.deleteDiaryBookmark(id);
+        return SimpleResultDTO.<Void>builder().message("Bookmark removed").build();
     }
 }

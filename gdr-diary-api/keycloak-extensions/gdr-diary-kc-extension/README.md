@@ -13,6 +13,17 @@ pending address (`kc.email.pending`). It needs the user's access token (`Authori
 one send every 60 seconds and answers `sent`, `no_pending_email` (409), `too_soon` (429) or
 `email_failed` (502). Cross-origin calls are allowed for the origins listed in the token.
 
+`POST /realms/<realm>/gdr-password/request` (`ChangePasswordResource`) asks for a password change that
+only happens once the user opens the link in the email: it sends the usual password-reset mail with a link
+to the `UPDATE_PASSWORD` page, and the password stays as it was until then. Same rules as the resend
+above (Bearer token, one send every 60 seconds, answers `sent`, `no_email` (409), `too_soon` (429),
+`email_failed` (502)); the optional `redirect_uri` is used only if it is under the client's root URL.
+It is built on the Keycloak API calls of the e-mail endpoint plus `ExecuteActionsActionToken`
+(constructor with the email) and `EmailTemplateProvider.sendPasswordReset`, not compiled yet: if the
+build fails, the error says which method changed.
+
+`RegistrationPasswordDefaultsFactory` turns on "Always set password on register form" (config `always_set_password_on_register_form` of the `registration-password-action` step in the `registration form` flow) whenever a realm is created or imported. The realm JSON cannot set it, and when it is off the registration page does not ask for a password: the user is born without one and Keycloak forces "Update password" at the first login. It runs once, at creation, and only if that step has no config yet; it does not touch realms that already exist (turn it on by hand, see the Runbook). If it fails it logs a warning and the realm is still created. Not compiled yet, like the password endpoint.
+
 `LatestUpdateEmailActionTokenHandler` replaces the handler of the confirmation link so that only the
 latest link works: older ones (before a resend, or for an address that is no longer pending) are refused.
 

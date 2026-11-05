@@ -5,8 +5,10 @@ import io.ebean.ExpressionList;
 import io.ebean.Transaction;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
+import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary.InsertDiaryDTO;
+import it.gdr.diary.dto.diary.UpdateBookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.exception.SqlStates;
@@ -38,7 +40,7 @@ public class DiaryService {
                 .setLabel("findAllDiariesByCharacter")
                 .fetch("coverDocument")
                 .where().eq("character.id", character.getId());
-        request.setFilter(query);
+        request.applyFilter(query);
         request.applySortAndPagination(query, "title");
         return PagedResultDTO.of(query.findPagedList(),
                 diary -> BaseDiaryDTO.from(diary, documentService.getDocumentUrl(diary.getCoverDocument())));
@@ -99,6 +101,45 @@ public class DiaryService {
             transaction.commit();
         }
         documentService.deleteDocumentFile(previous);
+    }
+
+    public BookmarkDiaryDTO getDiaryBookmark(UUID id) {
+        Diary diary = database.find(Diary.class)
+                .setLabel("getDiaryBookmark")
+                .fetch("bookmarkPage", "pageNumber")
+                .where().idEq(id).eq("character.owner.keycloakId", jwtInspector.getSubject())
+                .findOne();
+        if (diary == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found");
+        }
+        return BookmarkDiaryDTO.from(diary.getBookmarkPage());
+    }
+
+    public BookmarkDiaryDTO updateDiaryBookmark(UUID id, UpdateBookmarkDiaryDTO request) {
+        Diary diary = getDiaryByIdAndOwner(id);
+        DiaryPage page = database.find(DiaryPage.class)
+                .setLabel("getBookmarkPage")
+                .where().idEq(request.pageId()).eq("diary.id", diary.getId())
+                .findOne();
+        if (page == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
+        }
+        diary.setBookmarkPage(page);
+        try {
+            database.save(diary);
+        } catch (PersistenceException e) {
+            if (SqlStates.isForeignKeyViolation(e)) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
+            }
+            throw e;
+        }
+        return BookmarkDiaryDTO.from(page);
+    }
+
+    public void deleteDiaryBookmark(UUID id) {
+        Diary diary = getDiaryByIdAndOwner(id);
+        diary.setBookmarkPage(null);
+        database.save(diary);
     }
 
     public void deleteDiary(UUID id) {

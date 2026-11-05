@@ -26,7 +26,7 @@ class GameCharacterSearchRequestTest {
         GameCharacterSearchRequest request = new GameCharacterSearchRequest();
         request.setName("ara");
 
-        request.setFilter(query);
+        request.applyFilter(query);
 
         verify(query).icontains("name", "ara");
     }
@@ -36,7 +36,7 @@ class GameCharacterSearchRequestTest {
         GameCharacterSearchRequest request = new GameCharacterSearchRequest();
         request.setCampaignName("mine");
 
-        request.setFilter(query);
+        request.applyFilter(query);
 
         verify(query).icontains("campaignName", "mine");
     }
@@ -47,7 +47,7 @@ class GameCharacterSearchRequestTest {
         request.setName("ara");
         request.setCampaignName("mine");
 
-        request.setFilter(query);
+        request.applyFilter(query);
 
         verify(query).icontains("name", "ara");
         verify(query).icontains("campaignName", "mine");
@@ -61,7 +61,7 @@ class GameCharacterSearchRequestTest {
         request.setName(value);
         request.setCampaignName(value);
 
-        request.setFilter(query);
+        request.applyFilter(query);
 
         verifyNoInteractions(query);
     }
@@ -101,7 +101,7 @@ class GameCharacterSearchRequestTest {
         GameCharacterSearchRequest request = new GameCharacterSearchRequest();
         request.setName(" Aragorn ");
 
-        request.setFilter(query);
+        request.applyFilter(query);
 
         verify(query).icontains("name", "Aragorn");
     }

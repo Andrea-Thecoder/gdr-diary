@@ -62,7 +62,7 @@ public class DiaryPageController {
             summary = "Create a page",
             description = "Adds a page at the end of a diary of a character owned by the logged-in user. "
                     + "The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. "
-                    + "The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. "
+                    + "The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. "
                     + "The content must not exceed the configured maximum size.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Page created"),
@@ -89,7 +89,7 @@ public class DiaryPageController {
     @Operation(
             summary = "Update a page",
             description = "Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. "
-                    + "The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. "
+                    + "The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. "
                     + "The content must not exceed the configured maximum size. "
                     + "The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. "
                     + "The response carries the new version, to be used for the next update.")

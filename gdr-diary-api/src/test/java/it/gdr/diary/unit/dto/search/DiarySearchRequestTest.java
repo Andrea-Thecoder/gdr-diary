@@ -50,7 +50,7 @@ class DiarySearchRequestTest {
         DiarySearchRequest request = new DiarySearchRequest();
         request.setTitle("  Chapter ");
 
-        request.setFilter(diaryQuery);
+        request.applyFilter(diaryQuery);
 
         verify(diaryQuery).icontains("title", "Chapter");
     }
@@ -62,7 +62,7 @@ class DiarySearchRequestTest {
         DiarySearchRequest request = new DiarySearchRequest();
         request.setTitle(title);
 
-        request.setFilter(diaryQuery);
+        request.applyFilter(diaryQuery);
 
         verifyNoInteractions(diaryQuery);
     }

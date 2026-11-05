@@ -104,7 +104,27 @@ Il nome del volume è il nome della cartella del compose (`docker-compose`) segu
 
 Verifica: [la configurazione del realm](http://localhost:8180/realms/gdr-diary-dev/.well-known/openid-configuration) risponde con un JSON.
 
+> L'opzione "Always set password on register form" si accende da sola quando il realm viene creato (la fa l'[estensione di Keycloak](#ricostruire-lestensione-di-keycloak)). Se dopo una reimportazione la registrazione non chiede la password, vedi [Riaccendere la password obbligatoria in registrazione](#riaccendere-la-password-obbligatoria-in-registrazione).
+
 In alternativa si cambiano le impostazioni dalla console di Keycloak e si riportano a mano nel file JSON.
+
+### Riaccendere la password obbligatoria in registrazione
+
+L'interruttore di Keycloak **"Always set password on register form"** non si può scrivere nel file JSON del realm. Lo accende da solo l'estensione (`RegistrationPasswordDefaultsFactory`) ogni volta che un realm viene creato o importato, quindi di norma non serve fare nulla: in `docker compose logs keycloak` compare `password required on the registration form`.
+
+Questa procedura a mano serve solo se l'estensione non è caricata (jar mancante o vecchio) o se il realm esisteva già prima di installarla. Se l'interruttore resta spento, la pagina di registrazione non chiede la password, l'utente nasce senza e al primo accesso Keycloak gli impone "Aggiorna password".
+
+1. Apri la [console di Keycloak](http://localhost:8180) e accedi con `admin` / `secret`.
+2. In alto a sinistra apri il selettore dei realm e scegli **GDR Diary (dev)** (non `master`).
+3. Nel menu a sinistra, sotto *Configure*, clicca **Authentication**.
+4. Nella scheda **Flows** clicca il flusso **registration**.
+5. Nella riga **Password Validation** (dentro "registration form") clicca l'**ingranaggio** a destra. Si apre "Password Validation config".
+6. Nel campo **Alias** scrivi un nome qualsiasi, per esempio `registration-password-always` (è obbligatorio).
+7. Accendi l'interruttore **Always set password on register form** (deve dire **On**).
+8. Clicca **Save**: compare "Successfully saved the config". Poi ricarica la pagina e riapri l'ingranaggio: l'interruttore deve essere ancora **On** (a volte il salvataggio non resta).
+9. Verifica: apri la pagina di registrazione dall'app (pulsante "Registrati"). Devono esserci i campi **Password** e **Conferma password**. Registra un utente di prova: al primo accesso non deve comparire "Aggiorna password".
+
+Se non sei sicuro che sia già acceso, riapri l'ingranaggio del passo 5: l'interruttore è lì. Se c'è già l'alias e dice **On**, non serve altro.
 
 ### Azzerare il database dell'applicazione
 
@@ -238,6 +258,7 @@ Il jar va compilato per la stessa versione di Keycloak del compose (26.7.0): se 
 | L'importazione del realm fallisce | Un ruolo composito che include ruoli predefiniti come `uma_authorization`. | Dare il ruolo predefinito con un gruppo predefinito, non con un ruolo composito. |
 | La pagina di login ha il tema standard | `gdr-diary-ui` non è nella cartella accanto a `gdr-diary-api` e il tema non viene montato. | Controllare che esista `../../gdr-diary-ui/keycloak-theme/themes` rispetto a `docker-compose`, poi `docker compose up -d`. |
 | L'email di verifica non arriva | In locale le email vanno a Mailpit. | Aprire [Mailpit](http://localhost:8025). |
+| Dopo la registrazione, al primo accesso compare "Aggiorna password"; la pagina di registrazione non ha i campi password (o non li esige) | L'interruttore "Always set password on register form" del flusso `registration` è spento: l'estensione lo accende solo alla creazione del realm, quindi un realm già esistente o un jar vecchio lo lasciano spento. | Vedi [Riaccendere la password obbligatoria in registrazione](#riaccendere-la-password-obbligatoria-in-registrazione). |
 | Il cambio email non si comporta come previsto | Manca il jar dell'estensione in `providers`, è per un'altra versione di Keycloak o Keycloak non è stato ricreato dopo averlo ricostruito. Serve anche la funzione `update-email`, attiva nel compose. | Vedi [Ricostruire l'estensione di Keycloak](#ricostruire-lestensione-di-keycloak). |
 
 ---

@@ -56,6 +56,8 @@ Il realm `gdr-diary-dev` viene importato all'avvio di Keycloak dal file `docker-
 
 > **Nota**: l'importazione avviene **solo alla prima creazione**. Se il file viene modificato vedi [Runbook › Reimportare il realm di Keycloak](RUNBOOK.md#reimportare-il-realm-di-keycloak).
 
+> **Dopo ogni importazione** va riacceso a mano, nella console di Keycloak, l'interruttore *Always set password on register form* del flusso `registration`: il file JSON non può impostarlo e, se è spento, la registrazione non chiede la password. I passi sono nel [Runbook › Riaccendere la password obbligatoria in registrazione](RUNBOOK.md#riaccendere-la-password-obbligatoria-in-registrazione).
+
 Il realm contiene:
 
 - **Client** `gdr-diary-api`: pubblico, Authorization Code con PKCE, usato dal frontend.

@@ -87,4 +87,9 @@ class SchemaIT extends AbstractIntegrationTest {
     void diaryCoverColor_invalidHex_isRejectedByCheckConstraint() {
         assertThatThrownBy(() -> insertDiaryWithColor("#GGGGGG")).isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void diaryBookmarkForeignKey_schema_setsNullOnDelete() {
+        assertThat(deleteRuleOf("fk_diary_bookmark_page_id")).isEqualTo("n");
+    }
 }

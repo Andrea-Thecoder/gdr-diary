@@ -30,14 +30,16 @@ public class DiaryPageContentValidator {
     private static final String ITALIC = "italic";
     private static final String UNDERLINE = "underline";
     private static final String TITLE = "title";
+    private static final String TEXT_COLOR = "textColor";
 
     private static final Set<String> NODE_KEYS = Set.of("type", "content", "attrs", "marks", "text");
     private static final Set<String> MARK_KEYS = Set.of("type", "attrs");
     private static final Set<String> BLOCKS = Set.of(PARAGRAPH, BLOCKQUOTE, BULLET_LIST, ORDERED_LIST, HORIZONTAL_RULE);
     private static final Set<String> INLINES = Set.of(TEXT, HARD_BREAK);
-    private static final Set<String> MARKS = Set.of(BOLD, ITALIC, UNDERLINE, TITLE);
+    private static final Set<String> MARKS = Set.of(BOLD, ITALIC, UNDERLINE, TITLE, TEXT_COLOR);
     private static final Set<String> TEXT_ALIGNMENTS = Set.of("left", "center", "right", "justify");
     private static final Set<String> LIST_TYPES = Set.of("1", "a", "A", "i", "I");
+    private static final Set<String> TEXT_COLORS = Set.of("red", "orange", "green", "teal", "blue", "purple", "magenta", "brown");
 
     private static final Map<String, NodeSpec> NODES = Map.of(
             DOC, new NodeSpec(BLOCKS, 1, null, false, Set.of()),
@@ -127,15 +129,29 @@ public class DiaryPageContentValidator {
 
     private void validateMarkAttrs(String markType, Map<?, ?> mark, String markPath) {
         if (!mark.containsKey("attrs")) {
+            if (TEXT_COLOR.equals(markType)) {
+                throw invalid(markPath, "color is required");
+            }
             return;
         }
         if (!(mark.get("attrs") instanceof Map<?, ?> attrs)) {
             throw invalid(markPath, "attrs must be an object");
         }
-        requireKeys(attrs, TITLE.equals(markType) ? Set.of("level") : Set.of(), markPath + ".attrs");
+        requireKeys(attrs, markAttrKeys(markType), markPath + ".attrs");
         if (TITLE.equals(markType) && attrs.containsKey("level") && !(isNumber(attrs.get("level"), 1) || isNumber(attrs.get("level"), 2))) {
             throw invalid(markPath + ".attrs", "level must be 1 or 2");
         }
+        if (TEXT_COLOR.equals(markType) && !(attrs.get("color") instanceof String color && TEXT_COLORS.contains(color))) {
+            throw invalid(markPath + ".attrs", "color is not in the palette");
+        }
+    }
+
+    private static Set<String> markAttrKeys(String markType) {
+        return switch (markType) {
+            case TITLE -> Set.of("level");
+            case TEXT_COLOR -> Set.of("color");
+            default -> Set.of();
+        };
     }
 
     private void validateText(String type, Map<?, ?> node, String path) {

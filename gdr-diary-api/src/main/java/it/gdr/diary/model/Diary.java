@@ -43,4 +43,9 @@ public class Diary extends AbstractAuditable {
     @JoinColumn(name = "cover_document_id")
     @DbForeignKey(onDelete = ConstraintMode.SET_NULL)
     private Document coverDocument;
+
+    @ManyToOne
+    @JoinColumn(name = "bookmark_page_id")
+    @DbForeignKey(onDelete = ConstraintMode.SET_NULL)
+    private DiaryPage bookmarkPage;
 }
