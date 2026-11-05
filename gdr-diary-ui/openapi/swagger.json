@@ -27,6 +27,10 @@
     {
       "name": "Diary pages",
       "description": "Manage the pages of the diaries of the logged-in user (maximum 100 pages per diary)"
+    },
+    {
+      "name": "Character sheets",
+      "description": "Manage the PDF sheets of the characters of the logged-in user"
     }
   ],
   "paths": {
@@ -2126,6 +2130,570 @@
           }
         ]
       }
+    },
+    "/characters/{characterId}/sheets": {
+      "get": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "List the sheets of a character",
+        "description": "Returns a page of the PDF sheets of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: upload date, newest first).",
+        "operationId": "findAllCharacterSheetsByCharacter",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Case-insensitive text contained in the sheet title",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 0,
+              "examples": [
+                "Alira"
+              ],
+              "description": "Case-insensitive text contained in the sheet title"
+            }
+          },
+          {
+            "name": "system",
+            "in": "query",
+            "description": "Exact game system of the sheet (case-insensitive)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 0,
+              "examples": [
+                "D&D 5e"
+              ],
+              "description": "Exact game system of the sheet (case-insensitive)"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "examples": [
+                1
+              ],
+              "description": "Page number (1-based)"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "maximum": 100,
+              "examples": [
+                12
+              ],
+              "description": "Number of results per page"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by: createdAt (default, newest first when descending is true) or title",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "createdAt"
+              ],
+              "description": "Field name to sort by: createdAt (default, newest first when descending is true) or title"
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "examples": [
+                true
+              ],
+              "description": "Set to true to sort in descending order"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of sheets of the character (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters, or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Upload a sheet",
+        "description": "Stores a PDF as a new sheet of a character owned by the logged-in user. The real content of the file is checked (it must start with the PDF signature) and the size must not exceed 10 MB. The title is required, the game system is optional.",
+        "operationId": "createCharacterSheet",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Identifier of the character the sheet belongs to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The sheet, a PDF file of at most 10 MB"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Sheet title",
+                    "examples": [
+                      "Alira, livello 5"
+                    ]
+                  },
+                  "system": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "Game system, optional",
+                    "examples": [
+                      "D&D 5e"
+                    ]
+                  }
+                },
+                "required": [
+                  "file",
+                  "title"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Sheet stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or empty file or title, file that is not a PDF, file too large, malformed multipart request, character with too many sheets, or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the configured limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/sheets/{id}": {
+      "get": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Get a sheet",
+        "description": "Returns a sheet of a character owned by the logged-in user.",
+        "operationId": "getCharacterSheetById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The sheet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Update a sheet",
+        "description": "Replaces the title and the game system of a sheet. The PDF is replaced with PUT /sheets/{id}/file.",
+        "operationId": "updateCharacterSheet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCharacterSheetDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sheet updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Delete a sheet",
+        "description": "Deletes a sheet together with its PDF file. The operation cannot be undone.",
+        "operationId": "deleteCharacterSheet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sheet deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/sheets/{id}/file": {
+      "put": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Replace the PDF of a sheet",
+        "description": "Replaces the PDF of a sheet. The same checks as the upload apply. The previous file is deleted.",
+        "operationId": "updateCharacterSheetFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The sheet, a PDF file of at most 10 MB"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "PDF replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or empty file, file that is not a PDF, file too large, or sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the configured limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -3068,6 +3636,177 @@
         "required": [
           "pageId"
         ]
+      },
+      "BaseCharacterSheetDTO": {
+        "type": "object",
+        "description": "Summary of a sheet of a character, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sheet identifier"
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the sheet belongs to"
+          },
+          "title": {
+            "type": "string",
+            "description": "Sheet title",
+            "examples": [
+              "Alira, livello 5"
+            ]
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system, if given",
+            "examples": [
+              "D&D 5e"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the PDF in bytes",
+            "examples": [
+              1468006
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sheet was uploaded"
+          },
+          "url": {
+            "type": "string",
+            "description": "Temporary URL to open the PDF in the browser, valid for a few minutes"
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Temporary URL that downloads the PDF as an attachment, valid for a few minutes"
+          }
+        }
+      },
+      "DetailCharacterSheetDTO": {
+        "type": "object",
+        "description": "A sheet of a character",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sheet identifier"
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the sheet belongs to"
+          },
+          "title": {
+            "type": "string",
+            "description": "Sheet title",
+            "examples": [
+              "Alira, livello 5"
+            ]
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system, if given",
+            "examples": [
+              "D&D 5e"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Original name of the uploaded PDF file",
+            "examples": [
+              "alira-lv8.pdf"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the PDF in bytes",
+            "examples": [
+              1468006
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sheet was uploaded"
+          },
+          "url": {
+            "type": "string",
+            "description": "Temporary URL to open the PDF in the browser, valid for a few minutes"
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Temporary URL that downloads the PDF as an attachment, valid for a few minutes"
+          }
+        }
+      },
+      "UpdateCharacterSheetDTO": {
+        "type": "object",
+        "description": "New title and game system of a sheet",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "description": "Sheet title"
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100,
+            "description": "Game system; null or empty removes it"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "PagedResultDTOBaseCharacterSheetDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseCharacterSheetDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)"
+          }
+        }
       }
     },
     "securitySchemes": {

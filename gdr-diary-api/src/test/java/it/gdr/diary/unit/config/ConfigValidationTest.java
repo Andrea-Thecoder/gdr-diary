@@ -3,6 +3,7 @@ package it.gdr.diary.unit.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import it.gdr.diary.config.AppUserConfig;
+import it.gdr.diary.config.CharacterSheetConfig;
 import it.gdr.diary.config.DiaryPageConfig;
 import it.gdr.diary.config.StorageConfig;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,11 @@ class ConfigValidationTest {
     static class UserProperties {
     }
 
+    @Configuration
+    @EnableConfigurationProperties(CharacterSheetConfig.class)
+    static class CharacterSheetProperties {
+    }
+
     private ApplicationContextRunner userRunner(String... values) {
         return new ApplicationContextRunner().withUserConfiguration(UserProperties.class).withPropertyValues(values);
     }
@@ -46,6 +52,10 @@ class ConfigValidationTest {
 
     private ApplicationContextRunner diaryRunner(String... values) {
         return new ApplicationContextRunner().withUserConfiguration(DiaryProperties.class).withPropertyValues(values);
+    }
+
+    private ApplicationContextRunner characterSheetRunner(String... values) {
+        return new ApplicationContextRunner().withUserConfiguration(CharacterSheetProperties.class).withPropertyValues(values);
     }
 
     @Test
@@ -130,5 +140,46 @@ class ConfigValidationTest {
     @Test
     void startup_zeroDeleteMaxAuthAge_fails() {
         userRunner("app.user.delete-max-auth-age=0s").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_zeroMaxPdfFileSize_fails() {
+        storageRunner("app.storage.max-pdf-file-size=0B").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_negativeMaxPdfFileSize_fails() {
+        storageRunner("app.storage.max-pdf-file-size=-1MB").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_validMaxPdfFileSize_succeeds() {
+        storageRunner("app.storage.max-pdf-file-size=10MB").run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void startup_validCharacterSheetConfig_succeeds() {
+        characterSheetRunner("app.character-sheet.max-sheets-per-character=10").run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void startup_noCharacterSheetConfig_usesDefaultOfTen() {
+        characterSheetRunner().run(context -> assertThat(context.getBean(CharacterSheetConfig.class).getMaxSheetsPerCharacter()).isEqualTo(10));
+    }
+
+    @Test
+    void startup_configuredMaxSheetsPerCharacter_overridesDefault() {
+        characterSheetRunner("app.character-sheet.max-sheets-per-character=3")
+                .run(context -> assertThat(context.getBean(CharacterSheetConfig.class).getMaxSheetsPerCharacter()).isEqualTo(3));
+    }
+
+    @Test
+    void startup_zeroMaxSheetsPerCharacter_fails() {
+        characterSheetRunner("app.character-sheet.max-sheets-per-character=0").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_negativeMaxSheetsPerCharacter_fails() {
+        characterSheetRunner("app.character-sheet.max-sheets-per-character=-1").run(context -> assertThat(context).hasFailed());
     }
 }

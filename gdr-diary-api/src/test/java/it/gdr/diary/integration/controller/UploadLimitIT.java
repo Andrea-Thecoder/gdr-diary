@@ -69,7 +69,7 @@ class UploadLimitIT extends AbstractIntegrationTest {
 
     @Test
     void updateAppUserAvatar_fileOverMultipartMaxFileSize_returnsPayloadTooLarge() throws Exception {
-        byte[] oversized = new byte[5 * 1024 * 1024 + 1];
+        byte[] oversized = new byte[10 * 1024 * 1024 + 1];
         System.arraycopy(PNG, 0, oversized, 0, PNG.length);
 
         int status = uploadAvatar(oversized);
@@ -79,6 +79,26 @@ class UploadLimitIT extends AbstractIntegrationTest {
 
     @Test
     void updateAppUserAvatar_fileOverMultipartMaxFileSize_storesNoFile() throws Exception {
+        byte[] oversized = new byte[10 * 1024 * 1024 + 1];
+        System.arraycopy(PNG, 0, oversized, 0, PNG.length);
+
+        uploadAvatar(oversized);
+
+        assertThat(storedObjectKeys()).isEmpty();
+    }
+
+    @Test
+    void updateAppUserAvatar_imageOverImageLimitButUnderMultipartLimit_returnsBadRequest() throws Exception {
+        byte[] oversized = new byte[5 * 1024 * 1024 + 1];
+        System.arraycopy(PNG, 0, oversized, 0, PNG.length);
+
+        int status = uploadAvatar(oversized);
+
+        assertThat(status).isEqualTo(400);
+    }
+
+    @Test
+    void updateAppUserAvatar_imageOverImageLimitButUnderMultipartLimit_storesNoFile() throws Exception {
         byte[] oversized = new byte[5 * 1024 * 1024 + 1];
         System.arraycopy(PNG, 0, oversized, 0, PNG.length);
 

@@ -16,7 +16,6 @@ Finora il frontend è stato provato con test automatici ed e2e con servizi finti
 - Il `check-sso` silenzioso: verificare che nel client `gdr-diary-api` del realm `gdr-diary-dev` sia valido il redirect `http://localhost:5173/silent-check-sso.html` e che l'origine dell'app sia tra le Web origins. In produzione app e Keycloak devono stare sullo stesso sito (per esempio `app.dominio.it` e `login.dominio.it`, con la variabile `VITE_THEME_COOKIE_DOMAIN`), altrimenti i cookie di terze parti bloccati fanno ricadere `keycloak-js` sul redirect a pagina intera.
 - Salvataggio, conflitti 409 con due schede aperte sulla stessa pagina, cancellazione di pagine, diari e personaggi, rinumerazione, creazione delle pagine.
 - Cambio email: provare tutto il giro con Mailpit (link di conferma, rinvio, un solo link valido).
-- Rigenerare il contratto API (`openapi/swagger.json` e `npm run api:generate`) dall'app accesa. Quello attuale contiene l'operazione `deleteAppUser`, scritta a mano prima che l'endpoint esistesse.
 
 ## Funzioni
 
@@ -36,8 +35,6 @@ Il libro a due pagine si adatta con una scala (vedi `DESIGN.md`) e profilo e imp
 
 ## Pulizia
 
-- Cancellare a mano `src/lib/components/app/EmailDialog.svelte`: non è usato da nessuna parte e importa funzioni di `profile/email` che non esistono più (il cambio email ora passa da Keycloak). Fa fallire il controllo dei tipi e il lint.
-- Nel mirror usato per le prove nel cloud risultavano rossi 9 test, in `(app)/layout.test.ts` e nei test di caricamento immagine di personaggi e profilo. Non dipendono dalle ultime modifiche, ma vanno guardati con `npm run verify`.
 - Il filtro per campagna è un campo libero: se le campagne diventano una tabella, andrà sostituito.
 
 ## Non serve (decisioni)

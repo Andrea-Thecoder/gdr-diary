@@ -11,6 +11,7 @@ import it.gdr.diary.exception.RecentAuthenticationRequiredException;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
@@ -135,6 +136,15 @@ public class AppUserService {
                     .where().eq("owner.id", user.getId())
                     .findList();
             if (!characters.isEmpty()) {
+                List<CharacterSheet> sheets = database.find(CharacterSheet.class)
+                        .setLabel("deleteAppUserSheets")
+                        .fetch("document")
+                        .where().in("character.id", characters.stream().map(GameCharacter::getId).toList())
+                        .findList();
+                if (!sheets.isEmpty()) {
+                    sheets.stream().map(CharacterSheet::getDocument).forEach(documents::add);
+                    database.deleteAll(sheets);
+                }
                 List<Diary> diaries = database.find(Diary.class)
                         .setLabel("deleteAppUserDiaries")
                         .fetch("coverDocument")

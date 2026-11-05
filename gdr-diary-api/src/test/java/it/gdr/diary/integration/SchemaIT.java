@@ -48,6 +48,25 @@ class SchemaIT extends AbstractIntegrationTest {
         });
     }
 
+    private void insertTwoSheetsWithSameDocument() {
+        transactions.executeWithoutResult(status -> {
+            UUID userId = UUID.randomUUID();
+            UUID characterId = UUID.randomUUID();
+            UUID documentId = UUID.randomUUID();
+            jdbc.update("insert into app_user (id, is_premium, created_at, updated_at, version, keycloak_id, created_by, updated_by) "
+                    + "values (?, false, now(), now(), 0, 'kc-schema-test', 'test', 'test')", userId);
+            jdbc.update("insert into game_character (id, owner_id, created_at, updated_at, version, name, kind, created_by, updated_by) "
+                    + "values (?, ?, now(), now(), 0, 'Aragorn', 'PLAYER', 'test', 'test')", characterId, userId);
+            jdbc.update("insert into document (id, size, created_at, updated_at, version, name, mime_type, bucket, object_key, created_by, updated_by) "
+                    + "values (?, 10, now(), now(), 0, 'sheet.pdf', 'application/pdf', 'bucket', 'key', 'test', 'test')", documentId);
+            jdbc.update("insert into character_sheet (id, character_id, document_id, created_at, updated_at, version, title, created_by, updated_by) "
+                    + "values (?, ?, ?, now(), now(), 0, 'First', 'test', 'test')", UUID.randomUUID(), characterId, documentId);
+            jdbc.update("insert into character_sheet (id, character_id, document_id, created_at, updated_at, version, title, created_by, updated_by) "
+                    + "values (?, ?, ?, now(), now(), 0, 'Second', 'test', 'test')", UUID.randomUUID(), characterId, documentId);
+            status.setRollbackOnly();
+        });
+    }
+
     @Test
     void pageNumberUniqueConstraint_schema_isDeferrable() {
         assertThat(constraintFlag("uq_diary_page_diary_id_page_number", "condeferrable")).isEqualTo("true");
@@ -91,5 +110,20 @@ class SchemaIT extends AbstractIntegrationTest {
     @Test
     void diaryBookmarkForeignKey_schema_setsNullOnDelete() {
         assertThat(deleteRuleOf("fk_diary_bookmark_page_id")).isEqualTo("n");
+    }
+
+    @Test
+    void characterSheetCharacterForeignKey_schema_restrictsDelete() {
+        assertThat(deleteRuleOf("fk_character_sheet_character_id")).isEqualTo("r");
+    }
+
+    @Test
+    void characterSheetDocumentForeignKey_schema_restrictsDelete() {
+        assertThat(deleteRuleOf("fk_character_sheet_document_id")).isEqualTo("r");
+    }
+
+    @Test
+    void characterSheetDocument_sharedByTwoSheets_isRejectedByUniqueConstraint() {
+        assertThatThrownBy(this::insertTwoSheetsWithSameDocument).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

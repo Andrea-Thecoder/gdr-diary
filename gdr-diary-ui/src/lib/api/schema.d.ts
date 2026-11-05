@@ -304,6 +304,78 @@ export interface paths {
         patch: operations["updateAppUserSettings"];
         trace?: never;
     };
+    "/characters/{characterId}/sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the sheets of a character
+         * @description Returns a page of the PDF sheets of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: upload date, newest first).
+         */
+        get: operations["findAllCharacterSheetsByCharacter"];
+        put?: never;
+        /**
+         * Upload a sheet
+         * @description Stores a PDF as a new sheet of a character owned by the logged-in user. The real content of the file is checked (it must start with the PDF signature) and the size must not exceed 10 MB. The title is required, the game system is optional.
+         */
+        post: operations["createCharacterSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sheets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a sheet
+         * @description Returns a sheet of a character owned by the logged-in user.
+         */
+        get: operations["getCharacterSheetById"];
+        /**
+         * Update a sheet
+         * @description Replaces the title and the game system of a sheet. The PDF is replaced with PUT /sheets/{id}/file.
+         */
+        put: operations["updateCharacterSheet"];
+        post?: never;
+        /**
+         * Delete a sheet
+         * @description Deletes a sheet together with its PDF file. The operation cannot be undone.
+         */
+        delete: operations["deleteCharacterSheet"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sheets/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the PDF of a sheet
+         * @description Replaces the PDF of a sheet. The same checks as the upload apply. The previous file is deleted.
+         */
+        put: operations["updateCharacterSheetFile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -397,30 +469,6 @@ export interface components {
              * @example Ship successfully deleted
              */
             message?: string;
-        };
-        /** @description The page marked with the bookmark of a diary */
-        BookmarkDiaryDTO: {
-            /**
-             * Format: uuid
-             * @description Identifier of the bookmarked page
-             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
-             */
-            pageId?: string;
-            /**
-             * Format: int32
-             * @description Number of the bookmarked page, starting from 1
-             * @example 12
-             */
-            pageNumber?: number;
-        };
-        /** @description The page to mark with the bookmark */
-        UpdateBookmarkDiaryDTO: {
-            /**
-             * Format: uuid
-             * @description Identifier of a page of the diary
-             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
-             */
-            pageId: string;
         };
         /** @description Data to fully replace a diary */
         UpdateDiaryDTO: {
@@ -875,6 +923,143 @@ export interface components {
              * @example Ship successfully deleted
              */
             message?: string;
+        };
+        /** @description The page marked with the bookmark of a diary */
+        BookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of the bookmarked page
+             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
+             */
+            pageId?: string;
+            /**
+             * Format: int32
+             * @description Number of the bookmarked page, starting from 1
+             * @example 12
+             */
+            pageNumber?: number;
+        };
+        /** @description The page to mark with the bookmark */
+        UpdateBookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of a page of the diary
+             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
+             */
+            pageId: string;
+        };
+        /** @description Summary of a sheet of a character, used in lists */
+        BaseCharacterSheetDTO: {
+            /**
+             * Format: uuid
+             * @description Sheet identifier
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description Identifier of the character the sheet belongs to
+             */
+            characterId?: string;
+            /**
+             * @description Sheet title
+             * @example Alira, livello 5
+             */
+            title?: string;
+            /**
+             * @description Game system, if given
+             * @example D&D 5e
+             */
+            system?: string | null;
+            /**
+             * Format: int64
+             * @description Size of the PDF in bytes
+             * @example 1468006
+             */
+            sizeBytes?: number;
+            /**
+             * Format: date-time
+             * @description When the sheet was uploaded
+             */
+            createdAt?: string;
+            /** @description Temporary URL to open the PDF in the browser, valid for a few minutes */
+            url?: string;
+            /** @description Temporary URL that downloads the PDF as an attachment, valid for a few minutes */
+            downloadUrl?: string;
+        };
+        /** @description A sheet of a character */
+        DetailCharacterSheetDTO: {
+            /**
+             * Format: uuid
+             * @description Sheet identifier
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description Identifier of the character the sheet belongs to
+             */
+            characterId?: string;
+            /**
+             * @description Sheet title
+             * @example Alira, livello 5
+             */
+            title?: string;
+            /**
+             * @description Game system, if given
+             * @example D&D 5e
+             */
+            system?: string | null;
+            /**
+             * @description Original name of the uploaded PDF file
+             * @example alira-lv8.pdf
+             */
+            fileName?: string;
+            /**
+             * Format: int64
+             * @description Size of the PDF in bytes
+             * @example 1468006
+             */
+            sizeBytes?: number;
+            /**
+             * Format: date-time
+             * @description When the sheet was uploaded
+             */
+            createdAt?: string;
+            /** @description Temporary URL to open the PDF in the browser, valid for a few minutes */
+            url?: string;
+            /** @description Temporary URL that downloads the PDF as an attachment, valid for a few minutes */
+            downloadUrl?: string;
+        };
+        /** @description New title and game system of a sheet */
+        UpdateCharacterSheetDTO: {
+            /** @description Sheet title */
+            title: string;
+            /** @description Game system; null or empty removes it */
+            system?: string | null;
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBaseCharacterSheetDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BaseCharacterSheetDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             */
+            page?: number;
         };
     };
     responses: never;
@@ -1346,101 +1531,6 @@ export interface operations {
             };
         };
     };
-    updateDiaryCover: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /**
-                 * @description Diary identifier
-                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
-                 */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": {
-                    /**
-                     * Format: binary
-                     * @description The image to use as cover (png, jpeg or webp)
-                     */
-                    file: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Cover set */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DetailDiaryDTO"];
-                };
-            };
-            /** @description Missing file part, malformed multipart request, empty file, unsupported file type, missing or mismatching content type, extension not matching the content, file too large, or diary identifier that is not a UUID */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description Missing, expired or invalid token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The user has neither the user nor the admin role */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Diary not found, or its character is owned by another user */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description The diary was modified at the same time by another request: the cover is not changed, try again */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description File larger than the maximum request size */
-            413: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description Storage not available */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-        };
-    };
     getDiaryBookmark: {
         parameters: {
             query?: never;
@@ -1610,6 +1700,101 @@ export interface operations {
             };
             /** @description Diary not found, or its character is owned by another user */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateDiaryCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The image to use as cover (png, jpeg or webp)
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Cover set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailDiaryDTO"];
+                };
+            };
+            /** @description Missing file part, malformed multipart request, empty file, unsupported file type, missing or mismatching content type, extension not matching the content, file too large, or diary identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The diary was modified at the same time by another request: the cover is not changed, try again */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description File larger than the maximum request size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Storage not available */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2581,6 +2766,419 @@ export interface operations {
             };
             /** @description The settings were modified at the same time by another request: nothing is saved, read them again and retry */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    findAllCharacterSheetsByCharacter: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive text contained in the sheet title */
+                title?: string;
+                /** @description Exact game system of the sheet (case-insensitive) */
+                system?: string;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+                /** @description Field name to sort by: createdAt (default, newest first when descending is true) or title */
+                sort?: string;
+                /** @description Set to true to sort in descending order */
+                descending?: boolean;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of sheets of the character (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBaseCharacterSheetDTO"];
+                };
+            };
+            /** @description Invalid search parameters, or character identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    createCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Identifier of the character the sheet belongs to
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The sheet, a PDF file of at most 10 MB
+                     */
+                    file: string;
+                    /**
+                     * @description Sheet title
+                     * @example Alira, livello 5
+                     */
+                    title: string;
+                    /**
+                     * @description Game system, optional
+                     * @example D&D 5e
+                     */
+                    system?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Sheet stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Missing or empty file or title, file that is not a PDF, file too large, malformed multipart request, character with too many sheets, or character identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description File larger than the configured limit */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    getCharacterSheetById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The sheet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCharacterSheetDTO"];
+            };
+        };
+        responses: {
+            /** @description Sheet updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Invalid body, or sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    deleteCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sheet deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateCharacterSheetFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example a3d9c5f2-6b7e-4c1a-8e0f-2d4b6a8c0e1f
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The sheet, a PDF file of at most 10 MB
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description PDF replaced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Missing or empty file, file that is not a PDF, file too large, or sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description File larger than the configured limit */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -25,6 +25,7 @@ import it.gdr.diary.dto.app_user.UpdateSettingsAppUserDTO;
 import it.gdr.diary.exception.RecentAuthenticationRequiredException;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
@@ -558,6 +559,19 @@ class AppUserServiceTest {
         return stub;
     }
 
+    private QueryStub<CharacterSheet> givenSheets(List<CharacterSheet> sheets) {
+        QueryStub<CharacterSheet> stub = stubFind(database, CharacterSheet.class);
+        when(stub.where().findList()).thenReturn(sheets);
+        return stub;
+    }
+
+    private CharacterSheet sheet(Document document) {
+        CharacterSheet sheet = new CharacterSheet();
+        sheet.setId(UUID.randomUUID());
+        sheet.setDocument(document);
+        return sheet;
+    }
+
     @Test
     void deleteAppUser_userMissing_doesNotOpenTransaction() {
         givenRecentAuthentication();
@@ -623,6 +637,7 @@ class AppUserServiceTest {
         List<GameCharacter> characters = List.of(ownedCharacter(null));
         List<Diary> diaries = List.of(diaryWithCover(null));
         givenCharacters(characters);
+        givenSheets(List.of());
         givenDiaries(diaries);
         QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -644,6 +659,7 @@ class AppUserServiceTest {
         givenCharacters(List.of(ownedCharacter(null)));
         Diary first = diaryWithCover(null);
         Diary second = diaryWithCover(null);
+        givenSheets(List.of());
         givenDiaries(List.of(first, second));
         QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -658,6 +674,7 @@ class AppUserServiceTest {
         givenRecentAuthentication();
         givenStoredUser(storedUser(EMAIL));
         givenCharacters(List.of(ownedCharacter(null)));
+        givenSheets(List.of());
         givenDiaries(List.of());
         when(database.beginTransaction()).thenReturn(transaction);
 
@@ -676,6 +693,7 @@ class AppUserServiceTest {
         user.setAvatarDocument(userAvatar);
         givenStoredUser(user);
         givenCharacters(List.of(ownedCharacter(characterAvatar)));
+        givenSheets(List.of());
         givenDiaries(List.of(diaryWithCover(cover)));
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -699,6 +717,7 @@ class AppUserServiceTest {
         user.setAvatarDocument(userAvatar);
         givenStoredUser(user);
         givenCharacters(List.of(ownedCharacter(characterAvatar)));
+        givenSheets(List.of());
         givenDiaries(List.of(diaryWithCover(cover)));
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -921,5 +940,104 @@ class AppUserServiceTest {
         doThrow(failure).when(database).delete(user);
 
         assertThatThrownBy(() -> service.deleteAppUser()).isSameAs(failure);
+    }
+
+    @Test
+    void deleteAppUser_charactersWithSheets_selectsOnlySheetsOfUserCharacters() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        List<GameCharacter> characters = List.of(ownedCharacter(null));
+        givenCharacters(characters);
+        QueryStub<CharacterSheet> sheets = givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        verify(sheets.where()).in("character.id", List.of(characters.get(0).getId()));
+    }
+
+    @Test
+    void deleteAppUser_charactersWithSheets_deletesSheetsBeforeCharacters() {
+        givenRecentAuthentication();
+        AppUser user = storedUser(EMAIL);
+        givenStoredUser(user);
+        List<GameCharacter> characters = List.of(ownedCharacter(null));
+        givenCharacters(characters);
+        List<CharacterSheet> sheets = List.of(sheet(document("sheet.pdf")));
+        givenSheets(sheets);
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        InOrder order = inOrder(database, transaction);
+        order.verify(database).deleteAll(sheets);
+        order.verify(database).deleteAll(characters);
+        order.verify(database).delete(user);
+        order.verify(transaction).commit();
+    }
+
+    @Test
+    void deleteAppUser_charactersWithoutSheets_doesNotDeleteSheets() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        verify(database, never()).deleteAll(List.<CharacterSheet>of());
+    }
+
+    @Test
+    void deleteAppUser_charactersWithSheets_deletesSheetRecordsBeforeCommit() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        Document pdf = document("sheet.pdf");
+        givenSheets(List.of(sheet(pdf)));
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        InOrder order = inOrder(documentService, transaction);
+        order.verify(documentService).deleteDocumentRecord(pdf);
+        order.verify(transaction).commit();
+    }
+
+    @Test
+    void deleteAppUser_charactersWithSheets_deletesSheetFilesAfterCommit() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        Document pdf = document("sheet.pdf");
+        givenSheets(List.of(sheet(pdf)));
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        InOrder order = inOrder(transaction, documentService);
+        order.verify(transaction).commit();
+        order.verify(documentService).deleteDocumentFile(pdf);
+    }
+
+    @Test
+    void deleteAppUser_sheetsDeleteFails_deletesNoFile() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        List<CharacterSheet> sheets = List.of(sheet(document("sheet.pdf")));
+        givenSheets(sheets);
+        when(database.beginTransaction()).thenReturn(transaction);
+        doThrow(new IllegalStateException("db down")).when(database).deleteAll(sheets);
+
+        catchThrowable(() -> service.deleteAppUser());
+
+        verify(documentService, never()).deleteDocumentFile(any());
     }
 }

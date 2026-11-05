@@ -576,10 +576,11 @@ class DiaryIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void getDiaryBookmark_diaryWithoutBookmark_returnsEmptyObject() {
+    void getDiaryBookmark_diaryWithoutBookmark_returnsNullFields() {
         UUID diaryId = createDiaryWithOwner();
 
-        assertThat(mvc.get().uri("/diaries/{id}/bookmark", diaryId)).bodyJson().isStrictlyEqualTo("{}");
+        assertThat(mvc.get().uri("/diaries/{id}/bookmark", diaryId)).bodyJson()
+                .isStrictlyEqualTo("{\"pageId\":null,\"pageNumber\":null}");
     }
 
     @Test

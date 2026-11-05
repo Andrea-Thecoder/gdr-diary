@@ -3,6 +3,8 @@ package it.gdr.diary.unit.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import it.gdr.diary.dto.app_user.DetailAppUserDTO;
+import it.gdr.diary.dto.character_sheet.BaseCharacterSheetDTO;
+import it.gdr.diary.dto.character_sheet.DetailCharacterSheetDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
 import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
@@ -10,11 +12,13 @@ import it.gdr.diary.dto.diary_page.BaseDiaryPageDTO;
 import it.gdr.diary.dto.game_character.BaseGameCharacterDTO;
 import it.gdr.diary.dto.game_character.DetailGameCharacterDTO;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -164,5 +168,80 @@ class DtoMappingTest {
         BookmarkDiaryDTO dto = BookmarkDiaryDTO.from(null);
 
         assertThat(dto).isEqualTo(new BookmarkDiaryDTO(null, null));
+    }
+
+    private static final UUID SHEET_ID = UUID.fromString("7d1e5a52-9a0c-4b57-8c64-0f7a1d9a4e21");
+    private static final Instant SHEET_CREATED_AT = Instant.parse("2026-11-05T10:15:30Z");
+    private static final String DOWNLOAD_URL = "https://storage.example/download";
+
+    private static CharacterSheet sheet() {
+        Document pdf = document();
+        pdf.setName("alira.pdf");
+        pdf.setSize(2048L);
+        CharacterSheet sheet = new CharacterSheet();
+        sheet.setId(SHEET_ID);
+        sheet.setCharacter(character());
+        sheet.setDocument(pdf);
+        sheet.setTitle("Alira, level 9");
+        sheet.setGameSystem("D&D 5e");
+        sheet.setCreatedAt(SHEET_CREATED_AT);
+        return sheet;
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheet_copiesSummaryFieldsAndUrls() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto).isEqualTo(new BaseCharacterSheetDTO(SHEET_ID, CHARACTER_ID, "Alira, level 9", "D&D 5e", 2048L,
+                SHEET_CREATED_AT, URL, DOWNLOAD_URL));
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheetWithoutSystem_returnsNullSystem() {
+        CharacterSheet sheet = sheet();
+        sheet.setGameSystem(null);
+
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet, URL, DOWNLOAD_URL);
+
+        assertThat(dto.system()).isNull();
+    }
+
+    @Test
+    void baseCharacterSheetFrom_nullUrls_keepsThemNull() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), null, null);
+
+        assertThat(dto).extracting(BaseCharacterSheetDTO::url, BaseCharacterSheetDTO::downloadUrl).containsOnlyNulls();
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheet_doesNotExposeStorageKeys() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheet_copiesAllFieldsAndUrls() {
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto).isEqualTo(new DetailCharacterSheetDTO(SHEET_ID, CHARACTER_ID, "Alira, level 9", "D&D 5e", "alira.pdf",
+                2048L, SHEET_CREATED_AT, URL, DOWNLOAD_URL));
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheetWithoutSystem_returnsNullSystem() {
+        CharacterSheet sheet = sheet();
+        sheet.setGameSystem(null);
+
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet, URL, DOWNLOAD_URL);
+
+        assertThat(dto.system()).isNull();
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheet_doesNotExposeStorageKeys() {
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
     }
 }

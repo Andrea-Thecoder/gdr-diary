@@ -7,6 +7,7 @@ import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
 import io.minio.messages.Item;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -31,6 +32,9 @@ public abstract class AbstractIntegrationTest {
 
     protected static final byte[] PNG = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
+
+    protected static final byte[] PDF = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+            .getBytes(StandardCharsets.US_ASCII);
 
     @Autowired
     protected MockMvcTester mvc;
@@ -58,7 +62,7 @@ public abstract class AbstractIntegrationTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        jdbc.execute("truncate table diary_page, diary, game_character, app_user, document cascade");
+        jdbc.execute("truncate table character_sheet, diary_page, diary, game_character, app_user, document cascade");
         for (String key : storedObjectKeys()) {
             minioClient.removeObject(RemoveObjectArgs.builder().bucket(TestContainers.BUCKET).object(key).build());
         }
@@ -90,6 +94,10 @@ public abstract class AbstractIntegrationTest {
 
     protected static MockMultipartFile pngFile(String name) {
         return new MockMultipartFile("file", name, MediaType.IMAGE_PNG_VALUE, PNG);
+    }
+
+    protected static MockMultipartFile pdfFile(String name) {
+        return new MockMultipartFile("file", name, MediaType.APPLICATION_PDF_VALUE, PDF);
     }
 
     protected static String pageContent(String text) {

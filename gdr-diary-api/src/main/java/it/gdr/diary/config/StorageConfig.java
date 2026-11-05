@@ -41,12 +41,19 @@ public class StorageConfig {
     private Duration urlExpiry = Duration.ofMinutes(5);
     @NotNull
     private DataSize maxFileSize = DataSize.ofMegabytes(5);
+    @NotNull
+    private DataSize maxPdfFileSize = DataSize.ofMegabytes(10);
     @NotEmpty
     private List<String> allowedMimeTypes = List.of("image/png", "image/jpeg", "image/webp", "application/pdf");
 
     @AssertTrue(message = "app.storage.max-file-size must be greater than zero")
     public boolean isMaxFileSizePositive() {
         return maxFileSize == null || maxFileSize.toBytes() > 0;
+    }
+
+    @AssertTrue(message = "app.storage.max-pdf-file-size must be greater than zero")
+    public boolean isMaxPdfFileSizePositive() {
+        return maxPdfFileSize == null || maxPdfFileSize.toBytes() > 0;
     }
 
     @Bean

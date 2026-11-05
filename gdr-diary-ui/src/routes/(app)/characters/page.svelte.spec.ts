@@ -755,15 +755,15 @@ describe('new character dialog', () => {
 		expect(api.POST).not.toHaveBeenCalled();
 	});
 
-	it('rejects a malformed HEX color', async () => {
+	it('offers the preset colors only, with no free HEX field', async () => {
 		await openFields();
 
-		await page.getByRole('textbox', { name: 'Nome *' }).fill('Alira');
-		await page.getByRole('textbox', { name: 'Colore in formato HEX' }).fill('#12');
-		await page.getByRole('button', { name: 'Forgia il personaggio' }).click();
-
-		await expect.element(page.getByText(/Usa il formato #RRGGBB/)).toBeVisible();
-		expect(api.POST).not.toHaveBeenCalled();
+		await expect
+			.element(page.getByRole('textbox', { name: 'Colore in formato HEX' }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Viola #3B2A6B' }))
+			.toHaveAttribute('aria-pressed', 'true');
 	});
 
 	it('picks a preset color', async () => {
@@ -772,11 +772,24 @@ describe('new character dialog', () => {
 		await page.getByRole('button', { name: 'Rosso #7C2A22' }).click();
 
 		await expect
-			.element(page.getByRole('textbox', { name: 'Colore in formato HEX' }))
-			.toHaveValue('#7C2A22');
-		await expect
 			.element(page.getByRole('button', { name: 'Rosso #7C2A22' }))
 			.toHaveAttribute('aria-pressed', 'true');
+		await expect
+			.element(page.getByRole('button', { name: 'Viola #3B2A6B' }))
+			.toHaveAttribute('aria-pressed', 'false');
+	});
+
+	it('sends the preset color it was given', async () => {
+		api.POST.mockResolvedValue({ data: { id: 'nuovo', name: 'Alira' } });
+		await openFields();
+
+		await page.getByRole('textbox', { name: 'Nome *' }).fill('Alira');
+		await page.getByRole('button', { name: 'Rosso #7C2A22' }).click();
+		await page.getByRole('button', { name: 'Forgia il personaggio' }).click();
+
+		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+		const body = (api.POST.mock.calls[0]?.[1] as { body: Record<string, string> }).body;
+		expect(body.backgroundColor).toBe('#7C2A22');
 	});
 
 	it('refuses an unsupported image', async () => {

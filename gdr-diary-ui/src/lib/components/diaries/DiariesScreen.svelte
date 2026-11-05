@@ -41,8 +41,9 @@
 	const subtitle = $derived(
 		firstTime
 			? `${name} non ha ancora nessun diario. Rilegane uno e comincia dalla prima pagina.`
-			: 'È ora di scrivere qualcosa di epico.'
+			: 'Ogni diario ha le sue pagine, fino a cento. Scegli quello da aprire o rilegane uno nuovo.'
 	);
+	const count = $derived(list.status === 'ready' ? list.totalRows : undefined);
 
 	$effect(() => {
 		if (list.queryKey) {
@@ -107,9 +108,16 @@
 	}
 </script>
 
-<CharacterHeader {character} {subtitle} showNew={!firstTime} onnew={openDialog} />
+<CharacterHeader
+	{character}
+	tab="diaries"
+	{subtitle}
+	{count}
+	newLabel={firstTime ? undefined : 'Nuovo diario'}
+	onnew={firstTime ? undefined : openDialog}
+/>
 
-<Container class="pb-[clamp(64px,9vw,112px)]">
+<Container class="pt-[clamp(32px,4vw,48px)] pb-[clamp(64px,9vw,112px)]">
 	{#if showToolbar}
 		<DiaryToolbar {list} />
 	{/if}
