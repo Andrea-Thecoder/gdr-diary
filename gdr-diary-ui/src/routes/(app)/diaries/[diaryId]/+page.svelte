@@ -16,5 +16,6 @@
 		initial={data.initial}
 		spread={data.spread}
 		drafts={data.drafts}
+		bookmark={data.bookmark}
 	/>
 {/key}

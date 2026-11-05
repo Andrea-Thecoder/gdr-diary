@@ -24,6 +24,7 @@ vi.mock('$app/state', async () => {
 
 import { DEFAULT_PREFERENCES } from '#lib/settings/preferences.js';
 import { preferences } from '#lib/settings/preferences.svelte.js';
+import type { Bookmark } from '#lib/book/bookmark.js';
 import { clearAllDrafts, type Draft } from '#lib/book/draft.js';
 import { emptyDoc, type SpreadData } from '#lib/book/pages.js';
 import {
@@ -35,7 +36,7 @@ import {
 } from '#lib/book/test-support.js';
 import { required, settle } from '#lib/test-support.js';
 import Page from './+page.svelte';
-import { setPageUrl } from './page-state.svelte.js';
+import { pageState, setPageUrl, setShallowUrl } from './page-state.svelte.js';
 
 const diary = diaryFixture;
 const character = characterFixture;
@@ -48,10 +49,15 @@ function mockServer(total: number): void {
 	serveBook(api, total, (number) => `Testo della pagina ${String(number)}`);
 }
 
-function renderPage(total: number, spread = 1, drafts: Draft[] = []): void {
+function renderPage(
+	total: number,
+	spread = 1,
+	drafts: Draft[] = [],
+	bookmark: Bookmark | null = null
+): void {
 	setPageUrl(`http://localhost/diaries/d1?vista=${String(spread)}`);
 	render(Page, {
-		data: { diary, character, initial: spreadOf(total, spread), spread, drafts },
+		data: { diary, character, initial: spreadOf(total, spread), spread, drafts, bookmark },
 		params: { diaryId: 'd1' }
 	} as never);
 }
@@ -108,9 +114,13 @@ beforeEach(async () => {
 	api.GET.mockReset();
 	api.POST.mockReset();
 	api.PUT.mockReset();
-	navigation.goto.mockImplementation((href: unknown) => {
-		setPageUrl(String(href));
-		return Promise.resolve();
+	navigation.goto.mockImplementation(async (href: unknown, options: unknown) => {
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		if ((options as { shallow?: boolean } | undefined)?.shallow === true) {
+			setShallowUrl(String(href));
+		} else {
+			setPageUrl(String(href));
+		}
 	});
 	preferences.value = { ...DEFAULT_PREFERENCES, pageTurn: false };
 	await page.viewport(1280, 900);
@@ -213,6 +223,20 @@ describe('turning pages', () => {
 			.toHaveTextContent('Testo della pagina 3');
 		await expect.element(page.getByRole('button', { name: 'Pagine precedenti' })).toBeVisible();
 		expect(navigation.goto).toHaveBeenCalledWith('/diaries/d1?vista=2', { shallow: true });
+	});
+
+	it('stays on the spread it turned to while the page address is still the one it was loaded with', async () => {
+		mockServer(23);
+		renderPage(23);
+
+		await page.getByRole('button', { name: 'Pagine successive' }).click();
+		await expect.element(page.getByText('Pagine 3 e 4 di 23')).toBeVisible();
+		await vi.waitFor(() => {
+			expect(pageState.shallow?.url.search).toBe('?vista=2');
+		});
+		await settle();
+
+		await expect.element(page.getByText('Pagine 3 e 4 di 23')).toBeVisible();
 	});
 
 	it('goes back from the corner', async () => {
@@ -1358,5 +1382,114 @@ describe('leaving the page', () => {
 		const cancel = navigate('link');
 
 		expect(cancel).not.toHaveBeenCalled();
+	});
+});
+
+describe('bookmark', () => {
+	const marked: Bookmark = { pageId: 'p3', pageNumber: 3 };
+
+	function ribbon(number: number): ReturnType<typeof page.getByRole> {
+		return page.getByRole('button', { name: `Segnalibro, pagina ${String(number)}` });
+	}
+
+	it('puts a ribbon on each written page of the spread, not pressed', async () => {
+		mockServer(4);
+		renderPage(4);
+		await expect.element(page.getByRole('textbox', { name: 'Pagina 1' })).toBeVisible();
+
+		await expect.element(ribbon(1)).toHaveAttribute('aria-pressed', 'false');
+		await expect.element(ribbon(2)).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	it('has no ribbon on a page that does not exist yet', async () => {
+		mockServer(1);
+		renderPage(1);
+		await expect.element(page.getByRole('textbox', { name: 'Pagina 1' })).toBeVisible();
+
+		await expect.element(ribbon(1)).toBeVisible();
+		await expect.element(ribbon(2)).not.toBeInTheDocument();
+	});
+
+	it('shows pressed the ribbon of the bookmarked page', async () => {
+		mockServer(6);
+		renderPage(6, 2, [], marked);
+		await expect.element(page.getByRole('textbox', { name: 'Pagina 3' })).toBeVisible();
+
+		await expect.element(ribbon(3)).toHaveAttribute('aria-pressed', 'true');
+		await expect.element(ribbon(4)).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	it('keeps at least 44 px to touch', async () => {
+		mockServer(4);
+		renderPage(4);
+		await expect.element(ribbon(2)).toBeVisible();
+
+		const box = ribbon(2).element().getBoundingClientRect();
+
+		expect(box.width).toBeGreaterThanOrEqual(44);
+		expect(box.height).toBeGreaterThanOrEqual(44);
+	});
+
+	it('marks the page when the ribbon is pressed', async () => {
+		mockServer(4);
+		api.PUT.mockResolvedValue({ data: { pageId: 'p2', pageNumber: 2 } });
+		renderPage(4);
+		await expect.element(ribbon(2)).toBeVisible();
+
+		await ribbon(2).click();
+
+		await expect.element(ribbon(2)).toHaveAttribute('aria-pressed', 'true');
+		expect(api.PUT).toHaveBeenCalledWith('/diaries/{id}/bookmark', {
+			params: { path: { id: 'd1' } },
+			body: { pageId: 'p2' }
+		});
+	});
+
+	it('moves the bookmark from the page that had it', async () => {
+		mockServer(6);
+		api.PUT.mockResolvedValue({ data: { pageId: 'p4', pageNumber: 4 } });
+		renderPage(6, 2, [], marked);
+		await expect.element(ribbon(4)).toBeVisible();
+
+		await ribbon(4).click();
+
+		await expect.element(ribbon(4)).toHaveAttribute('aria-pressed', 'true');
+		await expect.element(ribbon(3)).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	it('takes the bookmark off when the pressed ribbon is pressed again', async () => {
+		mockServer(6);
+		api.DELETE.mockResolvedValue({ response: { ok: true } });
+		renderPage(6, 2, [], marked);
+		await expect.element(ribbon(3)).toBeVisible();
+
+		await ribbon(3).click();
+
+		await expect.element(ribbon(3)).toHaveAttribute('aria-pressed', 'false');
+		expect(api.DELETE).toHaveBeenCalledWith('/diaries/{id}/bookmark', {
+			params: { path: { id: 'd1' } }
+		});
+	});
+
+	it('says what went wrong and keeps the ribbon as it was when the server refuses', async () => {
+		mockServer(4);
+		api.PUT.mockResolvedValue({ error: { title: 'Page not found' }, response: { ok: false } });
+		renderPage(4);
+		await expect.element(ribbon(2)).toBeVisible();
+
+		await ribbon(2).click();
+
+		await expect.element(page.getByText('Pagina non trovata')).toBeVisible();
+		await expect.element(ribbon(2)).toHaveAttribute('aria-pressed', 'false');
+	});
+
+	it('is on the page too on a phone', async () => {
+		await page.viewport(390, 844);
+		mockServer(4);
+		renderPage(4);
+		await expect.element(page.getByRole('textbox', { name: 'Pagina 1' })).toBeVisible();
+
+		await expect.element(ribbon(1)).toBeVisible();
+		await expect.element(ribbon(2)).not.toBeInTheDocument();
 	});
 });

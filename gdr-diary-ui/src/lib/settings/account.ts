@@ -1,10 +1,9 @@
 import { getApi } from '#lib/api/index.js';
 import { profileAvatar } from '#lib/profile/avatar.svelte.js';
 import { theme } from '#lib/theme/theme.svelte.js';
-import type { ThemePreference } from '#lib/theme/theme.js';
 import { fetchAccount, saveSettings } from './api.js';
 import { preferences } from './preferences.svelte.js';
-import { THEME_SETTING, themeFromSettings, type AccountSettings } from './settings.js';
+import { themeFromSettings, type AccountSettings } from './settings.js';
 
 export class AccountSync {
 	private synced = false;
@@ -29,10 +28,6 @@ export class AccountSync {
 }
 
 export const accountSync = new AccountSync();
-
-export async function saveThemeToAccount(preference: ThemePreference): Promise<void> {
-	await saveSettings(getApi(), { [THEME_SETTING]: preference });
-}
 
 export async function savePreferencesToAccount(changes: AccountSettings): Promise<void> {
 	preferences.apply(await saveSettings(getApi(), changes));

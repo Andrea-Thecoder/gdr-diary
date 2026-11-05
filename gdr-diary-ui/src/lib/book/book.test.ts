@@ -12,7 +12,7 @@ import {
 } from './book.svelte.js';
 import { createMemoryDraftStore, type DraftStore } from './draft.js';
 import { MAX_PAGES, emptyDoc, hasText, type SpreadData } from './pages.js';
-import { doc, spreadData } from './test-support.js';
+import { doc, draftFixture, spreadData } from './test-support.js';
 
 type Call = (...args: unknown[]) => Promise<unknown>;
 
@@ -677,6 +677,52 @@ describe('waiting limits', () => {
 		expect(SAVE_MAX_WAIT).toBeGreaterThan(SAVE_DELAY);
 	});
 
+	it('waits for the pause chosen by the writer and not for the default one', async () => {
+		const { book, PUT } = setup(4, { saveDelay: () => 1000 });
+		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
+		book.update(1, doc('nuovo'));
+		await vi.advanceTimersByTimeAsync(990);
+		expect(PUT).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(20);
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('waits longer when the writer chose a longer pause', async () => {
+		const { book, PUT } = setup(4, { saveDelay: () => 8000 });
+		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
+		book.update(1, doc('nuovo'));
+		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+		expect(PUT).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(8000 - SAVE_DELAY);
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('saves at the end of the chosen pause even when it is longer than the maximum wait', async () => {
+		const { book, PUT } = setup(4, { saveDelay: () => 30000 });
+		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
+		book.update(1, doc('a'));
+		await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT + 5000);
+		expect(PUT).not.toHaveBeenCalled();
+		book.update(1, doc('ab'));
+		await vi.advanceTimersByTimeAsync(5100);
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('reads the chosen pause again at every change', async () => {
+		let seconds = 1;
+		const { book, PUT } = setup(4, { saveDelay: () => seconds * 1000 });
+		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
+		book.update(1, doc('uno'));
+		await vi.advanceTimersByTimeAsync(1010);
+		expect(PUT).toHaveBeenCalledTimes(1);
+		seconds = 5;
+		book.update(1, doc('uno due'));
+		await vi.advanceTimersByTimeAsync(4990);
+		expect(PUT).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(20);
+		expect(PUT).toHaveBeenCalledTimes(2);
+	});
+
 	it('goes back to the short pause once the text is saved', async () => {
 		const { book, PUT } = setup(4);
 		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
@@ -1090,19 +1136,26 @@ describe('local drafts', () => {
 		expect(await drafts.list('d1')).toEqual([]);
 	});
 
-	it('brings back unsaved text found after a crash and saves it', async () => {
+	it('shows the page of the server and drops a copy of a page that exists there', async () => {
 		const { book, drafts, PUT } = setup(4);
-		PUT.mockResolvedValue({ data: { id: 'p1', pageNumber: 1, content: {} } });
 		await drafts.put({ ...page1, content: doc('scritto prima') });
 		book.restore(await drafts.list('d1'));
-		expect(book.content(1)).toEqual(doc('scritto prima'));
-		expect(book.notice.message).toBe('Modifiche non salvate recuperate (pagina 1)');
-		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
-		expect(PUT).toHaveBeenCalledWith('/pages/{id}', {
-			params: { path: { id: 'p1' } },
-			body: { content: doc('scritto prima'), version: 3 }
-		});
+		expect(book.content(1)).toEqual(doc('pagina 1'));
+		expect(book.notice.message).toBeNull();
+		expect(book.dirty.has(1)).toBe(false);
 		expect(await drafts.list('d1')).toEqual([]);
+		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+		expect(PUT).not.toHaveBeenCalled();
+	});
+
+	it('does not put a copy written on an older version over the page of the server', async () => {
+		const { book, drafts, PUT } = setup(4);
+		await drafts.put({ ...page1, baseVersion: 2, content: doc('scritto prima') });
+		book.restore(await drafts.list('d1'));
+		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
+		expect(book.content(1)).toEqual(doc('pagina 1'));
+		expect(book.state).toBe('saved');
+		expect(PUT).not.toHaveBeenCalled();
 	});
 
 	it('drops a copy equal to the page on the server', async () => {
@@ -1115,18 +1168,15 @@ describe('local drafts', () => {
 		expect(PUT).not.toHaveBeenCalled();
 	});
 
-	it('keeps a draft whose page moved to another number', async () => {
+	it('drops a draft whose page moved to another number and shows the server page', async () => {
 		const { book, drafts, PUT } = setup(4);
-		PUT.mockResolvedValue({ data: { id: 'p2', pageNumber: 2, content: {}, version: 4 } });
 		await drafts.put({ ...page1, page: 4, pageId: 'p2', content: doc('scritto prima') });
 		book.restore(await drafts.list('d1'));
-		expect(book.content(2)).toEqual(doc('scritto prima'));
-		expect(book.dirty.has(2)).toBe(true);
+		expect(book.content(2)).toEqual(doc('pagina 2'));
+		expect(book.dirty.has(2)).toBe(false);
+		expect(await drafts.list('d1')).toEqual([]);
 		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
-		expect(PUT).toHaveBeenCalledWith('/pages/{id}', {
-			params: { path: { id: 'p2' } },
-			body: { content: doc('scritto prima'), version: 3 }
-		});
+		expect(PUT).not.toHaveBeenCalled();
 	});
 
 	it('finds the new number of a draft page in an earlier spread', async () => {
@@ -1135,7 +1185,8 @@ describe('local drafts', () => {
 		book.restore(await drafts.list('d1'));
 		await vi.advanceTimersByTimeAsync(10);
 		expect(GET).toHaveBeenCalled();
-		expect(book.content(2)).toEqual(doc('scritto prima'));
+		expect(book.content(2)).toEqual(doc('pagina 2'));
+		expect(book.dirty.has(2)).toBe(false);
 	});
 
 	it('moves the text of a page that no longer exists into a new last page', async () => {
@@ -1172,8 +1223,9 @@ describe('local drafts', () => {
 		expect(book.notice.message).toBeNull();
 		expect(await drafts.list('d1')).toHaveLength(1);
 		await book.goTo(5);
-		expect(book.content(5)).toEqual(doc('bozza'));
-		expect(book.notice.message).toBe('Modifiche non salvate recuperate (pagina 5)');
+		expect(book.content(5)).toEqual(doc('pagina 5'));
+		expect(book.notice.message).toBeNull();
+		expect(await drafts.list('d1')).toEqual([]);
 	});
 
 	it('brings back the first words of a page that was never created', async () => {
@@ -1389,23 +1441,6 @@ describe('versions and conflicts', () => {
 		book.update(1, doc('mio'));
 		await vi.advanceTimersByTimeAsync(DRAFT_DELAY + 10);
 		expect(await drafts.list('d1')).toEqual([expect.objectContaining({ page: 1, baseVersion: 3 })]);
-	});
-
-	it('saves a restored copy on the version it was written on, so a change made elsewhere shows up', async () => {
-		const { book, PUT, drafts } = setup(4);
-		await drafts.put({
-			diaryId: 'd1',
-			page: 1,
-			pageId: 'p1',
-			baseVersion: 2,
-			content: doc('scritto prima'),
-			savedAt: 1
-		});
-		PUT.mockResolvedValueOnce(conflict);
-		book.restore(await drafts.list('d1'));
-		await vi.advanceTimersByTimeAsync(SAVE_DELAY + 10);
-		expect(versionsSent(PUT)).toEqual([2]);
-		expect(book.state).toBe('conflict');
 	});
 });
 
@@ -1971,5 +2006,253 @@ describe('connection problems when creating a page', () => {
 
 		expect(POST).toHaveBeenCalledTimes(2);
 		expect(PUT).not.toHaveBeenCalled();
+	});
+});
+
+describe('discarding the book', () => {
+	it('drops the unsaved text, its local draft and the save that was waiting', async () => {
+		const { book, PUT, drafts } = setup(4);
+		book.update(1, doc('nuovo'));
+		await vi.advanceTimersByTimeAsync(DRAFT_DELAY + 10);
+		expect(await drafts.list('d1')).toHaveLength(1);
+
+		book.discard();
+		await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT);
+
+		expect(PUT).not.toHaveBeenCalled();
+		expect(await drafts.list('d1')).toEqual([]);
+		expect(book.state).toBe('saved');
+		expect(book.unsaved).toBe(false);
+	});
+
+	it('forgets the drafts found when the diary was opened', async () => {
+		const { book, drafts } = setup(4);
+		await drafts.put(draftFixture({ page: 5, pageId: null, baseVersion: 0 }));
+		book.restore(await drafts.list('d1'));
+		expect(book.dirty.has(5)).toBe(true);
+
+		book.discard();
+
+		expect(await drafts.list('d1')).toEqual([]);
+	});
+
+	it('clears a save failure so that nothing blocks leaving the screen', async () => {
+		const { book, PUT } = setup(4);
+		PUT.mockResolvedValue({ error: { title: 'Rete assente' }, response: { status: 500 } });
+		book.update(1, doc('importante'));
+		await book.flush();
+		expect(book.failure).not.toBeNull();
+
+		book.discard();
+		await vi.advanceTimersByTimeAsync(RETRY_MAX_DELAY * 2);
+
+		expect(book.failure).toBeNull();
+		expect(book.unsaved).toBe(false);
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not show a failure when a save that was already running ends badly', async () => {
+		const { book, PUT } = setup(4);
+		let refuse: () => void = () => undefined;
+		PUT.mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					refuse = () => {
+						resolve({ error: { title: 'Non trovato' }, response: { status: 404 } });
+					};
+				})
+		);
+		book.update(1, doc('importante'));
+		const saving = book.flush();
+		await vi.advanceTimersByTimeAsync(0);
+
+		book.discard();
+		refuse();
+		await saving;
+
+		expect(book.failure).toBeNull();
+		expect(book.state).toBe('saved');
+	});
+
+	it('does nothing when asked to save or to leave afterwards', async () => {
+		const { book, PUT, DELETE } = setup(4);
+		book.update(1, doc('nuovo'));
+		book.discard();
+
+		expect(await book.flush()).toBe(true);
+		await book.leave();
+		book.update(1, doc('ancora'));
+		await vi.advanceTimersByTimeAsync(SAVE_MAX_WAIT);
+
+		expect(PUT).not.toHaveBeenCalled();
+		expect(DELETE).not.toHaveBeenCalled();
+	});
+});
+
+describe('bookmark', () => {
+	const mark = { pageId: 'p3', pageNumber: 3 };
+
+	function answer(pageId: string, pageNumber: number): { data: unknown } {
+		return { data: { pageId, pageNumber } };
+	}
+
+	it('shows the ribbon on the bookmarked page the diary opens on', () => {
+		const { book } = setup(6, { bookmark: mark }, 2);
+
+		expect(book.bookmark).toEqual(mark);
+		expect(book.marked(3)).toBe(true);
+		expect(book.marked(4)).toBe(false);
+	});
+
+	it('has no bookmark when the diary has none', () => {
+		const { book } = setup(6);
+
+		expect(book.bookmark).toBeNull();
+		expect(book.marked(1)).toBe(false);
+	});
+
+	it('marks a page with the bookmark and remembers it', async () => {
+		const { book, PUT } = setup(6);
+		PUT.mockResolvedValue(answer('p2', 2));
+
+		await book.toggleBookmark(2);
+
+		expect(PUT).toHaveBeenCalledWith('/diaries/{id}/bookmark', {
+			params: { path: { id: 'd1' } },
+			body: { pageId: 'p2' }
+		});
+		expect(book.bookmark).toEqual({ pageId: 'p2', pageNumber: 2 });
+		expect(book.marked(2)).toBe(true);
+		expect(book.marking).toBe(false);
+	});
+
+	it('moves the bookmark to another page', async () => {
+		const { book, PUT } = setup(6, { bookmark: mark }, 2);
+		PUT.mockResolvedValue(answer('p4', 4));
+
+		await book.toggleBookmark(4);
+
+		expect(book.marked(3)).toBe(false);
+		expect(book.marked(4)).toBe(true);
+	});
+
+	it('takes the bookmark off a page that has it', async () => {
+		const { book, DELETE } = setup(6, { bookmark: mark }, 2);
+		DELETE.mockResolvedValue({ response: { ok: true } });
+
+		await book.toggleBookmark(3);
+
+		expect(DELETE).toHaveBeenCalledWith('/diaries/{id}/bookmark', {
+			params: { path: { id: 'd1' } }
+		});
+		expect(book.bookmark).toBeNull();
+		expect(book.marked(3)).toBe(false);
+	});
+
+	it('keeps the bookmark and says why when the server refuses it', async () => {
+		const { book, PUT } = setup(6, { bookmark: mark }, 2);
+		PUT.mockResolvedValue({ error: { title: 'Page not found' }, response: { ok: false } });
+
+		await book.toggleBookmark(4);
+
+		expect(book.bookmark).toEqual(mark);
+		expect(book.notice.message).toBe('Pagina non trovata');
+		expect(book.notice.failed).toBe(true);
+		expect(book.marking).toBe(false);
+	});
+
+	it('says the server is unreachable when the network fails', async () => {
+		const { book, PUT } = setup(6);
+		PUT.mockRejectedValue(new TypeError('Failed to fetch'));
+
+		await book.toggleBookmark(1);
+
+		expect(book.notice.message).toBe('Non riesco a raggiungere il server.');
+		expect(book.bookmark).toBeNull();
+	});
+
+	it('keeps the bookmark when taking it off fails', async () => {
+		const { book, DELETE } = setup(6, { bookmark: mark }, 2);
+		DELETE.mockResolvedValue({ error: { title: 'boom' }, response: { ok: false, status: 500 } });
+
+		await book.toggleBookmark(3);
+
+		expect(book.bookmark).toEqual(mark);
+		expect(book.notice.message).toBe('boom');
+	});
+
+	it('does nothing on a page that has no text and does not exist yet', async () => {
+		const { book, PUT, POST } = setup(0);
+
+		await book.toggleBookmark(1);
+
+		expect(book.markable(1)).toBe(false);
+		expect(PUT).not.toHaveBeenCalled();
+		expect(POST).not.toHaveBeenCalled();
+	});
+
+	it('saves a page that was just written before marking it', async () => {
+		const { book, POST, PUT } = setup(0);
+		POST.mockResolvedValue({ data: { id: 'n1', pageNumber: 1, content: doc('inizio') } });
+		PUT.mockResolvedValue(answer('n1', 1));
+		book.update(1, doc('inizio'));
+
+		await book.toggleBookmark(1);
+
+		expect(POST).toHaveBeenCalledTimes(1);
+		expect(PUT).toHaveBeenCalledWith('/diaries/{id}/bookmark', {
+			params: { path: { id: 'd1' } },
+			body: { pageId: 'n1' }
+		});
+		expect(book.marked(1)).toBe(true);
+	});
+
+	it('says the page must be saved first when saving fails', async () => {
+		const { book, POST, PUT } = setup(0);
+		POST.mockRejectedValue(new TypeError('Failed to fetch'));
+		book.update(1, doc('inizio'));
+
+		await book.toggleBookmark(1);
+
+		expect(PUT).not.toHaveBeenCalled();
+		expect(book.notice.message).toBe(
+			'Prima devo salvare la pagina, ma non ci riesco. Riprova tra poco.'
+		);
+	});
+
+	it('ignores a second tap while the first is still running', async () => {
+		const { book, PUT } = setup(6);
+		PUT.mockResolvedValue(answer('p1', 1));
+
+		await Promise.all([book.toggleBookmark(1), book.toggleBookmark(1)]);
+
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('drops the bookmark when its page is deleted', async () => {
+		const { book, DELETE } = setup(6, { bookmark: mark }, 2);
+		DELETE.mockResolvedValue({ response: { ok: true } });
+
+		await book.removePage(3);
+
+		expect(book.bookmark).toBeNull();
+	});
+
+	it('keeps the bookmark on its page when an earlier page is deleted', async () => {
+		const { book, DELETE } = setup(6, { bookmark: { pageId: 'p2', pageNumber: 2 } });
+		DELETE.mockResolvedValue({ response: { ok: true } });
+
+		await book.removePage(1);
+
+		expect(book.bookmark).toEqual({ pageId: 'p2', pageNumber: 1 });
+	});
+
+	it('keeps the bookmark when a later page is deleted', async () => {
+		const { book, DELETE } = setup(6, { bookmark: { pageId: 'p1', pageNumber: 1 } });
+		DELETE.mockResolvedValue({ response: { ok: true } });
+
+		await book.removePage(2);
+
+		expect(book.bookmark).toEqual({ pageId: 'p1', pageNumber: 1 });
 	});
 });

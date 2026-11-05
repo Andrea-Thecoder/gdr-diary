@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import AccountHeader from '#lib/components/app/AccountHeader.svelte';
 	import Container from '#lib/components/ui/Container.svelte';
 	import FieldRow from '#lib/components/ui/FieldRow.svelte';
@@ -12,8 +12,10 @@
 	import SwitchField from '#lib/components/ui/SwitchField.svelte';
 	import ThemePicker from '#lib/components/ui/ThemePicker.svelte';
 	import { FONTS } from '#lib/diaries/typography.js';
-	import { savePreferencesToAccount, saveThemeToAccount } from '#lib/settings/account.js';
+	import { savePreferencesToAccount } from '#lib/settings/account.js';
 	import {
+		AUTO_SAVE_DELAY_MAX,
+		AUTO_SAVE_DELAY_MIN,
 		changedPreferences,
 		FONT_SIZE_MAX,
 		FONT_SIZE_MIN,
@@ -23,36 +25,31 @@
 		type Preferences
 	} from '#lib/settings/preferences.js';
 	import { preferences } from '#lib/settings/preferences.svelte.js';
+	import { THEME_SETTING } from '#lib/settings/settings.js';
 	import type { ThemePreference } from '#lib/theme/theme.js';
-
-	type SaveState = 'idle' | 'saving' | 'saved' | 'failed';
+	import { theme } from '#lib/theme/theme.svelte.js';
 
 	const ids = $props.id();
 	const lineOptions = LINE_SPACINGS.map((value) => ({ value, label: LINE_SPACING_LABELS[value] }));
 
 	let draft = $state<Preferences>(untrack(() => ({ ...preferences.value })));
-	let themeState = $state<SaveState>('idle');
+	theme.init();
+
+	let savedTheme = $state<ThemePreference>(untrack(() => theme.preference));
 	let saving = $state(false);
 	let saveError = $state<string | null>(null);
-	let ticket = 0;
 
-	const changes = $derived(changedPreferences(preferences.value, draft));
+	const changes = $derived({
+		...changedPreferences(preferences.value, draft),
+		...(theme.preference === savedTheme ? {} : { [THEME_SETTING]: theme.preference })
+	});
 	const dirty = $derived(Object.keys(changes).length > 0);
 
-	async function saveTheme(preference: ThemePreference): Promise<void> {
-		const mine = ++ticket;
-		themeState = 'saving';
-		try {
-			await saveThemeToAccount(preference);
-			if (mine === ticket) {
-				themeState = 'saved';
-			}
-		} catch {
-			if (mine === ticket) {
-				themeState = 'failed';
-			}
+	onDestroy(() => {
+		if (theme.preference !== savedTheme) {
+			theme.select(savedTheme);
 		}
-	}
+	});
 
 	async function submit(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
@@ -64,6 +61,7 @@
 		try {
 			await savePreferencesToAccount(changes);
 			draft = { ...preferences.value };
+			savedTheme = theme.preference;
 		} catch (cause) {
 			saveError = cause instanceof Error ? cause.message : 'Non riesco a salvare le impostazioni.';
 		} finally {
@@ -73,6 +71,7 @@
 
 	function cancel(): void {
 		draft = { ...preferences.value };
+		theme.select(savedTheme);
 		saveError = null;
 	}
 </script>
@@ -171,29 +170,34 @@
 						}}
 					/>
 				</FieldRow>
+				{#if draft.autoSave}
+					<FieldRow
+						label="Attesa prima di salvare"
+						help="Quanti secondi di pausa nella scrittura servono prima che il salvataggio parta da solo."
+						labelId={`${ids}-delay`}
+					>
+						<RangeField
+							value={draft.autoSaveDelay}
+							min={AUTO_SAVE_DELAY_MIN}
+							max={AUTO_SAVE_DELAY_MAX}
+							unit="s"
+							labelledby={`${ids}-delay`}
+							onchange={(value: number) => {
+								draft.autoSaveDelay = value;
+							}}
+						/>
+					</FieldRow>
+				{/if}
 			</SettingsSection>
 		</div>
 
 		<div id="aspetto" class="scroll-mt-6">
-			<SettingsSection title="Aspetto" intro="Il tema si applica e si salva subito.">
+			<SettingsSection
+				title="Aspetto"
+				intro="Il tema si vede subito, ma resta tuo solo dopo aver salvato."
+			>
 				<FieldRow label="Tema" help="Sistema segue le impostazioni del tuo dispositivo.">
-					<ThemePicker
-						onselect={(preference: ThemePreference) => {
-							void saveTheme(preference);
-						}}
-					/>
-					<p
-						role={themeState === 'failed' ? 'alert' : 'status'}
-						class="mx-0 mt-3 mb-0 min-h-[1.6em] text-base text-soft"
-					>
-						{#if themeState === 'saving'}
-							Salvo…
-						{:else if themeState === 'saved'}
-							Salvato sul tuo account.
-						{:else if themeState === 'failed'}
-							Non sono riuscito a salvare sul tuo account: la scelta resta su questo dispositivo.
-						{/if}
-					</p>
+					<ThemePicker />
 				</FieldRow>
 				<FieldRow
 					label="Effetto sfoglio"

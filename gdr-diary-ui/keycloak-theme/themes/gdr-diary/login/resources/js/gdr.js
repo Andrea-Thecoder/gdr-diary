@@ -41,6 +41,26 @@ function setupSingleSubmit() {
 	});
 }
 
+function setupAutoSubmit() {
+	const form = document.querySelector('form[data-gdr-auto-submit]');
+	if (!(form instanceof HTMLFormElement)) {
+		return;
+	}
+	let sent = false;
+	const send = () => {
+		if (!sent) {
+			sent = true;
+			form.submit();
+		}
+	};
+	window.addEventListener('pageshow', (event) => {
+		if (event.persisted) {
+			sent = true;
+		}
+	});
+	setTimeout(send, 0);
+}
+
 function flowReturnUrl() {
 	const raw = new URLSearchParams(window.location.search).get('client_data');
 	if (raw === null) {
@@ -79,4 +99,5 @@ function setupRedirect() {
 
 setupPasswordToggles();
 setupSingleSubmit();
+setupAutoSubmit();
 setupRedirect();

@@ -12,6 +12,7 @@
 	import type { LineSpacing } from '#lib/settings/preferences.js';
 	import ScaledPage from './ScaledPage.svelte';
 	import DogEar from './DogEar.svelte';
+	import PageBookmark from './PageBookmark.svelte';
 	import PageTrash from './PageTrash.svelte';
 	import PageTurn from './PageTurn.svelte';
 
@@ -52,9 +53,7 @@
 	const frameWidth = $derived(PAGE_WIDTH * scale);
 	const frameHeight = $derived(PAGE_HEIGHT * scale);
 	const first = $derived(book.visible[0] ?? 1);
-	const lastVisible = $derived(book.visible[book.visible.length - 1] ?? 1);
 	const edges = $derived(thickness(first, book.last));
-	const ribbon = $derived(!book.single && book.last > 0 && lastVisible < book.last);
 
 	function stack(count: number, direction: 'left' | 'right'): string {
 		const sign = direction === 'left' ? -1 : 1;
@@ -116,11 +115,16 @@
 									}}
 								/>
 							{/if}
-							{#if ribbon && index === 1}
-								<span
-									aria-hidden="true"
-									class="absolute -top-2 right-6 z-10 h-16 w-5 [clip-path:polygon(0_0,100%_0,100%_100%,50%_78%,0_100%)] surface-ribbon"
-								></span>
+							{#if book.markable(page)}
+								<PageBookmark
+									{side}
+									{page}
+									marked={book.marked(page)}
+									disabled={book.marking}
+									onclick={() => {
+										void book.toggleBookmark(page);
+									}}
+								/>
 							{/if}
 							{#if book.previous && (index === 0 || book.single)}
 								<DogEar

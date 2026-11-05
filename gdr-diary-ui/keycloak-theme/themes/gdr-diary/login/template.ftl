@@ -25,12 +25,17 @@
     <script src="${url.resourcesPath}/js/gdr.js" defer></script>
     <#if authenticationSession??>
         <script type="module">
-            import { checkCookiesAndSetTimer } from "${url.resourcesPath}/js/authChecker.js";
-            checkCookiesAndSetTimer(
-                "${authenticationSession.authSessionId}",
-                "${authenticationSession.tabId}",
-                "${url.ssoLoginInOtherTabsUrl?no_esc}"
-            );
+            import("${url.resourcesPath}/js/authChecker.js")
+                .then((checker) => {
+                    if (typeof checker.checkCookiesAndSetTimer === "function") {
+                        checker.checkCookiesAndSetTimer(
+                            "${authenticationSession.authSessionId}",
+                            "${authenticationSession.tabId}",
+                            "${url.ssoLoginInOtherTabsUrl?no_esc}"
+                        );
+                    }
+                })
+                .catch(() => undefined);
         </script>
     </#if>
 </head>

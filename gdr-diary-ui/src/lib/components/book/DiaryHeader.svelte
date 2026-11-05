@@ -5,6 +5,9 @@
 	import ClosedBook from '#lib/components/diaries/ClosedBook.svelte';
 	import ArrowIcon from '#lib/components/ui/ArrowIcon.svelte';
 	import { backLinkClasses } from '#lib/components/ui/button.js';
+	import IconButton from '#lib/components/ui/IconButton.svelte';
+	import QuillIcon from '#lib/components/ui/QuillIcon.svelte';
+	import TrashIcon from '#lib/components/ui/TrashIcon.svelte';
 	import type { CharacterDetail } from '#lib/characters/api.js';
 	import type { DiaryDetail } from '#lib/diaries/api.js';
 
@@ -13,9 +16,11 @@
 		character: CharacterDetail;
 		counter: string;
 		status: Snippet;
+		onedit: () => void;
+		ondelete: () => void;
 	}
 
-	let { diary, character, counter, status }: Props = $props();
+	let { diary, character, counter, status, onedit, ondelete }: Props = $props();
 
 	const title = $derived(diary.title ?? '');
 	const characterName = $derived(character.name ?? '');
@@ -46,5 +51,13 @@
 			{counter}
 		</p>
 		{@render status()}
+		<div class="flex items-center gap-2">
+			<IconButton label="Modifica il diario" onclick={onedit}>
+				<QuillIcon size={20} strokeWidth={1.6} />
+			</IconButton>
+			<IconButton label="Elimina il diario" onclick={ondelete}>
+				<TrashIcon size={20} />
+			</IconButton>
+		</div>
 	</div>
 </div>

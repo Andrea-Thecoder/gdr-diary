@@ -12,7 +12,7 @@
 </script>
 
 <div
-	class="sticky bottom-3 z-20 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[8px] border border-(color:--card-border) px-5 py-4 text-ink shadow-(--modal-shadow) outline-1 -outline-offset-8 outline-(color:--card-outline) surface-card"
+	class="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[8px] border border-(color:--card-border) px-5 py-4 text-ink shadow-(--modal-shadow) outline-1 -outline-offset-8 outline-(color:--card-outline) surface-card"
 >
 	<div class="min-w-0 flex-[1_1_280px]">
 		<p class="m-0 text-[17px]">{message}</p>

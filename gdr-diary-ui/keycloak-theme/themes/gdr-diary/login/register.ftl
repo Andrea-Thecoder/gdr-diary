@@ -8,28 +8,29 @@
             <@userProfileCommons.userProfileFormFields; callback, attribute>
             </@userProfileCommons.userProfileFormFields>
 
-            <#if passwordRequired??>
-                <div class="${properties.kcFormGroupClass!}">
-                    <label for="password" class="${properties.kcLabelClass!}">${msg("password")} <span class="${properties.kcInputRequiredClass!}">*</span></label>
-                    <div class="${properties.kcInputGroup!}" dir="ltr">
-                        <input type="password" id="password" name="password" autocomplete="new-password" class="${properties.kcInputClass!} pe-[52px]" aria-invalid="<#if messagesPerField.existsError('password','password-confirm')>true<#else>false</#if>">
-                        <@layout.passwordToggle target="password"/>
-                    </div>
-                    <#if messagesPerField.existsError('password')>
-                        <span id="input-error-password" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">${kcSanitize(messagesPerField.get('password'))?no_esc}</span>
-                    </#if>
+            <#-- Sempre visibili e obbligatori. In Keycloak va acceso anche "Always set password on register form" nella configurazione di
+                 "Password Validation" del flusso registration: se è spento e la password manca, l’utente nasce senza e al primo accesso
+                 Keycloak gli impone "Aggiorna password". -->
+            <div class="${properties.kcFormGroupClass!}">
+                <label for="password" class="${properties.kcLabelClass!}">${msg("password")} <span class="${properties.kcInputRequiredClass!}">*</span></label>
+                <div class="${properties.kcInputGroup!}" dir="ltr">
+                    <input type="password" id="password" name="password" required autocomplete="new-password" class="${properties.kcInputClass!} pe-[52px]" aria-invalid="<#if messagesPerField.existsError('password','password-confirm')>true<#else>false</#if>">
+                    <@layout.passwordToggle target="password"/>
                 </div>
-                <div class="${properties.kcFormGroupClass!}">
-                    <label for="password-confirm" class="${properties.kcLabelClass!}">${msg("passwordConfirm")} <span class="${properties.kcInputRequiredClass!}">*</span></label>
-                    <div class="${properties.kcInputGroup!}" dir="ltr">
-                        <input type="password" id="password-confirm" name="password-confirm" autocomplete="new-password" class="${properties.kcInputClass!} pe-[52px]" aria-invalid="<#if messagesPerField.existsError('password-confirm')>true<#else>false</#if>">
-                        <@layout.passwordToggle target="password-confirm"/>
-                    </div>
-                    <#if messagesPerField.existsError('password-confirm')>
-                        <span id="input-error-password-confirm" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">${kcSanitize(messagesPerField.get('password-confirm'))?no_esc}</span>
-                    </#if>
+                <#if messagesPerField.existsError('password')>
+                    <span id="input-error-password" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">${kcSanitize(messagesPerField.get('password'))?no_esc}</span>
+                </#if>
+            </div>
+            <div class="${properties.kcFormGroupClass!}">
+                <label for="password-confirm" class="${properties.kcLabelClass!}">${msg("passwordConfirm")} <span class="${properties.kcInputRequiredClass!}">*</span></label>
+                <div class="${properties.kcInputGroup!}" dir="ltr">
+                    <input type="password" id="password-confirm" name="password-confirm" required autocomplete="new-password" class="${properties.kcInputClass!} pe-[52px]" aria-invalid="<#if messagesPerField.existsError('password-confirm')>true<#else>false</#if>">
+                    <@layout.passwordToggle target="password-confirm"/>
                 </div>
-            </#if>
+                <#if messagesPerField.existsError('password-confirm')>
+                    <span id="input-error-password-confirm" class="${properties.kcInputErrorMessageClass!}" aria-live="polite">${kcSanitize(messagesPerField.get('password-confirm'))?no_esc}</span>
+                </#if>
+            </div>
 
             <#if termsAcceptanceRequired??>
                 <div class="${properties.kcFormGroupClass!} col-span-full">

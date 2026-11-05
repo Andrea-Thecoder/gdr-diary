@@ -1,17 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { api, fetchDiary, fetchCharacter, fetchSpread, loadDrafts } = vi.hoisted(() => ({
-	api: { name: 'api' },
-	fetchDiary: vi.fn<(api: unknown, id: string) => Promise<unknown>>(),
-	fetchCharacter: vi.fn<(api: unknown, id: string) => Promise<unknown>>(),
-	fetchSpread: vi.fn<(api: unknown, id: string, spread: number) => Promise<unknown>>(),
-	loadDrafts: vi.fn<(id: string) => Promise<unknown>>()
-}));
+const { api, fetchDiary, fetchCharacter, fetchSpread, fetchBookmark, loadDrafts } = vi.hoisted(
+	() => ({
+		api: { name: 'api' },
+		fetchDiary: vi.fn<(api: unknown, id: string) => Promise<unknown>>(),
+		fetchCharacter: vi.fn<(api: unknown, id: string) => Promise<unknown>>(),
+		fetchSpread: vi.fn<(api: unknown, id: string, spread: number) => Promise<unknown>>(),
+		fetchBookmark: vi.fn<(api: unknown, id: string) => Promise<unknown>>(),
+		loadDrafts: vi.fn<(id: string) => Promise<unknown>>()
+	})
+);
 
 vi.mock('#lib/api/index.js', () => ({ getApi: () => api }));
 vi.mock('#lib/diaries/api.js', () => ({ fetchDiary }));
 vi.mock('#lib/characters/api.js', () => ({ fetchCharacter }));
 vi.mock('#lib/book/draft.js', () => ({ loadDrafts }));
+vi.mock('#lib/book/bookmark.js', () => ({ fetchBookmark }));
+vi.mock('$app/paths', () => ({
+	resolve: (route: string, params: { diaryId: string }) =>
+		route.replace('/(app)', '').replace('[diaryId]', params.diaryId)
+}));
 vi.mock('#lib/book/pages.js', async (importOriginal) => {
 	const original = await importOriginal<Record<string, unknown>>();
 	return { ...original, fetchSpread };
@@ -26,6 +34,7 @@ interface Loaded {
 	initial: unknown;
 	spread: number;
 	drafts: unknown;
+	bookmark: unknown;
 }
 
 function runLoad(vista: string | null): Promise<Loaded> {
@@ -53,6 +62,8 @@ describe('diary page load', () => {
 		fetchCharacter.mockResolvedValue(character);
 		fetchSpread.mockReset();
 		fetchSpread.mockResolvedValue(spreadOf(10));
+		fetchBookmark.mockReset();
+		fetchBookmark.mockResolvedValue(null);
 		loadDrafts.mockReset();
 		loadDrafts.mockResolvedValue(drafts);
 	});
@@ -122,7 +133,7 @@ describe('diary page load', () => {
 		expect(loaded.spread).toBe(3);
 	});
 
-	it.each([[null], ['abc'], ['0'], ['-4']])(
+	it.each([['abc'], ['0'], ['-4']])(
 		'starts from the first spread when the view is %s',
 		async (vista) => {
 			const loaded = await runLoad(vista);
@@ -145,7 +156,78 @@ describe('diary page load', () => {
 
 		const loaded = await runLoad('2');
 
-		expect(loaded).toEqual({ diary, character, initial: first, spread: 2, drafts });
+		expect(loaded).toEqual({ diary, character, initial: first, spread: 2, drafts, bookmark: null });
 		expect(loadDrafts).toHaveBeenCalledWith('d1');
+	});
+
+	describe('without a view in the address', () => {
+		it('goes to the last spread by redirecting the address', async () => {
+			fetchSpread.mockResolvedValue(spreadOf(10));
+
+			await expect(runLoad(null)).rejects.toMatchObject({
+				status: 307,
+				location: '/diaries/d1?vista=5'
+			});
+		});
+
+		it('goes to the spread of the bookmark when there is one', async () => {
+			fetchBookmark.mockResolvedValue({ pageId: 'p3', pageNumber: 3 });
+
+			await expect(runLoad(null)).rejects.toMatchObject({
+				status: 307,
+				location: '/diaries/d1?vista=2'
+			});
+		});
+
+		it('does not redirect when the bookmark is on the first spread', async () => {
+			fetchBookmark.mockResolvedValue({ pageId: 'p1', pageNumber: 1 });
+
+			const loaded = await runLoad(null);
+
+			expect(loaded.spread).toBe(1);
+			expect(loaded.bookmark).toEqual({ pageId: 'p1', pageNumber: 1 });
+		});
+
+		it('does not redirect when the diary has a single spread', async () => {
+			fetchSpread.mockResolvedValue(spreadOf(2));
+
+			const loaded = await runLoad(null);
+
+			expect(loaded.spread).toBe(1);
+		});
+
+		it('opens the first spread of an empty diary', async () => {
+			fetchSpread.mockResolvedValue(spreadOf(0));
+
+			const loaded = await runLoad(null);
+
+			expect(loaded.spread).toBe(1);
+		});
+
+		it('goes to the last spread when the bookmark cannot be read', async () => {
+			fetchBookmark.mockRejectedValue(new Error('Non riesco a leggere il segnalibro.'));
+
+			await expect(runLoad(null)).rejects.toMatchObject({
+				status: 307,
+				location: '/diaries/d1?vista=5'
+			});
+		});
+
+		it('does not turn a failure of the diary into a redirect', async () => {
+			fetchDiary.mockRejectedValue(new Error('Diario non trovato'));
+
+			await expect(runLoad(null)).rejects.toMatchObject({ status: 404 });
+		});
+	});
+
+	describe('with a view in the address', () => {
+		it('keeps the view and the bookmark', async () => {
+			fetchBookmark.mockResolvedValue({ pageId: 'p9', pageNumber: 9 });
+
+			const loaded = await runLoad('3');
+
+			expect(loaded.spread).toBe(3);
+			expect(loaded.bookmark).toEqual({ pageId: 'p9', pageNumber: 9 });
+		});
 	});
 });

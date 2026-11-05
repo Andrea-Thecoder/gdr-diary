@@ -3,6 +3,7 @@ import { tick } from 'svelte';
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import type { ApiClient } from '#lib/api/client.js';
 import { Notice } from '#lib/ui/notice.svelte.js';
+import { removeBookmark, setBookmark, type Bookmark } from './bookmark.js';
 import { judgeDraft, type Draft, type DraftStore } from './draft.js';
 import {
 	ConflictError,
@@ -34,13 +35,15 @@ import {
 
 export type SaveState = 'saved' | 'pending' | 'saving' | 'unsaved' | 'offline' | 'conflict';
 
-export const SAVE_DELAY = 3000;
+export const SAVE_DELAY = 5000;
 export const SAVE_MAX_WAIT = 20000;
 export const RETRY_DELAY = 5000;
 export const RETRY_MAX_DELAY = 30000;
 export const DRAFT_DELAY = 500;
 const TURN_FALLBACK = 1400;
 const CAPTURE_LIMIT = 3000;
+const UNSAVED_BOOKMARK_MESSAGE =
+	'Prima devo salvare la pagina, ma non ci riesco. Riprova tra poco.';
 
 interface PageState {
 	id: string | null;
@@ -81,7 +84,9 @@ export interface SaveFailure {
 
 export interface BookOptions {
 	autoSave: () => boolean;
+	saveDelay?: () => number;
 	drafts: DraftStore;
+	bookmark?: Bookmark | null;
 	animate: () => boolean;
 	onview: (spread: number) => void;
 }
@@ -95,6 +100,13 @@ function failureMessage(cause: unknown, offline: boolean): string {
 		return 'Non riesco a raggiungere il server.';
 	}
 	return cause instanceof Error ? cause.message : 'Non riesco a salvare la pagina.';
+}
+
+function bookmarkMessage(cause: unknown): string {
+	if (isNetworkError(cause)) {
+		return 'Non riesco a raggiungere il server.';
+	}
+	return cause instanceof Error ? cause.message : 'Non riesco a cambiare il segnalibro.';
 }
 
 function loadMessage(cause: unknown): string {
@@ -118,6 +130,8 @@ export class DiaryBook {
 	gone = $state(false);
 	rejected = $state(false);
 	conflict = $state<SaveConflict | null>(null);
+	bookmark = $state<Bookmark | null>(null);
+	marking = $state(false);
 	readonly notice = new Notice();
 	readonly pages = new SvelteMap<number, PageState>();
 	readonly dirty = new SvelteSet<number>();
@@ -137,6 +151,7 @@ export class DiaryBook {
 	private finishTurn: (() => void) | null = null;
 	private busy = $state(false);
 	private disposed = false;
+	private discarded = false;
 	private touching = false;
 	private capturing = false;
 	private captureTimer: ReturnType<typeof setTimeout> | undefined;
@@ -198,6 +213,7 @@ export class DiaryBook {
 		private readonly options: BookOptions
 	) {
 		this.total = initial.totalPages;
+		this.bookmark = options.bookmark ?? null;
 		this.store(initial);
 		this.focus = leftPageOf(Math.max(spread, 1));
 	}
@@ -238,9 +254,7 @@ export class DiaryBook {
 				draft.pageId !== null && here?.id !== draft.pageId ? this.loadedMove(draft) : undefined;
 			if (moved !== undefined) {
 				this.leftovers.delete(page);
-				if (this.relocate(draft, moved.page, moved.state.content)) {
-					restored.push(moved.page);
-				}
+				this.dropDraft(draft);
 				continue;
 			}
 			const verdict = judgeDraft(draft, here, this.total);
@@ -283,17 +297,10 @@ export class DiaryBook {
 		return undefined;
 	}
 
-	private relocate(draft: Draft, page: number, server: JSONContent): boolean {
+	private dropDraft(draft: Draft): void {
 		if (!this.dirty.has(draft.page)) {
 			this.forget(draft.page);
 		}
-		if (this.dirty.has(page) || sameContent(server, draft.content)) {
-			return false;
-		}
-		this.pages.set(page, { id: draft.pageId, content: draft.content, version: draft.baseVersion });
-		this.dirty.add(page);
-		this.keepDraft(page);
-		return true;
 	}
 
 	private async recover(strays: Draft[]): Promise<void> {
@@ -312,7 +319,6 @@ export class DiaryBook {
 			return;
 		}
 		this.total = scan.total;
-		const restored: number[] = [];
 		for (const draft of strays) {
 			const found = draft.pageId === null ? undefined : scan.found.get(draft.pageId);
 			if (found === undefined) {
@@ -327,13 +333,7 @@ export class DiaryBook {
 				});
 				this.lastSaved.set(found.pageNumber, found.content);
 			}
-			if (this.relocate(draft, found.pageNumber, found.content)) {
-				restored.push(found.pageNumber);
-			}
-		}
-		if (restored.length > 0) {
-			const label = restored.length === 1 ? 'pagina' : 'pagine';
-			this.notice.show(`Modifiche non salvate recuperate (${label} ${restored.join(', ')})`);
+			this.dropDraft(draft);
 		}
 		this.schedule();
 	}
@@ -583,21 +583,25 @@ export class DiaryBook {
 
 	private schedule(): void {
 		clearTimeout(this.saveTimer);
-		if (!this.options.autoSave() || this.conflict !== null) {
+		if (!this.options.autoSave() || this.conflict !== null || this.discarded) {
 			return;
 		}
 		const now = Date.now();
 		this.pendingSince ??= now;
-		const remaining = this.pendingSince + SAVE_MAX_WAIT - now;
+		const delay = this.options.saveDelay?.() ?? SAVE_DELAY;
+		const remaining = this.pendingSince + Math.max(SAVE_MAX_WAIT, delay) - now;
 		this.saveTimer = setTimeout(
 			() => {
 				void this.flush();
 			},
-			Math.max(0, Math.min(SAVE_DELAY, remaining))
+			Math.max(0, Math.min(delay, remaining))
 		);
 	}
 
 	flush(): Promise<boolean> {
+		if (this.discarded) {
+			return Promise.resolve(true);
+		}
 		clearTimeout(this.saveTimer);
 		this.pendingSince = null;
 		this.flushDrafts();
@@ -709,6 +713,9 @@ export class DiaryBook {
 			}
 			return 'saved';
 		} catch (cause) {
+			if (this.discarded) {
+				return 'skipped';
+			}
 			if (cause instanceof ConflictError) {
 				this.conflict = { page };
 				return 'failed';
@@ -861,6 +868,9 @@ export class DiaryBook {
 	}
 
 	private async prune(): Promise<number[]> {
+		if (this.discarded) {
+			return [];
+		}
 		const blank = [...this.pages]
 			.filter(
 				([page, state]) => state.id !== null && !this.dirty.has(page) && !hasText(state.content)
@@ -893,6 +903,45 @@ export class DiaryBook {
 	}
 
 	deletable(page: number): boolean {
+		return this.written(page);
+	}
+
+	markable(page: number): boolean {
+		return this.written(page);
+	}
+
+	marked(page: number): boolean {
+		const id = this.pages.get(page)?.id ?? null;
+		return id !== null && id === this.bookmark?.pageId;
+	}
+
+	async toggleBookmark(page: number): Promise<void> {
+		if (this.marking || this.busy || this.discarded || !this.markable(page)) {
+			return;
+		}
+		this.marking = true;
+		try {
+			if (this.marked(page)) {
+				await removeBookmark(this.api, this.diaryId);
+				this.bookmark = null;
+				return;
+			}
+			if (this.pages.get(page)?.id === null) {
+				await this.flush();
+			}
+			const id = this.pages.get(page)?.id ?? null;
+			if (id === null) {
+				throw new Error(UNSAVED_BOOKMARK_MESSAGE);
+			}
+			this.bookmark = await setBookmark(this.api, this.diaryId, id);
+		} catch (cause) {
+			this.notice.show(bookmarkMessage(cause), true);
+		} finally {
+			this.marking = false;
+		}
+	}
+
+	private written(page: number): boolean {
 		const state = this.pages.get(page);
 		return state !== undefined && (state.id !== null || hasText(state.content));
 	}
@@ -928,6 +977,7 @@ export class DiaryBook {
 
 	private renumbered(deleted: number[]): void {
 		const first = deleted[0] ?? 1;
+		this.moveBookmark(deleted);
 		const edited: [number, PageState][] = [];
 		for (const page of [...this.dirty]) {
 			const state = this.pages.get(page);
@@ -968,6 +1018,16 @@ export class DiaryBook {
 		if (edited.length > 0) {
 			this.schedule();
 		}
+	}
+
+	private moveBookmark(deleted: number[]): void {
+		const bookmark = this.bookmark;
+		if (bookmark === null) {
+			return;
+		}
+		this.bookmark = deleted.some((page) => this.pages.get(page)?.id === bookmark.pageId)
+			? null
+			: { ...bookmark, pageNumber: this.shifted(bookmark.pageNumber, deleted) };
 	}
 
 	private landing(page: number): number {
@@ -1200,6 +1260,27 @@ export class DiaryBook {
 			this.conflict !== null ||
 			this.spilled.size > 0
 		);
+	}
+
+	discard(): void {
+		this.discarded = true;
+		const pages = new SvelteSet<number>([
+			...this.dirty,
+			...this.leftovers.keys(),
+			...this.draftTimers.keys()
+		]);
+		for (const page of pages) {
+			this.forget(page);
+		}
+		this.dirty.clear();
+		this.leftovers.clear();
+		this.spilled.clear();
+		this.failure = null;
+		this.conflict = null;
+		this.offline = false;
+		this.gone = false;
+		this.rejected = false;
+		this.dispose();
 	}
 
 	dispose(): void {

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Editor } from '@tiptap/core';
+	import { isTextColor, TEXT_COLORS, type TextColor } from '#lib/book/text-color.js';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import ToggleButton from '#lib/components/ui/ToggleButton.svelte';
 
@@ -11,10 +12,31 @@
 
 	let { editor, touched, class: className = '' }: Props = $props();
 
+	const colorsId = $props.id();
+
+	let colorsOpen = $state(false);
+
+	const currentColor = $derived.by<TextColor | null>(() => {
+		if (editor === null || touched < 0) {
+			return null;
+		}
+		const color: unknown = editor.getAttributes('textColor')['color'];
+		return isTextColor(color) ? color : null;
+	});
+
+	function pickColor(editor: Editor, color: TextColor): void {
+		if (editor.isActive('textColor', { color })) {
+			editor.chain().focus().unsetTextColor().run();
+		} else {
+			editor.chain().focus().setTextColor(color).run();
+		}
+	}
+
 	interface Tool {
 		label: string;
 		glyph?: string;
 		glyphClass?: string;
+		expands?: boolean;
 		path?: string;
 		run: (editor: Editor) => void;
 		active?: (editor: Editor) => boolean;
@@ -59,6 +81,14 @@
 				glyphClass: 'text-[20px] underline',
 				run: (e) => e.chain().focus().toggleUnderline().run(),
 				active: (e) => e.isActive('underline')
+			},
+			{
+				label: 'Colore del testo',
+				expands: true,
+				run: () => {
+					colorsOpen = !colorsOpen;
+				},
+				active: (e) => e.isActive('textColor')
 			}
 		],
 		[
@@ -127,37 +157,102 @@
 	role="toolbar"
 	aria-label="Formattazione del testo"
 	class={[
-		'flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-[8px] border border-(color:--tool-border) bg-(--tool-bg) p-1.5 shadow-(--card-shadow) max-[899px]:gap-0',
+		'w-fit max-w-full rounded-[8px] border border-(color:--tool-border) bg-(--tool-bg) p-1.5 shadow-(--card-shadow)',
 		className
 	]}
 >
-	{#each groups as group, index (index)}
-		{#if index > 0}
-			<span aria-hidden="true" class="mx-1 h-6 w-px flex-none bg-(--tool-border) max-[899px]:mx-0.5"
-			></span>
-		{/if}
-		{#each group as tool (tool.label)}
+	<div class="flex items-center gap-1 overflow-x-auto max-[899px]:gap-0">
+		{#each groups as group, index (index)}
+			{#if index > 0}
+				<span
+					aria-hidden="true"
+					class="mx-1 h-6 w-px flex-none bg-(--tool-border) max-[899px]:mx-0.5"
+				></span>
+			{/if}
+			{#each group as tool (tool.label)}
+				<ToggleButton
+					label={tool.label}
+					pressed={tool.active === undefined || editor === null
+						? undefined
+						: touched >= 0 && tool.active(editor)}
+					disabled={editor === null ||
+						(tool.enabled !== undefined && touched >= 0 && !tool.enabled(editor))}
+					aria-expanded={tool.expands === true ? colorsOpen : undefined}
+					aria-controls={tool.expands === true ? colorsId : undefined}
+					onclick={() => {
+						if (editor !== null) {
+							tool.run(editor);
+						}
+					}}
+				>
+					{#if tool.expands === true}
+						<span class="flex flex-col items-center gap-px">
+							<Icon size={20} strokeWidth={1.8}>
+								<circle cx="13.5" cy="6.5" r="0.6" />
+								<circle cx="17.5" cy="10.5" r="0.6" />
+								<circle cx="8.5" cy="7.5" r="0.6" />
+								<circle cx="6.5" cy="12.5" r="0.6" />
+								<path
+									d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.12a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"
+								/>
+							</Icon>
+							<span
+								aria-hidden="true"
+								class="h-[3px] w-5 rounded-full"
+								style:background={currentColor === null
+									? 'currentColor'
+									: `var(--ink-${currentColor})`}
+							></span>
+						</span>
+					{:else if tool.glyph !== undefined}
+						<span class={tool.glyphClass}>{tool.glyph}</span>
+					{:else if tool.path !== undefined}
+						<Icon size={20} strokeWidth={1.8}>
+							<path d={tool.path} />
+						</Icon>
+					{/if}
+				</ToggleButton>
+			{/each}
+		{/each}
+	</div>
+	{#if colorsOpen}
+		<div
+			id={colorsId}
+			role="group"
+			aria-label="Scegli il colore"
+			class="mt-1.5 flex flex-wrap items-center gap-1 border-t border-(--tool-border) pt-1.5"
+		>
 			<ToggleButton
-				label={tool.label}
-				pressed={tool.active === undefined || editor === null
-					? undefined
-					: touched >= 0 && tool.active(editor)}
-				disabled={editor === null ||
-					(tool.enabled !== undefined && touched >= 0 && !tool.enabled(editor))}
+				label="Colore automatico"
+				pressed={editor !== null && touched >= 0 && currentColor === null}
+				disabled={editor === null}
 				onclick={() => {
-					if (editor !== null) {
-						tool.run(editor);
-					}
+					editor?.chain().focus().unsetTextColor().run();
 				}}
 			>
-				{#if tool.glyph !== undefined}
-					<span class={tool.glyphClass}>{tool.glyph}</span>
-				{:else if tool.path !== undefined}
-					<Icon size={20} strokeWidth={1.8}>
-						<path d={tool.path} />
-					</Icon>
-				{/if}
+				<Icon size={20} strokeWidth={1.8}>
+					<circle cx="12" cy="12" r="7" />
+					<path d="M7 17L17 7" />
+				</Icon>
 			</ToggleButton>
-		{/each}
-	{/each}
+			{#each TEXT_COLORS as color (color.key)}
+				<ToggleButton
+					label={color.label}
+					pressed={editor !== null && touched >= 0 && currentColor === color.key}
+					disabled={editor === null}
+					onclick={() => {
+						if (editor !== null) {
+							pickColor(editor, color.key);
+						}
+					}}
+				>
+					<span
+						aria-hidden="true"
+						class="size-6 rounded-full border border-(--tool-border)"
+						style:background={`var(--ink-${color.key})`}
+					></span>
+				</ToggleButton>
+			{/each}
+		</div>
+	{/if}
 </div>

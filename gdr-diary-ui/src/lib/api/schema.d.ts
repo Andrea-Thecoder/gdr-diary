@@ -80,6 +80,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/diaries/{id}/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the bookmark of a diary
+         * @description Returns the page marked with the bookmark of a diary of a character owned by the logged-in user. When the diary has no bookmark the response is an empty object.
+         */
+        get: operations["getDiaryBookmark"];
+        /**
+         * Set the bookmark of a diary
+         * @description Marks a page of the diary with the bookmark, replacing the previous one: a diary has at most one bookmark. The page must belong to the diary. The bookmark follows the page when other pages are deleted and goes away when the page is deleted.
+         */
+        put: operations["updateDiaryBookmark"];
+        post?: never;
+        /**
+         * Remove the bookmark of a diary
+         * @description Removes the bookmark of a diary of a character owned by the logged-in user. It does nothing when the diary has no bookmark.
+         */
+        delete: operations["deleteDiaryBookmark"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/diaries/{id}/cover": {
         parameters: {
             query?: never;
@@ -217,7 +245,7 @@ export interface paths {
         };
         /**
          * List characters
-         * @description Returns a page of the characters owned by the logged-in user, filtered and sorted according to the search parameters (default order: name). The user is created automatically on first access.
+         * @description Returns a page of the characters owned by the logged-in user, filtered and sorted according to the search parameters (default order: name). Returns an empty page if the user has not been created yet with POST /me.
          */
         get: operations["findAllGameCharacters"];
         put?: never;
@@ -369,6 +397,30 @@ export interface components {
              * @example Ship successfully deleted
              */
             message?: string;
+        };
+        /** @description The page marked with the bookmark of a diary */
+        BookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of the bookmarked page
+             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
+             */
+            pageId?: string;
+            /**
+             * Format: int32
+             * @description Number of the bookmarked page, starting from 1
+             * @example 12
+             */
+            pageNumber?: number;
+        };
+        /** @description The page to mark with the bookmark */
+        UpdateBookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of a page of the diary
+             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
+             */
+            pageId: string;
         };
         /** @description Data to fully replace a diary */
         UpdateDiaryDTO: {
@@ -1380,6 +1432,184 @@ export interface operations {
             };
             /** @description Storage not available */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    getDiaryBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bookmark of the diary; empty object when there is none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkDiaryDTO"];
+                };
+            };
+            /** @description Diary identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateDiaryBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateBookmarkDiaryDTO"];
+            };
+        };
+        responses: {
+            /** @description Bookmark set */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookmarkDiaryDTO"];
+                };
+            };
+            /** @description Missing page identifier, or identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary or page not found, or the diary's character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    deleteDiaryBookmark: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bookmark removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Diary identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary not found, or its character is owned by another user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

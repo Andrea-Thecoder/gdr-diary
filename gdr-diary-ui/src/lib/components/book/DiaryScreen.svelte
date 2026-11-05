@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	import { getApi } from '#lib/api/index.js';
 	import { DiaryBook } from '#lib/book/book.svelte.js';
+	import type { Bookmark } from '#lib/book/bookmark.js';
 	import { createDraftStore, type Draft } from '#lib/book/draft.js';
 	import type { SpreadData } from '#lib/book/pages.js';
 	import { SINGLE_BREAKPOINT } from '#lib/book/layout.js';
@@ -24,7 +25,8 @@
 	import TrashIcon from '#lib/components/ui/TrashIcon.svelte';
 	import NoticePopup from '#lib/components/ui/NoticePopup.svelte';
 	import { buttonClasses } from '#lib/components/ui/button.js';
-	import type { DiaryDetail } from '#lib/diaries/api.js';
+	import DiaryDialog from '#lib/components/diaries/DiaryDialog.svelte';
+	import { deleteDiary, fetchDiary, type DiaryDetail, type SavedDiary } from '#lib/diaries/api.js';
 	import { preferences } from '#lib/settings/preferences.svelte.js';
 	import BookMessage from './BookMessage.svelte';
 	import DiaryHeader from './DiaryHeader.svelte';
@@ -39,9 +41,10 @@
 		initial: SpreadData;
 		spread: number;
 		drafts?: Draft[];
+		bookmark?: Bookmark | null;
 	}
 
-	let { diary, character, initial, spread, drafts = [] }: Props = $props();
+	let { diary, character, initial, spread, drafts = [], bookmark = null }: Props = $props();
 
 	const wide = window.matchMedia(`(min-width: ${String(SINGLE_BREAKPOINT)}px)`);
 	const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -50,7 +53,9 @@
 		() =>
 			new DiaryBook(getApi(), diary.id ?? '', initial, spread, {
 				autoSave: () => preferences.value.autoSave,
+				saveDelay: () => preferences.value.autoSaveDelay * 1000,
 				drafts: createDraftStore(),
+				bookmark,
 				animate: () =>
 					preferences.value.pageTurn && !preferences.value.reduceMotion && !calm.matches,
 				onview: (view) => {
@@ -67,6 +72,9 @@
 	});
 
 	let deleting = $state<number | null>(null);
+	let current = $state<DiaryDetail>(untrack(() => diary));
+	let editingDiary = $state(false);
+	let deletingDiary = $state(false);
 
 	async function removePage(): Promise<void> {
 		const target = deleting;
@@ -77,18 +85,42 @@
 		deleting = null;
 	}
 
+	async function removeDiary(): Promise<void> {
+		await deleteDiary(getApi(), current.id ?? '');
+		book.discard();
+		await goto(resolve('/(app)/characters/[characterId]', { characterId: character.id ?? '' }));
+	}
+
+	async function diarySaved(result: SavedDiary): Promise<void> {
+		editingDiary = false;
+		const title = result.diary.title ?? 'Il diario';
+		try {
+			current = await fetchDiary(getApi(), current.id ?? '');
+		} catch {
+			current = result.diary;
+		}
+		if (result.coverError === null) {
+			book.notice.show(`${title} è stato aggiornato.`);
+		} else {
+			book.notice.show(
+				`${title} è stato salvato, ma la copertina non è cambiata: ${result.coverError}`,
+				true
+			);
+		}
+	}
+
 	function viewAt(position: number): View {
 		return { single: book.single, focus: book.single ? position : leftPageOf(position) };
 	}
 
 	const font = $derived(
-		diary.font !== undefined && diary.font !== null && diary.font.trim() !== ''
-			? diary.font
+		current.font !== undefined && current.font !== null && current.font.trim() !== ''
+			? current.font
 			: preferences.value.font
 	);
 	const fontSize = $derived(
-		diary.fontSize !== undefined && diary.fontSize !== null && diary.fontSize > 0
-			? diary.fontSize
+		current.fontSize !== undefined && current.fontSize !== null && current.fontSize > 0
+			? current.fontSize
 			: preferences.value.fontSize
 	);
 
@@ -102,14 +134,26 @@
 		};
 	});
 
+	function addressView(): number {
+		return parseSpread((page.shallow?.url ?? page.url).searchParams.get('vista'));
+	}
+
+	let observed = untrack(addressView);
+	let waiting = false;
+
 	$effect(() => {
-		const view = parseSpread(page.url.searchParams.get('vista'));
-		if (book.working) {
-			return;
-		}
+		const view = addressView();
+		const working = book.working;
 		untrack(() => {
-			if (view !== book.spread) {
-				void book.show(view);
+			if (view !== observed) {
+				observed = view;
+				waiting = true;
+			}
+			if (waiting && !working) {
+				waiting = false;
+				if (view !== book.spread) {
+					void book.show(view);
+				}
 			}
 		});
 	});
@@ -177,6 +221,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{current.title ?? 'Diario'} · Diario GDR</title>
+</svelte:head>
+
 <svelte:window onkeydown={keys} onbeforeunload={leaving} ononline={reconnect} />
 <svelte:document onvisibilitychange={hide} />
 
@@ -185,7 +233,17 @@
 	aria-labelledby="page-title"
 	class="pt-[clamp(8px,2vw,24px)] pb-[clamp(32px,5vw,64px)]"
 >
-	<DiaryHeader {diary} {character} counter={book.label}>
+	<DiaryHeader
+		diary={current}
+		{character}
+		counter={book.label}
+		onedit={() => {
+			editingDiary = true;
+		}}
+		ondelete={() => {
+			deletingDiary = true;
+		}}
+	>
 		{#snippet status()}
 			<SaveStatus state={book.state} />
 			<Button
@@ -212,7 +270,7 @@
 			{font}
 			{fontSize}
 			lineSpacing={preferences.value.lineSpacing}
-			coverColor={diary.coverColor}
+			coverColor={current.coverColor}
 			ondeletepage={(page: number) => {
 				deleting = page;
 			}}
@@ -338,6 +396,29 @@
 	onconfirm={removePage}
 	onclose={() => {
 		deleting = null;
+	}}
+/>
+
+<DiaryDialog
+	open={editingDiary}
+	characterId={character.id ?? ''}
+	characterName={character.name ?? 'Il personaggio'}
+	diary={current}
+	onclose={() => {
+		editingDiary = false;
+	}}
+	onsaved={diarySaved}
+/>
+
+<ConfirmDeleteDialog
+	open={deletingDiary}
+	title={`Eliminare ${current.title ?? 'il diario'}?`}
+	subtitle="Stai per cancellare questo diario."
+	consequences={['il diario e la sua copertina;', 'tutte le sue pagine, con il testo scritto.']}
+	fallbackError="Non riesco a eliminare il diario."
+	onconfirm={removeDiary}
+	onclose={() => {
+		deletingDiary = false;
 	}}
 />
 

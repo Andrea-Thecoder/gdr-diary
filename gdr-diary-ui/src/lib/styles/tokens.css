@@ -261,6 +261,15 @@
 
 	--silhouette-glow: #c9b0ff;
 	--silhouette-body: #0a0514;
+
+	--ink-red: #9b1c1c;
+	--ink-orange: #a64b00;
+	--ink-green: #1f6b3a;
+	--ink-teal: #0f6670;
+	--ink-blue: #1f4f9e;
+	--ink-purple: #6a2fa6;
+	--ink-magenta: #9c2a6a;
+	--ink-brown: #6b4423;
 }
 
 @theme inline {

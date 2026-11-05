@@ -9,18 +9,22 @@ export interface Preferences {
 	fontSize: number;
 	lineSpacing: LineSpacing;
 	autoSave: boolean;
+	autoSaveDelay: number;
 	pageTurn: boolean;
 	reduceMotion: boolean;
 }
 
 export const FONT_SIZE_MIN = 12;
 export const FONT_SIZE_MAX = 24;
+export const AUTO_SAVE_DELAY_MIN = 5;
+export const AUTO_SAVE_DELAY_MAX = 30;
 
 export const DEFAULT_PREFERENCES: Preferences = {
 	font: 'Caveat',
 	fontSize: 16,
 	lineSpacing: 'normal',
 	autoSave: true,
+	autoSaveDelay: 5,
 	pageTurn: true,
 	reduceMotion: false
 };
@@ -40,6 +44,7 @@ export function preferencesFromSettings(settings: AccountSettings | null | undef
 	const fontSize = settings?.['fontSize'];
 	const lineSpacing = settings?.['lineSpacing'];
 	const autoSave = settings?.['autoSave'];
+	const autoSaveDelay = settings?.['autoSaveDelay'];
 	const pageTurn = settings?.['pageTurn'];
 	const reduceMotion = settings?.['reduceMotion'];
 	return {
@@ -53,6 +58,13 @@ export function preferencesFromSettings(settings: AccountSettings | null | undef
 				: DEFAULT_PREFERENCES.fontSize,
 		lineSpacing: isLineSpacing(lineSpacing) ? lineSpacing : DEFAULT_PREFERENCES.lineSpacing,
 		autoSave: typeof autoSave === 'boolean' ? autoSave : DEFAULT_PREFERENCES.autoSave,
+		autoSaveDelay:
+			typeof autoSaveDelay === 'number' &&
+			Number.isInteger(autoSaveDelay) &&
+			autoSaveDelay >= AUTO_SAVE_DELAY_MIN &&
+			autoSaveDelay <= AUTO_SAVE_DELAY_MAX
+				? autoSaveDelay
+				: DEFAULT_PREFERENCES.autoSaveDelay,
 		pageTurn: typeof pageTurn === 'boolean' ? pageTurn : DEFAULT_PREFERENCES.pageTurn,
 		reduceMotion:
 			typeof reduceMotion === 'boolean' ? reduceMotion : DEFAULT_PREFERENCES.reduceMotion

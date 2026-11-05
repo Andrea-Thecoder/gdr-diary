@@ -92,6 +92,38 @@
 	line-height: calc(var(--lh, 36px) * 1.2);
 }
 
+.diary-prose [data-color='red'] {
+	color: var(--ink-red);
+}
+
+.diary-prose [data-color='orange'] {
+	color: var(--ink-orange);
+}
+
+.diary-prose [data-color='green'] {
+	color: var(--ink-green);
+}
+
+.diary-prose [data-color='teal'] {
+	color: var(--ink-teal);
+}
+
+.diary-prose [data-color='blue'] {
+	color: var(--ink-blue);
+}
+
+.diary-prose [data-color='purple'] {
+	color: var(--ink-purple);
+}
+
+.diary-prose [data-color='magenta'] {
+	color: var(--ink-magenta);
+}
+
+.diary-prose [data-color='brown'] {
+	color: var(--ink-brown);
+}
+
 .diary-prose ul,
 .diary-prose ol {
 	margin: 0;

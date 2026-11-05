@@ -561,6 +561,210 @@
         ]
       }
     },
+    "/diaries/{id}/bookmark": {
+      "get": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Get the bookmark of a diary",
+        "description": "Returns the page marked with the bookmark of a diary of a character owned by the logged-in user. When the diary has no bookmark the response is an empty object.",
+        "operationId": "getDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookmark of the diary; empty object when there is none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Set the bookmark of a diary",
+        "description": "Marks a page of the diary with the bookmark, replacing the previous one: a diary has at most one bookmark. The page must belong to the diary. The bookmark follows the page when other pages are deleted and goes away when the page is deleted.",
+        "operationId": "updateDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBookmarkDiaryDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bookmark set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing page identifier, or identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary or page not found, or the diary's character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Remove the bookmark of a diary",
+        "description": "Removes the bookmark of a diary of a character owned by the logged-in user. It does nothing when the diary has no bookmark.",
+        "operationId": "deleteDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookmark removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/diaries/{id}/cover": {
       "put": {
         "tags": [
@@ -1454,7 +1658,7 @@
           "Characters"
         ],
         "summary": "List characters",
-        "description": "Returns a page of the characters owned by the logged-in user, filtered and sorted according to the search parameters (default order: name). The user is created automatically on first access.",
+        "description": "Returns a page of the characters owned by the logged-in user, filtered and sorted according to the search parameters (default order: name). Returns an empty page if the user has not been created yet with POST /me.",
         "operationId": "findAllGameCharacters",
         "parameters": [
           {
@@ -2831,6 +3035,39 @@
             ]
           }
         }
+      },
+      "BookmarkDiaryDTO": {
+        "type": "object",
+        "description": "The page marked with the bookmark of a diary",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the bookmarked page",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of the bookmarked page, starting from 1",
+            "example": 12
+          }
+        }
+      },
+      "UpdateBookmarkDiaryDTO": {
+        "type": "object",
+        "description": "The page to mark with the bookmark",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of a page of the diary",
+            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+          }
+        },
+        "required": [
+          "pageId"
+        ]
       }
     },
     "securitySchemes": {

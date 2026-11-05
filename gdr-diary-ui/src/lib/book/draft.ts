@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/core';
-import { hasText, sameContent } from './pages.js';
+import { hasText } from './pages.js';
 
 export interface Draft {
 	diaryId: string;
@@ -32,7 +32,7 @@ export function judgeDraft(
 		if (server.id !== draft.pageId) {
 			return draft.pageId === null ? 'drop' : 'search';
 		}
-		return sameContent(server.content, draft.content) ? 'drop' : 'apply';
+		return 'drop';
 	}
 	if (draft.pageId === null) {
 		return draft.page === total + 1 && hasText(draft.content) ? 'apply' : 'drop';

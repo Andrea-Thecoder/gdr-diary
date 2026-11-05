@@ -85,22 +85,43 @@ describe('settings page', () => {
 		});
 	}
 
-	it('saves the chosen theme on the account', async () => {
+	it('does not save the theme until the settings are saved', async () => {
 		render(Page);
 
 		await page.getByText('scuro', { exact: true }).click();
 
-		await expect.element(page.getByText('Salvato sul tuo account.')).toBeVisible();
-		const options = api.PATCH.mock.calls[0]?.[1] as { body: unknown };
+		await expect.element(page.getByRole('button', { name: 'Salva le impostazioni' })).toBeVisible();
+		expect(api.PATCH).not.toHaveBeenCalled();
+	});
+
+	it('saves the chosen theme on the account with the other settings', async () => {
+		render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(1);
 		expect(api.PATCH.mock.calls[0]?.[0]).toBe('/me/settings');
-		expect(options.body).toEqual({ settings: { theme: 'viola' } });
+		expect((api.PATCH.mock.calls[0]?.[1] as { body: unknown }).body).toEqual({
+			settings: { theme: 'viola' }
+		});
+		await expect
+			.element(page.getByRole('button', { name: 'Salva le impostazioni' }))
+			.not.toBeInTheDocument();
+		expect(storedTheme()).toBe('viola');
 	});
 
 	it('saves the system choice too, so other devices follow it', async () => {
 		render(Page);
 		await page.getByText('scuro', { exact: true }).click();
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(1);
+		await expect
+			.element(page.getByRole('button', { name: 'Salva le impostazioni' }))
+			.not.toBeInTheDocument();
 
 		await page.getByText('sistema', { exact: true }).click();
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
 
 		await expect.poll(() => api.PATCH.mock.calls.length).toBe(2);
 		expect((api.PATCH.mock.calls[1]?.[1] as { body: unknown }).body).toEqual({
@@ -108,17 +129,73 @@ describe('settings page', () => {
 		});
 	});
 
-	it('keeps the choice on the device and says so when saving fails', async () => {
-		api.PATCH.mockResolvedValue({ error: { title: 'Down', status: 500 } });
+	it('sends the theme together with the other changed keys', async () => {
+		api.PATCH.mockResolvedValue({ data: { payload: { theme: 'pergamena', fontSize: 20 } } });
 		render(Page);
+		await page.getByText('chiaro', { exact: true }).click();
+		await page.getByLabelText('Dimensione del testo').fill('20');
 
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(1);
+		expect((api.PATCH.mock.calls[0]?.[1] as { body: unknown }).body).toEqual({
+			settings: { fontSize: 20, theme: 'pergamena' }
+		});
+	});
+
+	it('puts the previous theme back with Annulla', async () => {
+		document.cookie = 'gdr-theme=pergamena; Path=/';
+		render(Page);
+		await expect.element(page.getByRole('radio', { name: /chiaro/ })).toBeChecked();
+		await page.getByText('scuro', { exact: true }).click();
+		expect(document.documentElement.dataset['theme']).toBe('viola');
+
+		await page.getByRole('button', { name: 'Annulla' }).click();
+
+		await expect.element(page.getByRole('radio', { name: /chiaro/ })).toBeChecked();
+		expect(document.documentElement.dataset['theme']).toBe('pergamena');
+		expect(storedTheme()).toBe('pergamena');
+		expect(api.PATCH).not.toHaveBeenCalled();
+		await expect
+			.element(page.getByRole('button', { name: 'Salva le impostazioni' }))
+			.not.toBeInTheDocument();
+	});
+
+	it('goes back to following the device with Annulla when that was the first choice', async () => {
+		render(Page);
 		await page.getByText('scuro', { exact: true }).click();
 
-		await expect
-			.element(page.getByRole('alert'))
-			.toHaveTextContent('la scelta resta su questo dispositivo');
+		await page.getByRole('button', { name: 'Annulla' }).click();
+
+		await expect.element(page.getByRole('radio', { name: /sistema/ })).toBeChecked();
+		expect(storedTheme()).toBeNull();
+	});
+
+	it('puts the saved theme back when the page is left without saving', async () => {
+		document.cookie = 'gdr-theme=pergamena; Path=/';
+		const screen = render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+		expect(storedTheme()).toBe('viola');
+
+		screen.unmount();
+
+		expect(storedTheme()).toBe('pergamena');
+		expect(document.documentElement.dataset['theme']).toBe('pergamena');
+		expect(api.PATCH).not.toHaveBeenCalled();
+	});
+
+	it('keeps the choice and says why when saving the theme fails', async () => {
+		api.PATCH.mockResolvedValue({ error: { title: 'Settings too large', status: 400 } });
+		render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.element(page.getByRole('alert')).toHaveTextContent('Settings too large');
+		await expect.element(page.getByRole('radio', { name: /scuro/ })).toBeChecked();
 		expect(storedTheme()).toBe('viola');
 	});
+
 	it('shows the writing and appearance fields from the design', async () => {
 		render(Page);
 
@@ -135,6 +212,39 @@ describe('settings page', () => {
 			.not.toBeChecked();
 	});
 
+	it('shows the autosave wait in seconds, five by default', async () => {
+		render(Page);
+
+		await expect.element(page.getByLabelText('Attesa prima di salvare')).toHaveValue('5');
+		await expect.element(page.getByText('5 s', { exact: true })).toBeVisible();
+	});
+
+	it('hides the autosave wait while automatic saving is off', async () => {
+		render(Page);
+
+		await page.getByRole('switch', { name: 'Salvataggio automatico' }).click();
+
+		expect(page.getByLabelText('Attesa prima di salvare').elements()).toHaveLength(0);
+
+		await page.getByRole('switch', { name: 'Salvataggio automatico' }).click();
+
+		await expect.element(page.getByLabelText('Attesa prima di salvare')).toBeVisible();
+	});
+
+	it('saves the chosen autosave wait and applies it right away', async () => {
+		api.PATCH.mockResolvedValue({ data: { payload: { autoSaveDelay: 8 } } });
+		render(Page);
+
+		await page.getByLabelText('Attesa prima di salvare').fill('8');
+		await page.getByRole('button', { name: 'Salva le impostazioni' }).click();
+
+		await expect.poll(() => api.PATCH.mock.calls.length).toBe(1);
+		expect((api.PATCH.mock.calls[0]?.[1] as { body: unknown }).body).toEqual({
+			settings: { autoSaveDelay: 8 }
+		});
+		expect(preferences.value.autoSaveDelay).toBe(8);
+	});
+
 	it('has no save bar until something changes', async () => {
 		render(Page);
 
@@ -143,6 +253,21 @@ describe('settings page', () => {
 		await page.getByRole('switch', { name: 'Animazioni ridotte' }).click();
 
 		await expect.element(page.getByRole('button', { name: 'Salva le impostazioni' })).toBeVisible();
+	});
+
+	it('puts the save bar after the last section, in the flow of the page', async () => {
+		render(Page);
+
+		await page.getByRole('switch', { name: 'Animazioni ridotte' }).click();
+
+		await expect.element(page.getByRole('button', { name: 'Salva le impostazioni' })).toBeVisible();
+		const form = required(document.querySelector('form'), 'Modulo');
+		const bar = required(form.lastElementChild, 'Barra di salvataggio');
+		const last = required(document.querySelector('#aspetto'), 'Ultima sezione');
+		expect(getComputedStyle(bar).position).toBe('static');
+		expect(bar.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+			last.getBoundingClientRect().bottom
+		);
 	});
 
 	it('sends only the changed keys when saving', async () => {

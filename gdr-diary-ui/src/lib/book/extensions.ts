@@ -2,6 +2,7 @@ import type { Attributes, Extensions } from '@tiptap/core';
 import { OrderedList } from '@tiptap/extension-list';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { TextColorMark } from './text-color.js';
 import { Title } from './title.js';
 
 const ORDERED_LIST_TYPES: readonly string[] = ['1', 'a', 'A', 'i', 'I'];
@@ -37,6 +38,7 @@ export function diaryExtensions(): Extensions {
 		}),
 		DiaryOrderedList,
 		TextAlign.configure({ types: ['paragraph'] }),
-		Title
+		Title,
+		TextColorMark
 	];
 }

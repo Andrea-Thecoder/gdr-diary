@@ -15,6 +15,7 @@
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
 	import { closeAccount } from '#lib/profile/account.js';
 	import { finishEmailChange, resendEmailChange, startEmailChange } from '#lib/profile/email.js';
+	import { passwordWasChanged, requestPasswordChange } from '#lib/profile/password.js';
 	import { Notice } from '#lib/ui/notice.svelte.js';
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { PageProps } from './$types';
@@ -32,6 +33,10 @@
 	let resending = $state(false);
 	let cooldown = $state(0);
 	let countdown: ReturnType<typeof setInterval> | undefined;
+	let passwordAsked = $state(false);
+	let passwordSending = $state(false);
+	let passwordCooldown = $state(0);
+	let passwordCountdown: ReturnType<typeof setInterval> | undefined;
 
 	const pendingEmail = $derived(auth.user?.pendingEmail ?? null);
 	const name = $derived(accountName(auth.user) || email);
@@ -94,6 +99,33 @@
 		void startEmailChange(profileUrl());
 	}
 
+	function startPasswordCooldown(): void {
+		clearInterval(passwordCountdown);
+		passwordCooldown = RESEND_COOLDOWN_SECONDS;
+		passwordCountdown = setInterval(() => {
+			passwordCooldown -= 1;
+			if (passwordCooldown <= 0) {
+				clearInterval(passwordCountdown);
+			}
+		}, 1000);
+	}
+
+	async function askPasswordChange(): Promise<void> {
+		passwordSending = true;
+		const outcome = await requestPasswordChange(profileUrl());
+		passwordSending = false;
+		if (outcome === 'sent') {
+			passwordAsked = true;
+			startPasswordCooldown();
+		} else if (outcome === 'too-soon') {
+			passwordAsked = true;
+			startPasswordCooldown();
+			notice.show('Aspetta un minuto prima di chiederla di nuovo.', true);
+		} else {
+			notice.show('Non riesco a mandare l’email. Riprova tra poco.', true);
+		}
+	}
+
 	function startCooldown(): void {
 		clearInterval(countdown);
 		cooldown = RESEND_COOLDOWN_SECONDS;
@@ -125,6 +157,7 @@
 
 	onDestroy(() => {
 		clearInterval(countdown);
+		clearInterval(passwordCountdown);
 	});
 
 	onMount(() => {
@@ -140,6 +173,10 @@
 				notice.show(outcome.message, true);
 			}
 		});
+		if (passwordWasChanged(window.location.href)) {
+			notice.show('Password cambiata.');
+			void goto(resolve('/(app)/profile'), { shallow: true, replace: true });
+		}
 		if (new URL(window.location.href).searchParams.get(DELETE_PARAM) === '1') {
 			deleting = true;
 			void goto(resolve('/(app)/profile'), { shallow: true, replace: true });
@@ -217,6 +254,29 @@
 					{/if}
 				</FieldRow>
 			{/each}
+			<FieldRow
+				label="Password"
+				help="Per cambiarla ti scriviamo un link: finché non lo apri resta quella di prima."
+				labelId={`${ids}-password`}
+			>
+				{#if passwordAsked}
+					<p role="status" class="m-0 mb-3 text-[17px] text-ink">
+						Ti abbiamo scritto: apri il link per scegliere la nuova password.
+					</p>
+				{/if}
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={passwordSending || passwordCooldown > 0}
+					onclick={askPasswordChange}
+				>
+					{passwordCooldown > 0
+						? `Rinvia email tra ${passwordCooldown} s`
+						: passwordAsked
+							? 'Rinvia email'
+							: 'Cambia password'}
+				</Button>
+			</FieldRow>
 		</SettingsSection>
 		<SettingsSection title="Elimina l’account" intro="Una scelta senza ritorno.">
 			{#snippet action()}
