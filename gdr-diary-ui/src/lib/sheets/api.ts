@@ -133,3 +133,27 @@ export async function deleteSheet(api: ApiClient, id: string): Promise<void> {
 		);
 	}
 }
+
+export async function fetchSheet(api: ApiClient, id: string): Promise<SheetDetail> {
+	const { data, error } = await api.GET('/sheets/{id}', { params: { path: { id } } });
+	if (data === undefined) {
+		throw new Error(describeApiError(error, 'Non riesco a caricare la scheda.'));
+	}
+	return data;
+}
+
+export async function replaceSheetFile(
+	api: ApiClient,
+	id: string,
+	file: File
+): Promise<SheetDetail> {
+	const { data, error } = await api.PUT('/sheets/{id}/file', {
+		params: { path: { id } },
+		body: { file: '' },
+		bodySerializer: fileForm(file)
+	});
+	if (data === undefined) {
+		throw new Error(describeApiError(error, 'Non riesco a salvare il PDF.'));
+	}
+	return data;
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { glowColor, photoBackground } from '#lib/characters/appearance.js';
 	import ArrowIcon from '#lib/components/ui/ArrowIcon.svelte';
 	import CardActions from '#lib/components/ui/CardActions.svelte';
@@ -60,7 +61,6 @@
 		{/if}
 	{/snippet}
 	{#snippet action()}
-		<!-- eslint-disable svelte/no-navigation-without-resolve -- gli URL del PDF sono assoluti (storage), non rotte dell'app -->
 		<CardActions
 			deleteLabel={`Elimina ${title}`}
 			ondelete={() => {
@@ -68,14 +68,16 @@
 			}}
 		>
 			<a
-				href={sheet.url}
-				target="_blank"
-				rel="noopener noreferrer"
+				href={resolve('/(app)/characters/[characterId]/sheets/[sheetId]', {
+					characterId: sheet.characterId ?? '',
+					sheetId: sheet.id ?? ''
+				})}
 				class={[cardLinkClasses, 'min-w-0 flex-1']}
 			>
 				<span>Apri<span class="sr-only"> la scheda</span></span>
 				<ArrowIcon />
 			</a>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- l'URL di download è assoluto (storage), non una rotta dell'app -->
 			<a
 				href={sheet.downloadUrl}
 				download
@@ -87,7 +89,7 @@
 					<path d="M12 4v11M7 11l5 5 5-5M5 20h14" />
 				</Icon>
 			</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</CardActions>
-		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/snippet}
 </PortraitCard>

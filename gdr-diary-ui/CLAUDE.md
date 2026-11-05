@@ -138,6 +138,7 @@ src/
     characters/           colori e silhouette, `kind` (personaggio o master), chiamate API, stato della lista
                           e le schede della pagina del personaggio (`tabs.ts`, `load.ts`)
     sheets/               schede in PDF: chiamate API, formati (peso, data, controllo del file), stato della lista
+    pdf/                  editor dei PDF compilabili (pdf.js, `PdfEditor`): caricamento lazy, apertura, salvataggio; `test-support.ts` ha due PDF di prova
     book/                 diario aperto: `DiaryBook` (stato, salvataggio, sfoglio), pagine API, impaginazione automatica, misure
     theme/                scelta del tema: sistema / chiaro / scuro
     styles/tokens.css     token dei due temi, utility e font

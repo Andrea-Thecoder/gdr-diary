@@ -123,13 +123,11 @@ describe('sheets screen', () => {
 		expect(document.body.textContent).not.toMatch(/\b(KB|MB)\b/);
 	});
 
-	it('opens the PDF in a new tab and offers a download', async () => {
+	it('opens the sheet in the editor screen and offers a download', async () => {
 		await ready();
 
 		const open = page.getByRole('link', { name: 'Apri la scheda' }).first();
-		await expect.element(open).toHaveAttribute('href', 'https://files.test/s-5.pdf');
-		await expect.element(open).toHaveAttribute('target', '_blank');
-		await expect.element(open).toHaveAttribute('rel', 'noopener noreferrer');
+		await expect.element(open).toHaveAttribute('href', '/characters/id-alira/sheets/s-5');
 		const download = page.getByRole('link', { name: 'Scarica Scheda livello 5' });
 		await expect.element(download).toHaveAttribute('href', 'https://files.test/s-5.pdf?download=1');
 		await expect.element(download).toHaveAttribute('download');

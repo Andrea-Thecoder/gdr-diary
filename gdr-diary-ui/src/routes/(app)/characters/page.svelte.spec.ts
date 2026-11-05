@@ -789,7 +789,7 @@ describe('new character dialog', () => {
 
 		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
 		const body = (api.POST.mock.calls[0]?.[1] as { body: Record<string, string> }).body;
-		expect(body.backgroundColor).toBe('#7C2A22');
+		expect(body['backgroundColor']).toBe('#7C2A22');
 	});
 
 	it('refuses an unsupported image', async () => {

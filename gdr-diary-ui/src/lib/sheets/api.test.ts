@@ -3,7 +3,9 @@ import { createApiClient } from '#lib/api/client.js';
 import {
 	createSheet,
 	deleteSheet,
+	fetchSheet,
 	fetchSheets,
+	replaceSheetFile,
 	updateSheet,
 	type SheetFields
 } from '#lib/sheets/api.js';
@@ -189,5 +191,45 @@ describe('deleteSheet', () => {
 		const { api } = clientWith(() => json({ title: 'Boom', status: 500 }, 500));
 
 		await expect(deleteSheet(api, 's1')).rejects.toThrow();
+	});
+});
+
+describe('fetchSheet', () => {
+	it('reads one sheet with its fresh file addresses', async () => {
+		const { api, requests } = clientWith(() =>
+			json({ id: 's1', title: 'Scheda', url: 'https://files.test/s1.pdf' })
+		);
+
+		const sheet = await fetchSheet(api, 's1');
+
+		expect(sheet.url).toBe('https://files.test/s1.pdf');
+		expect(new URL(requests[0]?.url ?? '').pathname).toBe('/base/sheets/s1');
+	});
+
+	it('says why the sheet cannot be read', async () => {
+		const { api } = clientWith(() => json({ title: 'Scheda non trovata', status: 404 }, 404));
+
+		await expect(fetchSheet(api, 's1')).rejects.toThrow('Scheda non trovata');
+	});
+});
+
+describe('replaceSheetFile', () => {
+	it('sends the new PDF over the old one as a file upload', async () => {
+		const { api, requests } = clientWith(() => json({ id: 's1', title: 'Scheda' }));
+
+		await replaceSheetFile(api, 's1', pdf);
+
+		const request = requests[0];
+		expect(request?.method).toBe('PUT');
+		expect(new URL(request?.url ?? '').pathname).toBe('/base/sheets/s1/file');
+		const sent = (await request?.formData())?.get('file') as File;
+		expect(sent.name).toBe('scheda.pdf');
+		expect(await sent.text()).toBe('%PDF-1.7');
+	});
+
+	it('says why the PDF was refused', async () => {
+		const { api } = clientWith(() => json({ title: 'File troppo grande', status: 413 }, 413));
+
+		await expect(replaceSheetFile(api, 's1', pdf)).rejects.toThrow('File troppo grande');
 	});
 });
