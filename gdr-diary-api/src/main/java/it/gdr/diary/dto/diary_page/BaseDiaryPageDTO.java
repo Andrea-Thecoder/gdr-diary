@@ -3,7 +3,6 @@ package it.gdr.diary.dto.diary_page;
 import io.swagger.v3.oas.annotations.media.Schema;
 import it.gdr.diary.model.DiaryPage;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,10 +20,10 @@ public record BaseDiaryPageDTO(
         @Schema(description = "Version of the page: to be sent back when the page is updated, so that changes made elsewhere in the meantime are detected", examples = {"3"})
         Long version,
 
-        @Schema(description = "Tags of the page, sorted alphabetically ignoring case (empty if none)")
-        List<String> tags) {
+        @Schema(description = "Tag of the page, null if the page has no tag", nullable = true, examples = {"combat"})
+        String tag) {
 
-    public static BaseDiaryPageDTO from(DiaryPage page, List<String> tags) {
-        return new BaseDiaryPageDTO(page.getId(), page.getPageNumber(), page.getContent(), page.getVersion(), tags);
+    public static BaseDiaryPageDTO from(DiaryPage page, String tag) {
+        return new BaseDiaryPageDTO(page.getId(), page.getPageNumber(), page.getContent(), page.getVersion(), tag);
     }
 }

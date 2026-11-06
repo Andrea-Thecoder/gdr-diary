@@ -55,8 +55,8 @@ public class DiaryService {
         if (StringUtils.isNotBlank(tag)) {
             query.in("id", database.find(DiaryPageTag.class)
                     .setLabel("findDiaryIdsByTag")
-                    .select("page.diary.id")
-                    .where().icontains("name", tag.trim()).eq("page.diary.character.owner.keycloakId", jwtInspector.getSubject())
+                    .select("diary.id")
+                    .where().icontains("name", tag.trim()).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
                     .query());
         }
     }

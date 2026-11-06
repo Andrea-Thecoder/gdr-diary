@@ -88,25 +88,35 @@ class SchemaIT extends AbstractIntegrationTest {
         return pageId;
     }
 
-    private void insertTag(UUID pageId, String name) {
-        jdbc.update("insert into diary_page_tag (id, page_id, created_at, updated_at, version, name, created_by, updated_by) "
-                + "values (?, ?, now(), now(), 0, ?, 'test', 'test')", UUID.randomUUID(), pageId, name);
+    private void insertTag(UUID diaryId, UUID pageId, String name) {
+        jdbc.update("insert into diary_page_tag (id, diary_id, page_id, created_at, updated_at, version, name, created_by, updated_by) "
+                + "values (?, ?, ?, now(), now(), 0, ?, 'test', 'test')", UUID.randomUUID(), diaryId, pageId, name);
     }
 
     private void insertTwoTagsOnSamePage(String first, String second) {
         transactions.executeWithoutResult(status -> {
-            UUID pageId = insertPage(insertDiary(), 1);
-            insertTag(pageId, first);
-            insertTag(pageId, second);
+            UUID diaryId = insertDiary();
+            UUID pageId = insertPage(diaryId, 1);
+            insertTag(diaryId, pageId, first);
+            insertTag(diaryId, pageId, second);
             status.setRollbackOnly();
         });
     }
 
-    private void insertSameTagOnTwoPages(String name) {
+    private void insertSameTagOnTwoPages(String first, String second) {
         transactions.executeWithoutResult(status -> {
             UUID diaryId = insertDiary();
-            insertTag(insertPage(diaryId, 1), name);
-            insertTag(insertPage(diaryId, 2), name);
+            insertTag(diaryId, insertPage(diaryId, 1), first);
+            insertTag(diaryId, insertPage(diaryId, 2), second);
+            status.setRollbackOnly();
+        });
+    }
+
+    private void insertTagWithDiaryOfAnotherDiary() {
+        transactions.executeWithoutResult(status -> {
+            UUID diaryId = insertDiary();
+            UUID otherDiaryId = insertDiary();
+            insertTag(otherDiaryId, insertPage(diaryId, 1), "combat");
             status.setRollbackOnly();
         });
     }
@@ -172,8 +182,13 @@ class SchemaIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void diaryPageTagDiaryForeignKey_schema_restrictsDelete() {
+        assertThat(deleteRuleOf("fk_diary_page_tag_diary_id")).isEqualTo("r");
+    }
+
+    @Test
     void diaryPageTagPageForeignKey_schema_restrictsDelete() {
-        assertThat(deleteRuleOf("fk_diary_page_tag_page_id")).isEqualTo("r");
+        assertThat(deleteRuleOf("fk_diary_page_tag_page_id_diary_id")).isEqualTo("r");
     }
 
     @Test
@@ -184,17 +199,22 @@ class SchemaIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void diaryPageTagName_sameNameWithOtherCaseOnSamePage_isRejectedByUniqueIndex() {
-        assertThatThrownBy(() -> insertTwoTagsOnSamePage("Combat", "combat")).isInstanceOf(DataIntegrityViolationException.class);
+    void diaryPageTag_twoTagsOnSamePage_isRejectedByUniqueIndex() {
+        assertThatThrownBy(() -> insertTwoTagsOnSamePage("combat", "clues")).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
-    void diaryPageTagName_sameNameOnTwoPages_isAccepted() {
-        assertThatCode(() -> insertSameTagOnTwoPages("combat")).doesNotThrowAnyException();
+    void diaryPageTag_sameNameOnTwoPages_isAccepted() {
+        assertThatCode(() -> insertSameTagOnTwoPages("combat", "combat")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void diaryPageTag_diaryDifferentFromTheDiaryOfThePage_isRejectedByCompositeForeignKey() {
+        assertThatThrownBy(this::insertTagWithDiaryOfAnotherDiary).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
     void diaryPageTagName_longerThanThirtyCharacters_isRejected() {
-        assertThatThrownBy(() -> insertTwoTagsOnSamePage("a".repeat(31), "b")).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertSameTagOnTwoPages("a".repeat(31), "b")).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

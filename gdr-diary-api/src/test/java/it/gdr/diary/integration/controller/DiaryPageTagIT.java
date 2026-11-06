@@ -9,7 +9,6 @@ import it.gdr.diary.integration.support.TestJwt;
 import it.gdr.diary.integration.support.WithMockJwt;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
@@ -22,27 +21,35 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @WithMockJwt
 class DiaryPageTagIT extends AbstractIntegrationTest {
 
-    private static final String LOCK_PAGE = "select id from diary_page where id = ? for update";
+    private static final String LOCK_DIARY = "select id from diary where id = ? for update";
 
     private static RequestPostProcessor currentUser() {
         return TestJwt.as(TestJwt.USER_SUBJECT, TestJwt.USER_EMAIL, "user");
     }
 
-    private static String tagsBody(String... tags) {
-        return "{\"tags\":[" + String.join(",", Arrays.stream(tags).map(tag -> "\"" + tag + "\"").toList()) + "]}";
+    private static String tagBody(String tag) {
+        return tag == null ? "{\"tag\":null}" : "{\"tag\":\"" + tag + "\"}";
     }
 
-    private MvcTestResult putTags(UUID pageId, RequestPostProcessor user, String... tags) {
-        return mvc.put().uri("/pages/{id}/tags", pageId).with(user)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody(tags)).exchange();
+    private MvcTestResult putTag(UUID pageId, RequestPostProcessor user, String tag) {
+        return mvc.put().uri("/pages/{id}/tag", pageId).with(user)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody(tag)).exchange();
     }
 
-    private MvcTestResult putTags(UUID pageId, String... tags) {
-        return putTags(pageId, CURRENT_USER, tags);
+    private MvcTestResult putTag(UUID pageId, String tag) {
+        return putTag(pageId, CURRENT_USER, tag);
     }
 
     private List<String> storedTags(UUID pageId) {
-        return jdbc.queryForList("select name from diary_page_tag where page_id = ? order by lower(name)", String.class, pageId);
+        return jdbc.queryForList("select name from diary_page_tag where page_id = ?", String.class, pageId);
+    }
+
+    private List<UUID> storedTagIds(UUID pageId) {
+        return jdbc.queryForList("select id from diary_page_tag where page_id = ?", UUID.class, pageId);
+    }
+
+    private UUID storedTagDiary(UUID pageId) {
+        return jdbc.queryForObject("select diary_id from diary_page_tag where page_id = ?", UUID.class, pageId);
     }
 
     private long storedPageVersion(UUID pageId) {
@@ -53,267 +60,399 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
         return jdbc.queryForObject("select content->'content'->0->'content'->0->>'text' from diary_page where id = ?", String.class, pageId);
     }
 
-    private List<UUID> storedTagIds(UUID pageId) {
-        return jdbc.queryForList("select id from diary_page_tag where page_id = ? order by id", UUID.class, pageId);
-    }
-
-    private List<Map<String, Object>> storedTagRows(UUID pageId) {
-        return jdbc.queryForList("select id, version from diary_page_tag where page_id = ? order by id", pageId);
-    }
-
-    private UUID taggedPage(String... tags) {
+    private UUID taggedPage(String tag) {
         UUID diaryId = createDiaryWithOwner();
         UUID pageId = createDiaryPage(diaryId, "Page one");
-        putTags(pageId, tags);
+        putTag(pageId, tag);
         return pageId;
     }
 
-    private UUID othersTaggedPage(String... tags) {
+    private UUID othersTaggedPage(String tag) {
         RequestPostProcessor other = TestJwt.otherUser();
         UUID diaryId = createDiaryWithOwner(other);
         UUID pageId = createDiaryPage(diaryId, "Secret", other);
-        putTags(pageId, other, tags);
+        putTag(pageId, other, tag);
         return pageId;
     }
 
+    private UUID diaryOf(UUID pageId) {
+        return jdbc.queryForObject("select diary_id from diary_page where id = ?", UUID.class, pageId);
+    }
+
+    private UUID characterOf(UUID diaryId) {
+        return jdbc.queryForObject("select character_id from diary where id = ?", UUID.class, diaryId);
+    }
+
+    /** Diary with a page for each given tag (null means a page without tag), in this order. */
+    private UUID diaryWithTaggedPages(String... tagsOfPages) {
+        UUID diaryId = createDiaryWithOwner();
+        for (String tag : tagsOfPages) {
+            putTag(createDiaryPage(diaryId, "Page"), tag);
+        }
+        return diaryId;
+    }
+
+    private UUID diaryWithTaggedPage(UUID characterId, String title, String tag) {
+        UUID diaryId = createDiary(characterId, title);
+        putTag(createDiaryPage(diaryId, "Page one"), tag);
+        return diaryId;
+    }
+
+    private List<UUID> pagesWithTags(UUID diaryId, String... tags) {
+        return Arrays.stream(tags).map(tag -> {
+            UUID pageId = createDiaryPage(diaryId, "Page");
+            putTag(pageId, tag);
+            return pageId;
+        }).toList();
+    }
+
     @Test
-    void updateDiaryPageTags_newTags_storesThem() {
+    void updateDiaryPageTag_newTag_storesIt() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        putTags(pageId, "combat", "clues");
+        putTag(pageId, "combat");
 
-        assertThat(storedTags(pageId)).containsExactly("clues", "combat");
+        assertThat(storedTags(pageId)).containsExactly("combat");
     }
 
     @Test
-    void updateDiaryPageTags_newTags_returnsThemSortedIgnoringCase() {
+    void updateDiaryPageTag_newTag_returnsIt() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", pageId).contentType(MediaType.APPLICATION_JSON)
-                .content(tagsBody("clues", "Alpha", "beta")))
-                .bodyJson().extractingPath("$.tags").isEqualTo(List.of("Alpha", "beta", "clues"));
+        assertThat(putTag(pageId, "combat")).bodyJson().extractingPath("$.tag").isEqualTo("combat");
     }
 
     @Test
-    void updateDiaryPageTags_secondCall_replacesTheTags() {
-        UUID pageId = taggedPage("combat", "clues");
+    void updateDiaryPageTag_newTag_storesTheDiaryOfThePage() {
+        UUID diaryId = createDiaryWithOwner();
+        UUID pageId = createDiaryPage(diaryId, "Page one");
 
-        putTags(pageId, "clues", "npc");
+        putTag(pageId, "combat");
 
-        assertThat(storedTags(pageId)).containsExactly("clues", "npc");
+        assertThat(storedTagDiary(pageId)).isEqualTo(diaryId);
     }
 
     @Test
-    void updateDiaryPageTags_sameTagsAgain_leavesStoredRowsUntouched() {
-        UUID pageId = taggedPage("combat", "clues");
-        List<Map<String, Object>> before = storedTagRows(pageId);
-
-        putTags(pageId, "clues", "combat");
-
-        assertThat(storedTagRows(pageId)).isEqualTo(before);
-    }
-
-    @Test
-    void updateDiaryPageTags_sameTagWithOtherCase_renamesTheStoredRow() {
+    void updateDiaryPageTag_secondCall_replacesTheTagWithoutAddingOne() {
         UUID pageId = taggedPage("combat");
 
-        putTags(pageId, "Combat");
+        putTag(pageId, "clues");
 
-        assertThat(storedTags(pageId)).containsExactly("Combat");
+        assertThat(storedTags(pageId)).containsExactly("clues");
     }
 
     @Test
-    void updateDiaryPageTags_sameTagWithOtherCase_keepsTheSameRow() {
+    void updateDiaryPageTag_secondCall_keepsTheSameRow() {
         UUID pageId = taggedPage("combat");
         List<UUID> before = storedTagIds(pageId);
 
-        putTags(pageId, "Combat");
+        putTag(pageId, "clues");
 
         assertThat(storedTagIds(pageId)).isEqualTo(before);
     }
 
     @Test
-    void updateDiaryPageTags_emptyList_removesAllTags() {
-        UUID pageId = taggedPage("combat", "clues");
+    void updateDiaryPageTag_sameTagAgain_leavesStoredRowUntouched() {
+        UUID pageId = taggedPage("combat");
+        long before = jdbc.queryForObject("select version from diary_page_tag where page_id = ?", Long.class, pageId);
 
-        putTags(pageId);
+        putTag(pageId, "combat");
 
-        assertThat(storedTags(pageId)).isEmpty();
+        assertThat(jdbc.queryForObject("select version from diary_page_tag where page_id = ?", Long.class, pageId)).isEqualTo(before);
     }
 
     @Test
-    void updateDiaryPageTags_namesDifferingByCase_storesTheFirstOnly() {
-        UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
+    void updateDiaryPageTag_sameTagWithOtherCase_renamesTheStoredRow() {
+        UUID pageId = taggedPage("combat");
 
-        putTags(pageId, "Combat", "combat", "COMBAT");
+        putTag(pageId, "Combat");
 
         assertThat(storedTags(pageId)).containsExactly("Combat");
     }
 
     @Test
-    void updateDiaryPageTags_namesWithSurroundingSpaces_storesThemTrimmed() {
+    void updateDiaryPageTag_nullTag_removesTheTag() {
+        UUID pageId = taggedPage("combat");
+
+        putTag(pageId, null);
+
+        assertThat(storedTags(pageId)).isEmpty();
+    }
+
+    @Test
+    void updateDiaryPageTag_nullTag_returnsNullTag() {
+        UUID pageId = taggedPage("combat");
+
+        assertThat(putTag(pageId, null)).bodyJson().extractingPath("$.tag").isNull();
+    }
+
+    @Test
+    void updateDiaryPageTag_nullTagOnPageWithoutTag_returnsOk() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        putTags(pageId, "  combat ");
+        assertThat(putTag(pageId, null)).hasStatusOk();
+    }
+
+    @Test
+    void updateDiaryPageTag_nullTag_keepsTagOfOtherPages() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = pagesWithTags(diaryId, "combat", "clues");
+
+        putTag(pages.get(0), null);
+
+        assertThat(storedTags(pages.get(1))).containsExactly("clues");
+    }
+
+    @Test
+    void updateDiaryPageTag_nameWithSurroundingSpaces_storesItTrimmed() {
+        UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
+
+        putTag(pageId, "  combat ");
 
         assertThat(storedTags(pageId)).containsExactly("combat");
     }
 
     @Test
-    void updateDiaryPageTags_validRequest_doesNotChangeThePageVersion() {
+    void updateDiaryPageTag_validRequest_doesNotChangeThePageVersion() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
         long before = storedPageVersion(pageId);
 
-        putTags(pageId, "combat");
+        putTag(pageId, "combat");
 
         assertThat(storedPageVersion(pageId)).isEqualTo(before);
     }
 
     @Test
-    void updateDiaryPageTags_validRequest_keepsThePageContent() {
+    void updateDiaryPageTag_validRequest_keepsThePageContent() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        putTags(pageId, "combat");
+        putTag(pageId, "combat");
 
         assertThat(storedPageText(pageId)).isEqualTo("Page one");
     }
 
     @Test
-    void updateDiaryPageTags_sameNameOnTwoPages_storesBothRows() {
+    void updateDiaryPageTag_sameNameOnTwoPages_storesBothRows() {
         UUID diaryId = createDiaryWithOwner();
-        UUID first = createDiaryPage(diaryId, "Page one");
-        UUID second = createDiaryPage(diaryId, "Page two");
 
-        putTags(first, "combat");
-        putTags(second, "combat");
+        pagesWithTags(diaryId, "combat", "combat");
 
         assertThat(countRows("diary_page_tag")).isEqualTo(2);
     }
 
     @Test
-    void updateDiaryPageTags_elevenTags_returnsBadRequest() {
+    void updateDiaryPageTag_sameNameWithOtherCaseOnOtherPage_keepsTheSpellingOfTheDiary() {
+        UUID diaryId = createDiaryWithOwner();
+
+        List<UUID> pages = pagesWithTags(diaryId, "Combat", "combat");
+
+        assertThat(storedTags(pages.get(1))).containsExactly("Combat");
+    }
+
+    @Test
+    void updateDiaryPageTag_sameNameWithOtherCaseOnOtherPage_returnsTheSpellingOfTheDiary() {
+        UUID diaryId = createDiaryWithOwner();
+        pagesWithTags(diaryId, "Combat");
+        UUID second = createDiaryPage(diaryId, "Page two");
+
+        assertThat(putTag(second, "combat")).bodyJson().extractingPath("$.tag").isEqualTo("Combat");
+    }
+
+    @Test
+    void updateDiaryPageTag_sameNameInOtherDiary_isUnrelated() {
+        UUID first = createDiaryWithOwner();
+        pagesWithTags(first, "Combat");
+        UUID second = createDiary(characterOf(first), "Second");
+        UUID page = createDiaryPage(second, "Page");
+
+        putTag(page, "combat");
+
+        assertThat(storedTags(page)).containsExactly("combat");
+    }
+
+    @Test
+    void updateDiaryPageTag_tenDifferentTagsInTheDiary_areAccepted() {
+        UUID diaryId = createDiaryWithOwner();
+
+        pagesWithTags(diaryId, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+
+        assertThat(countRows("diary_page_tag")).isEqualTo(10);
+    }
+
+    @Test
+    void updateDiaryPageTag_eleventhDifferentTag_returnsBadRequest() {
+        UUID diaryId = createDiaryWithOwner();
+        pagesWithTags(diaryId, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+        UUID extra = createDiaryPage(diaryId, "Extra");
+
+        assertThat(putTag(extra, "tag11")).hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void updateDiaryPageTag_eleventhDifferentTag_storesNothing() {
+        UUID diaryId = createDiaryWithOwner();
+        pagesWithTags(diaryId, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+        UUID extra = createDiaryPage(diaryId, "Extra");
+
+        putTag(extra, "tag11");
+
+        assertThat(storedTags(extra)).isEmpty();
+    }
+
+    @Test
+    void updateDiaryPageTag_diaryWithTenTags_acceptsOneOfThemOnAnotherPageIgnoringCase() {
+        UUID diaryId = createDiaryWithOwner();
+        pagesWithTags(diaryId, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+        UUID extra = createDiaryPage(diaryId, "Extra");
+
+        putTag(extra, "TAG3");
+
+        assertThat(storedTags(extra)).containsExactly("tag3");
+    }
+
+    @Test
+    void updateDiaryPageTag_diaryWithTenTags_acceptsReplacingTheOnlyPageOfATag() {
+        UUID diaryId = createDiaryWithOwner();
+        List<UUID> pages = pagesWithTags(diaryId, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+
+        putTag(pages.get(0), "brandnew");
+
+        assertThat(storedTags(pages.get(0))).containsExactly("brandnew");
+    }
+
+    @Test
+    void updateDiaryPageTag_tenTagsInOtherDiaryOfTheUser_doNotCount() {
+        UUID first = createDiaryWithOwner();
+        pagesWithTags(first, IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new));
+        UUID second = createDiary(characterOf(first), "Second");
+        UUID page = createDiaryPage(second, "Page");
+
+        assertThat(putTag(page, "other")).hasStatusOk();
+    }
+
+    @Test
+    void updateDiaryPageTag_tagOfThirtyOneCharacters_returnsBadRequest() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
-        String[] tags = IntStream.rangeClosed(1, 11).mapToObj(number -> "tag" + number).toArray(String[]::new);
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", pageId).contentType(MediaType.APPLICATION_JSON).content(tagsBody(tags)))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(putTag(pageId, "a".repeat(31))).hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void updateDiaryPageTags_elevenTags_keepsStoredTags() {
-        UUID pageId = taggedPage("combat");
-        String[] tags = IntStream.rangeClosed(1, 11).mapToObj(number -> "tag" + number).toArray(String[]::new);
-
-        putTags(pageId, tags);
-
-        assertThat(storedTags(pageId)).containsExactly("combat");
-    }
-
-    @Test
-    void updateDiaryPageTags_tagOfThirtyOneCharacters_returnsBadRequest() {
+    void updateDiaryPageTag_tagWithEmoji_isStored() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", pageId).contentType(MediaType.APPLICATION_JSON)
-                .content(tagsBody("a".repeat(31))))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+        putTag(pageId, "dragon \uD83D\uDC09");
+
+        assertThat(storedTags(pageId)).containsExactly("dragon \uD83D\uDC09");
     }
 
     @Test
-    void updateDiaryPageTags_tagWithEmoji_isStored() {
-        UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
-
-        putTags(pageId, "dragon 🐉");
-
-        assertThat(storedTags(pageId)).containsExactly("dragon 🐉");
-    }
-
-    @Test
-    void updateDiaryPageTags_unknownPage_returnsNotFound() {
+    void updateDiaryPageTag_unknownPage_returnsNotFound() {
         createDiaryWithOwner();
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON)
-                .content(tagsBody("combat")))
-                .hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(putTag(UUID.randomUUID(), "combat")).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void updateDiaryPageTags_pageOfOtherUser_returnsNotFound() {
+    void updateDiaryPageTag_pageOfOtherUser_returnsNotFound() {
         UUID othersPage = othersTaggedPage("secret");
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", othersPage).contentType(MediaType.APPLICATION_JSON)
-                .content(tagsBody("hacked")))
-                .hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(putTag(othersPage, "hacked")).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void updateDiaryPageTags_pageOfOtherUser_keepsTheirTags() {
+    void updateDiaryPageTag_pageOfOtherUser_keepsTheirTag() {
         UUID othersPage = othersTaggedPage("secret");
 
-        putTags(othersPage, "hacked");
+        putTag(othersPage, "hacked");
 
         assertThat(storedTags(othersPage)).containsExactly("secret");
     }
 
     @Test
-    void updateDiaryPageTags_emptyListOnPageOfOtherUser_keepsTheirTags() {
+    void updateDiaryPageTag_nullTagOnPageOfOtherUser_keepsTheirTag() {
         UUID othersPage = othersTaggedPage("secret");
 
-        putTags(othersPage);
+        putTag(othersPage, null);
 
         assertThat(storedTags(othersPage)).containsExactly("secret");
     }
 
     @Test
-    void updateDiaryPageTags_twoParallelCallsWithSameTags_bothSucceed() {
+    void updateDiaryPageTag_pageOfOtherUserWithoutTag_getsNoTag() {
+        RequestPostProcessor other = TestJwt.otherUser();
+        UUID othersPage = createDiaryPage(createDiaryWithOwner(other), "Secret", other);
+
+        putTag(othersPage, "hacked");
+
+        assertThat(storedTags(othersPage)).isEmpty();
+    }
+
+    @Test
+    void updateDiaryPageTag_twoParallelCallsOnTheSamePage_bothSucceed() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
         List<Integer> statuses = ConcurrentCalls.statuses(
-                ConcurrentCalls.fireAtOnce(2, index -> putTags(pageId, currentUser(), "combat", "clues")));
+                ConcurrentCalls.fireAtOnce(2, index -> putTag(pageId, currentUser(), "combat")));
 
         assertThat(statuses).containsExactly(200, 200);
     }
 
     @Test
-    void updateDiaryPageTags_twoParallelCallsWithSameTags_storeEachTagOnce() {
+    void updateDiaryPageTag_twoParallelCallsOnTheSamePage_storeOneRow() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        ConcurrentCalls.fireAtOnce(2, index -> putTags(pageId, currentUser(), "combat", "clues"));
+        ConcurrentCalls.fireAtOnce(2, index -> putTag(pageId, currentUser(), "combat"));
 
-        assertThat(storedTags(pageId)).containsExactly("clues", "combat");
+        assertThat(storedTags(pageId)).containsExactly("combat");
     }
 
-    private MvcTestResult putTagsWhilePageIsDeleted(UUID pageId) {
+    @Test
+    void updateDiaryPageTag_parallelCallsOnDifferentPagesWithTheEleventhTag_storeAtMostTenTags() {
+        UUID diaryId = createDiaryWithOwner();
+        pagesWithTags(diaryId, IntStream.rangeClosed(1, 9).mapToObj(number -> "tag" + number).toArray(String[]::new));
+        UUID first = createDiaryPage(diaryId, "First");
+        UUID second = createDiaryPage(diaryId, "Second");
+
+        ConcurrentCalls.fireAtOnce(2, index -> putTag(index == 0 ? first : second, currentUser(), index == 0 ? "tag10" : "tag11"));
+
+        assertThat(jdbc.queryForObject("select count(distinct lower(name)) from diary_page_tag where diary_id = ?", Long.class, diaryId))
+                .isEqualTo(10L);
+    }
+
+    private MvcTestResult putTagWhilePageIsDeleted(UUID pageId) {
+        UUID diaryId = diaryOf(pageId);
         try (BlockingTransaction deletion = BlockingTransaction.begin(jdbc)
-                .execute(LOCK_PAGE, pageId)
+                .execute(LOCK_DIARY, diaryId)
                 .execute("delete from diary_page_tag where page_id = ?", pageId)
                 .execute("delete from diary_page where id = ?", pageId)) {
-            CompletableFuture<MvcTestResult> put = deletion.startBlockedCall(() -> putTags(pageId, currentUser(), "combat"));
+            CompletableFuture<MvcTestResult> put = deletion.startBlockedCall(() -> putTag(pageId, currentUser(), "combat"));
             deletion.commit();
             return put.join();
         }
     }
 
     @Test
-    void updateDiaryPageTags_pageDeletedWhileWaitingForLock_returnsNotFound() {
+    void updateDiaryPageTag_pageDeletedWhileWaitingForLock_returnsNotFound() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        MvcTestResult result = putTagsWhilePageIsDeleted(pageId);
+        MvcTestResult result = putTagWhilePageIsDeleted(pageId);
 
         assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void updateDiaryPageTags_pageDeletedWhileWaitingForLock_leavesNoTag() {
+    void updateDiaryPageTag_pageDeletedWhileWaitingForLock_leavesNoTag() {
         UUID pageId = createDiaryPage(createDiaryWithOwner(), "Page one");
 
-        putTagsWhilePageIsDeleted(pageId);
+        putTagWhilePageIsDeleted(pageId);
 
         assertThat(countRows("diary_page_tag")).isZero();
     }
 
     @Test
     void deleteDiaryPage_pageWithTags_deletesItsTags() {
-        UUID pageId = taggedPage("combat", "clues");
+        UUID pageId = taggedPage("combat");
 
         mvc.delete().uri("/pages/{id}", pageId).exchange();
 
@@ -325,8 +464,8 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
         UUID diaryId = createDiaryWithOwner();
         UUID first = createDiaryPage(diaryId, "Page one");
         UUID second = createDiaryPage(diaryId, "Page two");
-        putTags(first, "combat");
-        putTags(second, "clues");
+        putTag(first, "combat");
+        putTag(second, "clues");
 
         mvc.delete().uri("/pages/{id}", first).exchange();
 
@@ -345,8 +484,8 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
     @Test
     void deleteDiary_diaryWithTaggedPages_deletesAllItsTags() {
         UUID diaryId = createDiaryWithOwner();
-        putTags(createDiaryPage(diaryId, "Page one"), "combat");
-        putTags(createDiaryPage(diaryId, "Page two"), "clues", "npc");
+        putTag(createDiaryPage(diaryId, "Page one"), "combat");
+        putTag(createDiaryPage(diaryId, "Page two"), "npc");
 
         mvc.delete().uri("/diaries/{id}", diaryId).exchange();
 
@@ -359,9 +498,9 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
         UUID characterId = createGameCharacter("Aragorn");
         UUID doomed = createDiary(characterId, "Doomed");
         UUID kept = createDiary(characterId, "Kept");
-        putTags(createDiaryPage(doomed, "Page one"), "combat");
+        putTag(createDiaryPage(doomed, "Page one"), "combat");
         UUID keptPage = createDiaryPage(kept, "Page one");
-        putTags(keptPage, "clues");
+        putTag(keptPage, "clues");
 
         mvc.delete().uri("/diaries/{id}", doomed).exchange();
 
@@ -382,8 +521,8 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
     void deleteGameCharacter_characterWithTaggedPages_deletesTagsOfAllItsDiaries() {
         createAppUser();
         UUID characterId = createGameCharacter("Aragorn");
-        putTags(createDiaryPage(createDiary(characterId, "First"), "Page one"), "combat");
-        putTags(createDiaryPage(createDiary(characterId, "Second"), "Page one"), "clues");
+        putTag(createDiaryPage(createDiary(characterId, "First"), "Page one"), "combat");
+        putTag(createDiaryPage(createDiary(characterId, "Second"), "Page one"), "clues");
 
         mvc.delete().uri("/characters/{id}", characterId).exchange();
 
@@ -395,9 +534,9 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
         createAppUser();
         UUID doomed = createGameCharacter("Boromir");
         UUID kept = createGameCharacter("Aragorn");
-        putTags(createDiaryPage(createDiary(doomed, "First"), "Page one"), "combat");
+        putTag(createDiaryPage(createDiary(doomed, "First"), "Page one"), "combat");
         UUID keptPage = createDiaryPage(createDiary(kept, "Second"), "Page one");
-        putTags(keptPage, "clues");
+        putTag(keptPage, "clues");
 
         mvc.delete().uri("/characters/{id}", doomed).exchange();
 
@@ -407,8 +546,8 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
     @Test
     void deleteAppUser_userWithTaggedPages_deletesAllTheirTags() {
         UUID diaryId = createDiaryWithOwner();
-        putTags(createDiaryPage(diaryId, "Page one"), "combat");
-        putTags(createDiaryPage(diaryId, "Page two"), "clues");
+        putTag(createDiaryPage(diaryId, "Page one"), "combat");
+        putTag(createDiaryPage(diaryId, "Page two"), "clues");
 
         mvc.delete().uri("/me").exchange();
 
@@ -425,28 +564,6 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
         assertThat(storedTags(othersPage)).containsExactly("secret");
     }
 
-    private UUID diaryOf(UUID pageId) {
-        return jdbc.queryForObject("select diary_id from diary_page where id = ?", UUID.class, pageId);
-    }
-
-    private UUID characterOf(UUID diaryId) {
-        return jdbc.queryForObject("select character_id from diary where id = ?", UUID.class, diaryId);
-    }
-
-    private UUID diaryWithTaggedPage(UUID characterId, String title, String... tags) {
-        UUID diaryId = createDiary(characterId, title);
-        putTags(createDiaryPage(diaryId, "Page one"), tags);
-        return diaryId;
-    }
-
-    private UUID diaryWithTaggedPages(String[]... tagsOfPages) {
-        UUID diaryId = createDiaryWithOwner();
-        for (String[] tags : tagsOfPages) {
-            putTags(createDiaryPage(diaryId, "Page"), tags);
-        }
-        return diaryId;
-    }
-
     private MvcTestResult diaryTags(UUID diaryId, String query) {
         return mvc.get().uri("/diaries/{diaryId}/tags" + query, diaryId).exchange();
     }
@@ -461,12 +578,19 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiaryTagsByDiary_taggedPages_returnsTagsWithPageNumbers() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"combat", "clues"}, new String[]{"Combat"});
+        UUID diaryId = diaryWithTaggedPages("combat", "clues", "Combat");
 
         MvcTestResult result = diaryTags(diaryId, "");
 
         assertThat(result).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("clues", "combat"));
-        assertThat(result).bodyJson().extractingPath("$.list[*].pageNumbers").isEqualTo(List.of(List.of(1), List.of(1, 2)));
+        assertThat(result).bodyJson().extractingPath("$.list[*].pageNumbers").isEqualTo(List.of(List.of(2), List.of(1, 3)));
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_pagesWithoutTag_areNotListed() {
+        UUID diaryId = diaryWithTaggedPages("combat", null);
+
+        assertThat(diaryTags(diaryId, "")).bodyJson().extractingPath("$.totalRows").isEqualTo(1);
     }
 
     @Test
@@ -478,14 +602,14 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiaryTagsByDiary_nameFilter_returnsOnlyMatchingTags() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"Combat", "clues", "npc"});
+        UUID diaryId = diaryWithTaggedPages("Combat", "clues", "npc");
 
         assertThat(diaryTags(diaryId, "?name=COMB")).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("Combat"));
     }
 
     @Test
     void findAllDiaryTagsByDiary_nameWithPercent_matchesItLiterally() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"100%", "1000"});
+        UUID diaryId = diaryWithTaggedPages("100%", "1000");
 
         assertThat(mvc.get().uri("/diaries/{diaryId}/tags?name={name}", diaryId, "0%").exchange())
                 .bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("100%"));
@@ -493,7 +617,7 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiaryTagsByDiary_nameWithUnderscore_matchesItLiterally() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"a_b", "axb"});
+        UUID diaryId = diaryWithTaggedPages("a_b", "axb");
 
         assertThat(mvc.get().uri("/diaries/{diaryId}/tags?name={name}", diaryId, "a_b").exchange())
                 .bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("a_b"));
@@ -501,7 +625,7 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiaryTagsByDiary_secondPage_returnsRemainingTags() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"a", "b", "c"});
+        UUID diaryId = diaryWithTaggedPages("a", "b", "c");
 
         MvcTestResult result = diaryTags(diaryId, "?page=2&size=2");
 
@@ -531,40 +655,39 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAllDiaryPagesByDiary_taggedPage_returnsItsTags() {
+    void findAllDiaryPagesByDiary_taggedPage_returnsItsTag() {
         UUID diaryId = createDiaryWithOwner();
-        putTags(createDiaryPage(diaryId, "Page one"), "combat", "clues");
+        putTag(createDiaryPage(diaryId, "Page one"), "combat");
         createDiaryPage(diaryId, "Page two");
 
         MvcTestResult result = mvc.get().uri("/diaries/{diaryId}/pages", diaryId).exchange();
 
-        assertThat(result).bodyJson().extractingPath("$.list[*].tags").isEqualTo(List.of(List.of("clues", "combat"), List.of()));
+        assertThat(result).bodyJson().extractingPath("$.list[*].tag").isEqualTo(Arrays.asList("combat", null));
     }
 
     @Test
-    void createDiaryPage_newPage_returnsEmptyTags() {
+    void createDiaryPage_newPage_returnsNullTag() {
         UUID diaryId = createDiaryWithOwner();
 
         assertThat(mvc.post().uri("/diaries/{diaryId}/pages", diaryId).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"content\":" + pageContent("Page one") + "}"))
-                .bodyJson().extractingPath("$.tags").isEqualTo(List.of());
+                .bodyJson().extractingPath("$.tag").isNull();
     }
 
     @Test
-    void updateDiaryPage_taggedPage_returnsItsTagsAndKeepsThem() {
-        UUID pageId = taggedPage("combat", "clues");
+    void updateDiaryPage_taggedPage_returnsItsTagAndKeepsIt() {
+        UUID pageId = taggedPage("combat");
 
         assertThat(mvc.put().uri("/pages/{id}", pageId).contentType(MediaType.APPLICATION_JSON)
                 .content(updateBody("Final", storedPageVersion(pageId))))
-                .bodyJson().extractingPath("$.tags").isEqualTo(List.of("clues", "combat"));
-        assertThat(storedTags(pageId)).containsExactly("clues", "combat");
+                .bodyJson().extractingPath("$.tag").isEqualTo("combat");
+        assertThat(storedTags(pageId)).containsExactly("combat");
     }
 
     @Test
     void findAllDiariesByCharacter_tag_returnsOnlyDiariesWithThatTag() {
-        UUID first = createDiaryWithOwner();
+        UUID first = diaryWithTaggedPages("combat");
         UUID characterId = characterOf(first);
-        putTags(createDiaryPage(first, "Page"), "combat");
         diaryWithTaggedPage(characterId, "Second", "clues");
         createDiary(characterId, "Third");
 
@@ -576,21 +699,21 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiariesByCharacter_tagWithOtherCase_returnsTheDiary() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"Combat"});
+        UUID diaryId = diaryWithTaggedPages("Combat");
 
         assertThat(diariesWithTag(characterOf(diaryId), "cOMBat")).bodyJson().extractingPath("$.totalRows").isEqualTo(1);
     }
 
     @Test
     void findAllDiariesByCharacter_diaryWithTagOnSeveralPages_returnsItOnce() {
-        UUID diaryId = diaryWithTaggedPages(new String[]{"combat"}, new String[]{"combat boss"});
+        UUID diaryId = diaryWithTaggedPages("combat", "combat", "combat boss");
 
         assertThat(diariesWithTag(characterOf(diaryId), "combat")).bodyJson().extractingPath("$.totalRows").isEqualTo(1);
     }
 
     @Test
     void findAllDiariesByCharacter_tagWithPercent_matchesItLiterally() {
-        UUID first = diaryWithTaggedPages(new String[]{"100%"});
+        UUID first = diaryWithTaggedPages("100%");
         UUID characterId = characterOf(first);
         diaryWithTaggedPage(characterId, "Second", "1000");
 
@@ -602,7 +725,7 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiariesByCharacter_tagWithUnderscore_matchesItLiterally() {
-        UUID first = diaryWithTaggedPages(new String[]{"a_b"});
+        UUID first = diaryWithTaggedPages("a_b");
         UUID characterId = characterOf(first);
         diaryWithTaggedPage(characterId, "Second", "axb");
 
@@ -611,9 +734,8 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
     @Test
     void findAllDiariesByCharacter_tagAndTitle_combinesBothFilters() {
-        UUID first = createDiaryWithOwner();
+        UUID first = diaryWithTaggedPages("combat");
         UUID characterId = characterOf(first);
-        putTags(createDiaryPage(first, "Page"), "combat");
         diaryWithTaggedPage(characterId, "Second", "combat");
 
         assertThat(mvc.get().uri("/characters/{characterId}/diaries?tag=combat&title=Second", characterId).exchange())
@@ -623,7 +745,7 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
     @Test
     void findAllDiariesByCharacter_sameTagOfOtherUser_doesNotReturnTheirDiary() {
         othersTaggedPage("shared");
-        UUID mine = diaryWithTaggedPages(new String[]{"shared"});
+        UUID mine = diaryWithTaggedPages("shared");
 
         MvcTestResult result = diariesWithTag(characterOf(mine), "shared");
 

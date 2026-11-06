@@ -11,16 +11,14 @@ import static org.mockito.Mockito.when;
 import it.gdr.diary.controller.DiaryPageTagController;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.diary_page_tag.BaseDiaryTagDTO;
-import it.gdr.diary.dto.diary_page_tag.DetailDiaryPageTagsDTO;
-import it.gdr.diary.dto.diary_page_tag.UpdateDiaryPageTagsDTO;
+import it.gdr.diary.dto.diary_page_tag.DetailDiaryPageTagDTO;
+import it.gdr.diary.dto.diary_page_tag.UpdateDiaryPageTagDTO;
 import it.gdr.diary.dto.search.DiaryTagSearchRequest;
 import it.gdr.diary.exception.ExceptionMapper;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.services.DiaryPageTagService;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,111 +51,111 @@ class DiaryPageTagControllerTest {
                 .build());
     }
 
-    private String tagsBody(String... tags) {
-        return "{\"tags\":[" + String.join(",", Arrays.stream(tags).map(tag -> "\"" + tag + "\"").toList()) + "]}";
+    private String tagBody(String tag) {
+        return "{\"tag\":\"" + tag + "\"}";
     }
 
     @Test
-    void updateDiaryPageTags_validBody_returnsTagsOfPage() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagsDTO(List.of("clues", "combat")));
+    void updateDiaryPageTag_validBody_returnsTagOfPage() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO("combat"));
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("combat", "clues")))
-                .bodyJson().extractingPath("$.tags").isEqualTo(List.of("clues", "combat"));
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
+                .bodyJson().extractingPath("$.tag").isEqualTo("combat");
     }
 
     @Test
-    void updateDiaryPageTags_validBody_passesTagsToService() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagsDTO(List.of()));
+    void updateDiaryPageTag_validBody_passesTagToService() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO("combat"));
 
-        mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("combat", "clues")).exchange();
+        mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")).exchange();
 
-        verify(service).updateDiaryPageTags(PAGE_ID, new UpdateDiaryPageTagsDTO(List.of("combat", "clues")));
-    }
-
-    @Test
-    void updateDiaryPageTags_emptyList_returnsOk() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagsDTO(List.of()));
-
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"tags\":[]}"))
-                .hasStatusOk();
+        verify(service).updateDiaryPageTag(PAGE_ID, new UpdateDiaryPageTagDTO("combat"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "{\"tags\":null}", "{\"tags\":[null]}", "{\"tags\":[\"\"]}", "{\"tags\":[\"   \"]}",
-            "{\"tags\":[\"a\\nb\"]}", "{\"tags\":[\"a\\u0000b\"]}"})
-    void updateDiaryPageTags_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
+    @ValueSource(strings = {"{\"tag\":null}", "{}"})
+    void updateDiaryPageTag_nullTag_removesTagAndReturnsOk(String body) {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO(null));
+
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatusOk();
+        verify(service).updateDiaryPageTag(PAGE_ID, new UpdateDiaryPageTagDTO(null));
+    }
+
+    @Test
+    void updateDiaryPageTag_removedTag_returnsNullTag() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO(null));
+
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"tag\":null}"))
+                .bodyJson().extractingPath("$.tag").isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"tag\":\"\"}", "{\"tag\":\"   \"}", "{\"tag\":[\"a\"]}",
+            "{\"tag\":\"a\\nb\"}", "{\"tag\":\"a\\u0000b\"}"})
+    void updateDiaryPageTag_invalidBody_returnsBadRequest(String body) {
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void updateDiaryPageTags_tagOfThirtyOneCharacters_returnsBadRequest() {
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("a".repeat(31))))
+    void updateDiaryPageTag_tagOfThirtyOneCharacters_returnsBadRequest() {
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("a".repeat(31))))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void updateDiaryPageTags_elevenTags_returnsBadRequest() {
-        String[] tags = IntStream.rangeClosed(1, 11).mapToObj(number -> "tag" + number).toArray(String[]::new);
-
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(tagsBody(tags)))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiaryPageTags_invalidBody_doesNotCallService() {
-        mvc.put().uri("/pages/{id}/tags", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
+    void updateDiaryPageTag_invalidBody_doesNotCallService() {
+        mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"tag\":\"\"}").exchange();
 
         verifyNoInteractions(service);
     }
 
     @Test
-    void updateDiaryPageTags_tagOfThirtyCharacters_returnsOk() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagsDTO(List.of()));
+    void updateDiaryPageTag_tagOfThirtyCharacters_returnsOk() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO("a".repeat(30)));
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("a".repeat(30))))
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("a".repeat(30))))
                 .hasStatusOk();
     }
 
     @Test
-    void updateDiaryPageTags_tenTags_returnsOk() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagsDTO(List.of()));
-        String[] tags = IntStream.rangeClosed(1, 10).mapToObj(number -> "tag" + number).toArray(String[]::new);
-
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(tagsBody(tags)))
-                .hasStatusOk();
-    }
-
-    @Test
-    void updateDiaryPageTags_pageNotFound_returnsNotFound() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found"));
-
+    void updateDiaryPageTag_oldPluralPath_isNotMapped() {
         assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("combat")))
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
                 .hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void updateDiaryPageTags_serviceRejectsTags_returnsReasonAsViolation() {
-        when(service.updateDiaryPageTags(eq(PAGE_ID), any()))
-                .thenThrow(new ServiceException("The tags must differ from each other, ignoring case"));
+    void updateDiaryPageTag_pageNotFound_returnsNotFound() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found"));
 
-        assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("combat")))
-                .bodyJson().extractingPath("$.violations[0].message")
-                .isEqualTo("The tags must differ from each other, ignoring case");
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
+                .hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
-    void updateDiaryPageTags_pageIdNotUuid_returnsBadRequest() {
-        assertThat(mvc.put().uri("/pages/{id}/tags", "not-a-uuid")
-                .contentType(MediaType.APPLICATION_JSON).content(tagsBody("combat")))
+    void updateDiaryPageTag_serviceRejectsTag_returnsReasonAsViolation() {
+        when(service.updateDiaryPageTag(eq(PAGE_ID), any()))
+                .thenThrow(new ServiceException("A diary can have at most 10 different tags"));
+
+        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
+                .bodyJson().extractingPath("$.violations[0].message")
+                .isEqualTo("A diary can have at most 10 different tags");
+    }
+
+    @Test
+    void updateDiaryPageTag_pageIdNotUuid_returnsBadRequest() {
+        assertThat(mvc.put().uri("/pages/{id}/tag", "not-a-uuid")
+                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
                 .hasStatus(HttpStatus.BAD_REQUEST);
     }
 

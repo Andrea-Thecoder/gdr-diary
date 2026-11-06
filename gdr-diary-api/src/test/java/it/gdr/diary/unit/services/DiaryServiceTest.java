@@ -215,7 +215,7 @@ class DiaryServiceTest {
         service.findAllDiariesByCharacter(CHARACTER_ID, request);
 
         verify(tags.where()).icontains("name", "combat");
-        verify(tags.where()).eq("page.diary.character.owner.keycloakId", SUBJECT);
+        verify(tags.where()).eq("diary.character.owner.keycloakId", SUBJECT);
         verify(diaries.where()).in("id", tags.query());
     }
 

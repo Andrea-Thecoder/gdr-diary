@@ -6,8 +6,8 @@ import io.ebean.ExpressionList;
 import io.ebean.Transaction;
 import it.gdr.diary.dto.PagedResultDTO;
 import it.gdr.diary.dto.diary_page_tag.BaseDiaryTagDTO;
-import it.gdr.diary.dto.diary_page_tag.DetailDiaryPageTagsDTO;
-import it.gdr.diary.dto.diary_page_tag.UpdateDiaryPageTagsDTO;
+import it.gdr.diary.dto.diary_page_tag.DetailDiaryPageTagDTO;
+import it.gdr.diary.dto.diary_page_tag.UpdateDiaryPageTagDTO;
 import it.gdr.diary.dto.search.DiaryTagSearchRequest;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
@@ -24,19 +24,20 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class DiaryPageTagService {
+
+    /** Massimo numero di tag diversi (ignorando le maiuscole) in un diario. */
+    static final int MAX_TAGS_PER_DIARY = 10;
 
     private final Database database;
     private final JwtInspector jwtInspector;
@@ -47,7 +48,7 @@ public class DiaryPageTagService {
                 .setLabel("findAllDiaryTagsByDiary")
                 .select("name")
                 .fetch("page", "pageNumber")
-                .where().eq("page.diary.id", diaryId).eq("page.diary.character.owner.keycloakId", jwtInspector.getSubject());
+                .where().eq("diary.id", diaryId).eq("diary.character.owner.keycloakId", jwtInspector.getSubject());
         request.applyFilter(query);
         List<DiaryPageTag> tags = query.orderBy("page.pageNumber").findList();
         Map<String, List<DiaryPageTag>> groups = new LinkedHashMap<>();
@@ -64,51 +65,62 @@ public class DiaryPageTagService {
         return PagedResultDTO.of(all.subList(from, to), all.size(), request.getPage(), request.getSize());
     }
 
-    public Map<UUID, List<String>> findTagNamesByPages(Collection<UUID> pageIds) {
+    /** Tag delle pagine date (solo quelle con un tag), filtrati per proprietario. */
+    public Map<UUID, String> findTagByPages(Collection<UUID> pageIds) {
         if (pageIds.isEmpty()) {
             return Map.of();
         }
         return database.find(DiaryPageTag.class)
-                .setLabel("findTagNamesByPages")
+                .setLabel("findTagByPages")
                 .select("name, page")
-                .where().in("page.id", pageIds).eq("page.diary.character.owner.keycloakId", jwtInspector.getSubject())
+                .where().in("page.id", pageIds).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
                 .findList().stream()
-                .collect(Collectors.groupingBy(tag -> tag.getPage().getId(),
-                        Collectors.collectingAndThen(Collectors.mapping(DiaryPageTag::getName, Collectors.toList()),
-                                names -> names.stream().sorted(String.CASE_INSENSITIVE_ORDER).toList())));
+                .collect(Collectors.toMap(tag -> tag.getPage().getId(), DiaryPageTag::getName, (first, second) -> first));
     }
 
-    public DetailDiaryPageTagsDTO updateDiaryPageTags(UUID pageId, UpdateDiaryPageTagsDTO request) {
-        getDiaryPageByIdAndOwner(pageId);
-        List<String> names = normalize(request.tags());
-        List<DiaryPageTag> kept;
+    public DetailDiaryPageTagDTO updateDiaryPageTag(UUID pageId, UpdateDiaryPageTagDTO request) {
+        UUID diaryId = getDiaryPageByIdAndOwner(pageId).getDiary().getId();
+        String requested = request.tag() == null ? null : request.tag().trim();
+        String result;
         try (Transaction transaction = database.beginTransaction()) {
-            DiaryPage page = lockDiaryPage(pageId);
-            Map<String, DiaryPageTag> current = database.find(DiaryPageTag.class)
-                    .setLabel("updateDiaryPageTags")
-                    .where().eq("page.id", pageId)
-                    .findList().stream()
-                    .collect(Collectors.toMap(tag -> key(tag.getName()), Function.identity(), (first, second) -> first, HashMap::new));
-            kept = new ArrayList<>();
-            for (String name : names) {
-                DiaryPageTag tag = current.remove(key(name));
-                if (tag == null) {
-                    tag = new DiaryPageTag();
-                    tag.setPage(page);
+            // Il diario e' bloccato come in DiaryPageService: serializza i cambi dei tag, protegge il limite dei 10 tag
+            // e impedisce che la pagina venga cancellata mentre si salva il tag.
+            Diary diary = lockDiaryByOwner(diaryId);
+            getDiaryPageByIdAndOwner(pageId);
+            DiaryPageTag current = database.find(DiaryPageTag.class)
+                    .setLabel("updateDiaryPageTag")
+                    .where().eq("page.id", pageId).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
+                    .findOne();
+            if (requested == null) {
+                if (current != null) {
+                    database.delete(current);
                 }
-                tag.setName(name);
-                kept.add(tag);
+                result = null;
+            } else {
+                Map<String, String> others = findOtherTagsOfDiary(diaryId, pageId);
+                String name = others.getOrDefault(key(requested), requested);
+                if (!others.containsKey(key(name)) && others.size() >= MAX_TAGS_PER_DIARY) {
+                    throw new ServiceException("A diary can have at most " + MAX_TAGS_PER_DIARY + " different tags");
+                }
+                if (current == null) {
+                    current = new DiaryPageTag();
+                    current.setDiary(diary);
+                    current.setPage(getDiaryPageByIdAndOwner(pageId));
+                }
+                if (!name.equals(current.getName())) {
+                    current.setName(name);
+                    database.save(current);
+                }
+                result = name;
             }
-            database.deleteAll(current.values());
-            database.saveAll(kept);
             transaction.commit();
         } catch (PersistenceException e) {
             if (e instanceof DuplicateKeyException || SqlStates.hasSqlState(e, Set.of(SqlStates.UNIQUE_VIOLATION))) {
-                throw new ServiceException("The tags must differ from each other, ignoring case");
+                throw new ServiceException("The tag of the page was changed at the same time, try again");
             }
             throw e;
         }
-        return new DetailDiaryPageTagsDTO(kept.stream().map(DiaryPageTag::getName).sorted(String.CASE_INSENSITIVE_ORDER).toList());
+        return new DetailDiaryPageTagDTO(result);
     }
 
     public void deleteDiaryPageTagsByPage(UUID pageId) {
@@ -121,29 +133,31 @@ public class DiaryPageTagService {
     public void deleteDiaryPageTagsByDiaries(Collection<UUID> diaryIds) {
         database.find(DiaryPageTag.class)
                 .setLabel("deleteDiaryPageTagsByDiaries")
-                .where().in("page.diary.id", diaryIds)
+                .where().in("diary.id", diaryIds)
                 .delete();
     }
 
-    private static List<String> normalize(List<String> tags) {
-        Map<String, String> unique = new LinkedHashMap<>();
-        for (String tag : tags) {
-            String name = tag.trim();
-            unique.putIfAbsent(key(name), name);
-        }
-        return List.copyOf(unique.values());
+    /** Tag del diario usati da pagine diverse da quella data, per chiave (nome in minuscolo) con la grafia salvata. */
+    private Map<String, String> findOtherTagsOfDiary(UUID diaryId, UUID pageId) {
+        return database.find(DiaryPageTag.class)
+                .setLabel("findOtherTagsOfDiary")
+                .select("name")
+                .where().eq("diary.id", diaryId).ne("page.id", pageId).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
+                .orderBy("name")
+                .findList().stream()
+                .collect(Collectors.toMap(tag -> key(tag.getName()), DiaryPageTag::getName, (first, second) -> first, LinkedHashMap::new));
     }
 
     private static String key(String name) {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    private DiaryPage lockDiaryPage(UUID id) {
-        DiaryPage locked = database.find(DiaryPage.class)
-                .setLabel("lockDiaryPage")
+    private Diary lockDiaryByOwner(UUID id) {
+        Diary locked = database.find(Diary.class)
+                .setLabel("lockDiaryByOwner")
                 .select("id")
                 .forUpdate()
-                .where().idEq(id)
+                .where().idEq(id).eq("character.owner.keycloakId", jwtInspector.getSubject())
                 .findOne();
         if (locked == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
@@ -166,7 +180,7 @@ public class DiaryPageTagService {
     private DiaryPage getDiaryPageByIdAndOwner(UUID id) {
         DiaryPage page = database.find(DiaryPage.class)
                 .setLabel("getDiaryPageByIdAndOwner")
-                .select("id")
+                .select("id, diary")
                 .where().idEq(id).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
                 .findOne();
         if (page == null) {

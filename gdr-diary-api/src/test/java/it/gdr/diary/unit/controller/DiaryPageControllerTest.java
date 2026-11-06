@@ -55,7 +55,7 @@ class DiaryPageControllerTest {
     }
 
     private BaseDiaryPageDTO page(int number, long version) {
-        return new BaseDiaryPageDTO(PAGE_ID, (short) number, CONTENT, version, List.of());
+        return new BaseDiaryPageDTO(PAGE_ID, (short) number, CONTENT, version, null);
     }
 
     @Test

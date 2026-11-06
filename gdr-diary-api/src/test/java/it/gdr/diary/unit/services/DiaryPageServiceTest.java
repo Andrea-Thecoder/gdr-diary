@@ -795,50 +795,50 @@ class DiaryPageServiceTest {
 
         service.findAllDiaryPagesByDiary(DIARY_ID, 1);
 
-        verify(tagService).findTagNamesByPages(List.of(first.getId(), second.getId()));
+        verify(tagService).findTagByPages(List.of(first.getId(), second.getId()));
     }
 
     @Test
-    void findAllDiaryPagesByDiary_pagesWithTags_returnsTagsOfEachPage() {
+    void findAllDiaryPagesByDiary_pagesWithTags_returnsTagOfEachPage() {
         givenOwnedDiary(diary());
         DiaryPage first = page(1, 3L);
         DiaryPage second = page(2, 7L);
         givenPageList(List.of(first, second));
-        when(tagService.findTagNamesByPages(any())).thenReturn(Map.of(first.getId(), List.of("clues", "combat")));
+        when(tagService.findTagByPages(any())).thenReturn(Map.of(first.getId(), "combat"));
 
         PagedResultDTO<BaseDiaryPageDTO> result = service.findAllDiaryPagesByDiary(DIARY_ID, 1);
 
-        assertThat(result.getList()).extracting(BaseDiaryPageDTO::tags)
-                .containsExactly(List.of("clues", "combat"), List.of());
+        assertThat(result.getList()).extracting(BaseDiaryPageDTO::tag)
+                .containsExactly("combat", null);
     }
 
     @Test
-    void createDiaryPage_validRequest_returnsPageWithoutTags() {
+    void createDiaryPage_validRequest_returnsPageWithoutTag() {
         givenOwnedDiary(diary());
         givenPageCount(0);
 
         BaseDiaryPageDTO result = service.createDiaryPage(DIARY_ID, new InsertDiaryPageDTO(CONTENT));
 
-        assertThat(result.tags()).isEmpty();
+        assertThat(result.tag()).isNull();
     }
 
     @Test
-    void updateDiaryPage_pageWithTags_returnsItsTags() {
+    void updateDiaryPage_pageWithTag_returnsItsTag() {
         DiaryPage page = page(1, 4L);
         givenOwnedPage(page);
-        when(tagService.findTagNamesByPages(List.of(page.getId()))).thenReturn(Map.of(page.getId(), List.of("clues")));
+        when(tagService.findTagByPages(List.of(page.getId()))).thenReturn(Map.of(page.getId(), "clues"));
 
         BaseDiaryPageDTO result = service.updateDiaryPage(PAGE_ID, new UpdateDiaryPageDTO(CONTENT, 4L));
 
-        assertThat(result.tags()).containsExactly("clues");
+        assertThat(result.tag()).isEqualTo("clues");
     }
 
     @Test
-    void updateDiaryPage_pageWithoutTags_returnsEmptyTags() {
+    void updateDiaryPage_pageWithoutTag_returnsNullTag() {
         givenOwnedPage(page(1, 4L));
 
         BaseDiaryPageDTO result = service.updateDiaryPage(PAGE_ID, new UpdateDiaryPageDTO(CONTENT, 4L));
 
-        assertThat(result.tags()).isEmpty();
+        assertThat(result.tag()).isNull();
     }
 }

@@ -19,7 +19,6 @@ import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -147,9 +146,9 @@ class DtoMappingTest {
         page.setContent(Map.of("type", "doc"));
         page.setVersion(7L);
 
-        BaseDiaryPageDTO dto = BaseDiaryPageDTO.from(page, List.of("elfo", "boss"));
+        BaseDiaryPageDTO dto = BaseDiaryPageDTO.from(page, "elfo");
 
-        assertThat(dto).isEqualTo(new BaseDiaryPageDTO(pageId, (short) 3, Map.of("type", "doc"), 7L, List.of("elfo", "boss")));
+        assertThat(dto).isEqualTo(new BaseDiaryPageDTO(pageId, (short) 3, Map.of("type", "doc"), 7L, "elfo"));
     }
 
     @Test

@@ -56,8 +56,8 @@ public class DiaryPageService {
                 .setFirstRow((int) Math.min((page - 1L) * PAGES_PER_VIEW, Integer.MAX_VALUE))
                 .setMaxRows(PAGES_PER_VIEW);
         PagedList<DiaryPage> pages = query.findPagedList();
-        Map<UUID, List<String>> tags = tagService.findTagNamesByPages(pages.getList().stream().map(DiaryPage::getId).toList());
-        return PagedResultDTO.of(pages, found -> BaseDiaryPageDTO.from(found, tags.getOrDefault(found.getId(), List.of())));
+        Map<UUID, String> tags = tagService.findTagByPages(pages.getList().stream().map(DiaryPage::getId).toList());
+        return PagedResultDTO.of(pages, found -> BaseDiaryPageDTO.from(found, tags.get(found.getId())));
     }
 
     public BaseDiaryPageDTO createDiaryPage(UUID diaryId, InsertDiaryPageDTO request) {
@@ -84,7 +84,7 @@ public class DiaryPageService {
             }
             throw e;
         }
-        return BaseDiaryPageDTO.from(page, List.of());
+        return BaseDiaryPageDTO.from(page, null);
     }
 
     public BaseDiaryPageDTO updateDiaryPage(UUID id, UpdateDiaryPageDTO request) {
@@ -95,7 +95,7 @@ public class DiaryPageService {
         validateContent(request.content());
         page.setContent(request.content());
         database.save(page);
-        return BaseDiaryPageDTO.from(page, tagService.findTagNamesByPages(List.of(page.getId())).getOrDefault(page.getId(), List.of()));
+        return BaseDiaryPageDTO.from(page, tagService.findTagByPages(List.of(page.getId())).get(page.getId()));
     }
 
     public void deleteDiaryPage(UUID id) {
