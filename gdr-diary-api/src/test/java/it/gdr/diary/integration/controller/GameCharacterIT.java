@@ -737,4 +737,34 @@ class GameCharacterIT extends AbstractIntegrationTest {
 
         assertThat(result).bodyJson().extractingPath("$.violations[0].message").isEqualTo("User not found");
     }
+
+    @Test
+    void updateGameCharacter_characterOfOtherUser_returnsNotFound() {
+        createAppUser(TestJwt.otherUser());
+        UUID othersCharacter = createGameCharacter("Samwise", TestJwt.otherUser());
+
+        assertThat(mvc.put().uri("/characters/{id}", othersCharacter).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Hacked\"}"))
+                .hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteGameCharacter_characterOfOtherUser_returnsNotFound() {
+        createAppUser(TestJwt.otherUser());
+        UUID othersCharacter = createGameCharacter("Samwise", TestJwt.otherUser());
+
+        assertThat(mvc.delete().uri("/characters/{id}", othersCharacter)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteGameCharacter_characterOfOtherUser_keepsItsDiariesAndPages() {
+        createAppUser(TestJwt.otherUser());
+        UUID othersCharacter = createGameCharacter("Samwise", TestJwt.otherUser());
+        UUID othersDiary = createDiary(othersCharacter, "Secret", TestJwt.otherUser());
+        createDiaryPage(othersDiary, "Secret page", TestJwt.otherUser());
+
+        mvc.delete().uri("/characters/{id}", othersCharacter).exchange();
+
+        assertThat(countRows("diary")).isEqualTo(1);
+        assertThat(countRows("diary_page")).isEqualTo(1);
+    }
 }

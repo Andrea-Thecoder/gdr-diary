@@ -32,6 +32,7 @@ import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.AppUserService;
+import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
@@ -78,6 +79,8 @@ class AppUserServiceTest {
     private DocumentService documentService;
     @Mock
     private Transaction transaction;
+    @Mock
+    private DiaryPageTagService tagService;
 
     private final AppUserConfig config = new AppUserConfig();
     private final MultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1});
@@ -88,7 +91,7 @@ class AppUserServiceTest {
     @BeforeEach
     void setUp() {
         service = new AppUserService(database, jwtInspector, JsonMapper.builder().build(), config, documentService,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC), tagService);
         lenient().when(jwtInspector.getSubject()).thenReturn(SUBJECT);
         users = stubFindLeniently(database, AppUser.class);
     }
@@ -667,6 +670,39 @@ class AppUserServiceTest {
         service.deleteAppUser();
 
         verify(pages.where()).in("diary.id", List.of(first.getId(), second.getId()));
+    }
+
+    @Test
+    void deleteAppUser_charactersWithDiaries_deletesTagsOfAllDiariesBeforePages() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        Diary first = diaryWithCover(null);
+        Diary second = diaryWithCover(null);
+        givenSheets(List.of());
+        givenDiaries(List.of(first, second));
+        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        InOrder order = inOrder(tagService, pages.where());
+        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(first.getId(), second.getId()));
+        order.verify(pages.where()).delete();
+    }
+
+    @Test
+    void deleteAppUser_charactersWithoutDiaries_deletesNoTags() {
+        givenRecentAuthentication();
+        givenStoredUser(storedUser(EMAIL));
+        givenCharacters(List.of(ownedCharacter(null)));
+        givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
     }
 
     @Test

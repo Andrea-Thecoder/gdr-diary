@@ -723,4 +723,64 @@ class DiaryIT extends AbstractIntegrationTest {
 
         assertThat(countRows("diary")).isZero();
     }
+
+    @Test
+    void deleteDiary_diaryOfOtherUser_returnsNotFound() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+
+        assertThat(mvc.delete().uri("/diaries/{id}", othersDiary)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteDiary_diaryOfOtherUser_keepsItsPages() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        createDiaryPage(othersDiary, "Secret page", TestJwt.otherUser());
+
+        mvc.delete().uri("/diaries/{id}", othersDiary).exchange();
+
+        assertThat(countRows("diary_page")).isEqualTo(1);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfOtherUser_returnsNotFound() {
+        UUID diaryId = createDiaryWithOwner();
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID othersPage = createDiaryPage(othersDiary, "Secret", TestJwt.otherUser());
+
+        assertThat(putBookmark(diaryId, othersPage)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void updateDiaryBookmark_pageOfOtherUser_storesNothing() {
+        UUID diaryId = createDiaryWithOwner();
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID othersPage = createDiaryPage(othersDiary, "Secret", TestJwt.otherUser());
+
+        putBookmark(diaryId, othersPage);
+
+        assertThat(storedBookmark(diaryId)).isNull();
+    }
+
+    @Test
+    void updateDiaryBookmark_diaryOfOtherUser_keepsItsBookmark() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID first = createDiaryPage(othersDiary, "First", TestJwt.otherUser());
+        UUID second = createDiaryPage(othersDiary, "Second", TestJwt.otherUser());
+        jdbc.update("update diary set bookmark_page_id = ? where id = ?", first, othersDiary);
+
+        putBookmark(othersDiary, second);
+
+        assertThat(storedBookmark(othersDiary)).isEqualTo(first);
+    }
+
+    @Test
+    void deleteDiaryBookmark_diaryOfOtherUser_keepsItsBookmark() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID page = createDiaryPage(othersDiary, "First", TestJwt.otherUser());
+        jdbc.update("update diary set bookmark_page_id = ? where id = ?", page, othersDiary);
+
+        mvc.delete().uri("/diaries/{id}/bookmark", othersDiary).exchange();
+
+        assertThat(storedBookmark(othersDiary)).isEqualTo(page);
+    }
 }

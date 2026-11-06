@@ -14,16 +14,19 @@ import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
+import it.gdr.diary.model.DiaryPageTag;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -33,6 +36,7 @@ public class DiaryService {
     private final Database database;
     private final JwtInspector jwtInspector;
     private final DocumentService documentService;
+    private final DiaryPageTagService tagService;
 
     public PagedResultDTO<BaseDiaryDTO> findAllDiariesByCharacter(UUID characterId, DiarySearchRequest request) {
         GameCharacter character = getGameCharacterByIdAndOwner(characterId);
@@ -41,9 +45,20 @@ public class DiaryService {
                 .fetch("coverDocument")
                 .where().eq("character.id", character.getId());
         request.applyFilter(query);
+        applyTagFilter(query, request.getTag());
         request.applySortAndPagination(query, "title");
         return PagedResultDTO.of(query.findPagedList(),
                 diary -> BaseDiaryDTO.from(diary, documentService.getDocumentUrl(diary.getCoverDocument())));
+    }
+
+    private void applyTagFilter(ExpressionList<Diary> query, String tag) {
+        if (StringUtils.isNotBlank(tag)) {
+            query.in("id", database.find(DiaryPageTag.class)
+                    .setLabel("findDiaryIdsByTag")
+                    .select("page.diary.id")
+                    .where().icontains("name", tag.trim()).eq("page.diary.character.owner.keycloakId", jwtInspector.getSubject())
+                    .query());
+        }
     }
 
     public DetailDiaryDTO getDiaryById(UUID id) {
@@ -147,6 +162,7 @@ public class DiaryService {
         Document cover = diary.getCoverDocument();
         try (Transaction transaction = database.beginTransaction()) {
             lockDiary(diary.getId());
+            tagService.deleteDiaryPageTagsByDiaries(List.of(diary.getId()));
             database.find(DiaryPage.class)
                     .setLabel("deleteDiary")
                     .where().eq("diary.id", diary.getId())

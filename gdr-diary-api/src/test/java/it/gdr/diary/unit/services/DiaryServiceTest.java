@@ -28,9 +28,11 @@ import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
+import it.gdr.diary.model.DiaryPageTag;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
+import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DiaryService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.unit.support.QueryStub;
@@ -66,6 +68,8 @@ class DiaryServiceTest {
     private DocumentService documentService;
     @Mock
     private Transaction transaction;
+    @Mock
+    private DiaryPageTagService tagService;
 
     private final MultipartFile file = new MockMultipartFile("file", "cover.png", "image/png", new byte[]{1});
 
@@ -73,7 +77,7 @@ class DiaryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DiaryService(database, jwtInspector, documentService);
+        service = new DiaryService(database, jwtInspector, documentService, tagService);
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 
@@ -192,6 +196,64 @@ class DiaryServiceTest {
         service.findAllDiariesByCharacter(CHARACTER_ID, request);
 
         verify(diaries.where(), never()).icontains(eq("title"), anyString());
+    }
+
+    private QueryStub<DiaryPageTag> givenTagSubquery() {
+        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
+        when(tags.where().query()).thenReturn(tags.query());
+        return tags;
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagFilter_searchesTrimmedTagInPagesOfTheUser() {
+        givenOwnedCharacter(character());
+        QueryStub<Diary> diaries = givenDiaryList(List.of());
+        QueryStub<DiaryPageTag> tags = givenTagSubquery();
+        DiarySearchRequest request = new DiarySearchRequest();
+        request.setTag("  combat ");
+
+        service.findAllDiariesByCharacter(CHARACTER_ID, request);
+
+        verify(tags.where()).icontains("name", "combat");
+        verify(tags.where()).eq("page.diary.character.owner.keycloakId", SUBJECT);
+        verify(diaries.where()).in("id", tags.query());
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagFilter_keepsFilterByCharacter() {
+        givenOwnedCharacter(character());
+        QueryStub<Diary> diaries = givenDiaryList(List.of());
+        givenTagSubquery();
+        DiarySearchRequest request = new DiarySearchRequest();
+        request.setTag("combat");
+
+        service.findAllDiariesByCharacter(CHARACTER_ID, request);
+
+        verify(diaries.where()).eq("character.id", CHARACTER_ID);
+    }
+
+    @Test
+    void findAllDiariesByCharacter_blankTag_doesNotQueryTags() {
+        givenOwnedCharacter(character());
+        givenDiaryList(List.of());
+        DiarySearchRequest request = new DiarySearchRequest();
+        request.setTag("   ");
+
+        service.findAllDiariesByCharacter(CHARACTER_ID, request);
+
+        verify(database, never()).find(DiaryPageTag.class);
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagFilterOnNotOwnedCharacter_throwsNotFoundWithoutQueryingTags() {
+        givenOwnedCharacter(null);
+        DiarySearchRequest request = new DiarySearchRequest();
+        request.setTag("combat");
+
+        assertThatThrownBy(() -> service.findAllDiariesByCharacter(CHARACTER_ID, request))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        verify(database, never()).find(DiaryPageTag.class);
     }
 
     @Test
@@ -447,6 +509,41 @@ class DiaryServiceTest {
         service.deleteDiary(DIARY_ID);
 
         verify(pages.where()).eq("diary.id", DIARY_ID);
+    }
+
+    @Test
+    void deleteDiary_ownedDiary_deletesTagsOfDiaryBeforePages() {
+        givenOwnedDiary(diary("Chapter one"));
+        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteDiary(DIARY_ID);
+
+        InOrder order = inOrder(tagService, pages.where());
+        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(DIARY_ID));
+        order.verify(pages.where()).delete();
+    }
+
+    @Test
+    void deleteDiary_ownedDiary_deletesTagsAfterLockingDiary() {
+        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
+        stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteDiary(DIARY_ID);
+
+        InOrder order = inOrder(diaries.query(), tagService);
+        order.verify(diaries.query()).forUpdate();
+        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(DIARY_ID));
+    }
+
+    @Test
+    void deleteDiary_notOwnedOrMissing_deletesNoTags() {
+        givenOwnedDiary(null);
+
+        catchThrowable(() -> service.deleteDiary(DIARY_ID));
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
     }
 
     @Test

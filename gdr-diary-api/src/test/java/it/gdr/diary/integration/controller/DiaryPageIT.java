@@ -748,4 +748,33 @@ class DiaryPageIT extends AbstractIntegrationTest {
 
         assertThat(countRows("diary_page")).isZero();
     }
+
+    @Test
+    void createDiaryPage_diaryOfOtherUser_storesNothing() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+
+        mvc.post().uri("/diaries/{diaryId}/pages", othersDiary)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + pageContent("Intruder") + "}").exchange();
+
+        assertThat(countRows("diary_page")).isZero();
+    }
+
+    @Test
+    void deleteDiaryPage_pageOfOtherUser_returnsNotFound() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID othersPage = createDiaryPage(othersDiary, "Secret", TestJwt.otherUser());
+
+        assertThat(mvc.delete().uri("/pages/{id}", othersPage)).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void deleteDiaryPage_pageOfOtherUser_keepsPageNumbersOfItsDiary() {
+        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
+        UUID othersFirst = createDiaryPage(othersDiary, "First", TestJwt.otherUser());
+        createDiaryPage(othersDiary, "Second", TestJwt.otherUser());
+
+        mvc.delete().uri("/pages/{id}", othersFirst).exchange();
+
+        assertThat(storedPageNumbers(othersDiary)).containsExactly((short) 1, (short) 2);
+    }
 }

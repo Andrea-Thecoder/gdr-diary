@@ -31,6 +31,7 @@ import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.security.JwtInspector;
+import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.services.GameCharacterService;
 import it.gdr.diary.unit.support.QueryStub;
@@ -64,6 +65,8 @@ class GameCharacterServiceTest {
     private DocumentService documentService;
     @Mock
     private Transaction transaction;
+    @Mock
+    private DiaryPageTagService tagService;
 
     private final MultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1});
 
@@ -71,7 +74,7 @@ class GameCharacterServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GameCharacterService(database, jwtInspector, documentService);
+        service = new GameCharacterService(database, jwtInspector, documentService, tagService);
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 
@@ -434,6 +437,44 @@ class GameCharacterServiceTest {
 
         verify(pages.where()).in("diary.id", List.of(first.getId(), second.getId()));
         verify(pages.where()).delete();
+    }
+
+    @Test
+    void deleteGameCharacter_withDiaries_deletesTagsOfAllDiariesBeforePages() {
+        givenOwnedCharacter(character("Aragorn"));
+        Diary first = diary(null);
+        Diary second = diary(null);
+        givenSheets(List.of());
+        givenDiaries(List.of(first, second));
+        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        InOrder order = inOrder(tagService, pages.where());
+        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(first.getId(), second.getId()));
+        order.verify(pages.where()).delete();
+    }
+
+    @Test
+    void deleteGameCharacter_withoutDiaries_deletesNoTags() {
+        givenOwnedCharacter(character("Aragorn"));
+        givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
+    }
+
+    @Test
+    void deleteGameCharacter_notOwnedOrMissing_deletesNoTags() {
+        givenOwnedCharacter(null);
+
+        catchThrowable(() -> service.deleteGameCharacter(CHARACTER_ID));
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
     }
 
     @Test

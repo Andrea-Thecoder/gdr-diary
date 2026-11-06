@@ -48,6 +48,7 @@ public class AppUserService {
     private final AppUserConfig config;
     private final DocumentService documentService;
     private final Clock clock;
+    private final DiaryPageTagService tagService;
 
     public UUID createAppUser() {
         String keycloakId = jwtInspector.getSubject();
@@ -151,9 +152,11 @@ public class AppUserService {
                         .where().in("character.id", characters.stream().map(GameCharacter::getId).toList())
                         .findList();
                 if (!diaries.isEmpty()) {
+                    List<UUID> diaryIds = diaries.stream().map(Diary::getId).toList();
+                    tagService.deleteDiaryPageTagsByDiaries(diaryIds);
                     database.find(DiaryPage.class)
                             .setLabel("deleteAppUserPages")
-                            .where().in("diary.id", diaries.stream().map(Diary::getId).toList())
+                            .where().in("diary.id", diaryIds)
                             .delete();
                     diaries.stream().map(Diary::getCoverDocument).filter(Objects::nonNull).forEach(documents::add);
                     database.deleteAll(diaries);

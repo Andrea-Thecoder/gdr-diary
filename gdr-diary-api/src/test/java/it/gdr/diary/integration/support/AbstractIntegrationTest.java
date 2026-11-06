@@ -62,7 +62,7 @@ public abstract class AbstractIntegrationTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        jdbc.execute("truncate table character_sheet, diary_page, diary, game_character, app_user, document cascade");
+        jdbc.execute("truncate table character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
         for (String key : storedObjectKeys()) {
             minioClient.removeObject(RemoveObjectArgs.builder().bucket(TestContainers.BUCKET).object(key).build());
         }
