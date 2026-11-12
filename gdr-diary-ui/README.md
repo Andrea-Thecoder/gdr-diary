@@ -21,21 +21,21 @@
 
 ## Descrizione dell'applicativo
 
-**gdr-diary-ui** è l'applicazione frontend di *GDR Diary*, pensata per la gestione dei diari dei personaggi dei giochi di ruolo.
+**gdr-diary-ui** è l'applicazione frontend di _GDR Diary_, pensata per la gestione dei diari dei personaggi dei giochi di ruolo.
 
 È una **SPA pura**: SvelteKit si usa solo per router, build e struttura, non c'è nessuna parte server. Il browser parla direttamente con Keycloak (login e registrazione) e con l'API [gdr-diary-api](../gdr-diary-api/README.md). Il token di accesso resta solo in memoria.
 
-| Ambito | Tecnologia |
-|---|---|
-| Linguaggio | TypeScript (strict) |
-| Framework | SvelteKit 3, Svelte 5 (adapter statico con fallback `index.html`) |
-| Stile | Tailwind CSS 4, DaisyUI 5 |
-| Autenticazione | keycloak-js (Authorization Code con PKCE) |
-| Client API | openapi-fetch, openapi-typescript |
-| Editor delle pagine | Tiptap 3 |
-| Validazione | zod |
-| Test | Vitest, Playwright |
-| Qualità | ESLint, Prettier, svelte-check |
+| Ambito              | Tecnologia                                                        |
+| ------------------- | ----------------------------------------------------------------- |
+| Linguaggio          | TypeScript (strict)                                               |
+| Framework           | SvelteKit 3, Svelte 5 (adapter statico con fallback `index.html`) |
+| Stile               | Tailwind CSS 4, DaisyUI 5                                         |
+| Autenticazione      | keycloak-js (Authorization Code con PKCE)                         |
+| Client API          | openapi-fetch, openapi-typescript                                 |
+| Editor delle pagine | Tiptap 3                                                          |
+| Validazione         | zod                                                               |
+| Test                | Vitest, Playwright                                                |
+| Qualità             | ESLint, Prettier, svelte-check                                    |
 
 ---
 
@@ -45,15 +45,15 @@
 
 Sono lette al build (prefisso `VITE_`) e validate all'avvio in `src/lib/env.ts`. Il file `.env` non va nel repository: si parte da `.env.example`.
 
-| Variabile | Valore locale | Significato |
-|---|---|---|
-| `VITE_KEYCLOAK_URL` | `http://localhost:8180` | Indirizzo di Keycloak |
-| `VITE_KEYCLOAK_REALM` | `gdr-diary-dev` | Realm |
-| `VITE_KEYCLOAK_CLIENT_ID` | `gdr-diary-api` | Client Keycloak del frontend |
-| `VITE_API_BASE_URL` | `http://localhost:8080/api/v1/gdr-diary-api` | Indirizzo dell'API |
-| `VITE_THEME_COOKIE_DOMAIN` | *(vuota)* | Opzionale, solo online: dominio del cookie del tema condiviso con le pagine di login di Keycloak |
-| `VITE_PRIVACY_CONTROLLER_NAME` | *(vuota)* | Opzionale: nome del titolare mostrato in `/privacy` |
-| `VITE_PRIVACY_CONTACT_EMAIL` | *(vuota)* | Opzionale: recapito mostrato in `/privacy` |
+| Variabile                      | Valore locale                                | Significato                                                                                      |
+| ------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `VITE_KEYCLOAK_URL`            | `http://localhost:8180`                      | Indirizzo di Keycloak                                                                            |
+| `VITE_KEYCLOAK_REALM`          | `gdr-diary-dev`                              | Realm                                                                                            |
+| `VITE_KEYCLOAK_CLIENT_ID`      | `gdr-diary-api`                              | Client Keycloak del frontend                                                                     |
+| `VITE_API_BASE_URL`            | `http://localhost:8080/api/v1/gdr-diary-api` | Indirizzo dell'API                                                                               |
+| `VITE_THEME_COOKIE_DOMAIN`     | _(vuota)_                                    | Opzionale, solo online: dominio del cookie del tema condiviso con le pagine di login di Keycloak |
+| `VITE_PRIVACY_CONTROLLER_NAME` | _(vuota)_                                    | Opzionale: nome del titolare mostrato in `/privacy`                                              |
+| `VITE_PRIVACY_CONTACT_EMAIL`   | _(vuota)_                                    | Opzionale: recapito mostrato in `/privacy`                                                       |
 
 > **Nota**: le due variabili della privacy servono entrambe, altrimenti la pagina dice che i dati verranno aggiunti.
 
@@ -69,10 +69,10 @@ Chi si registra riceve il ruolo `user`. Un account senza `user` né `admin` vede
 
 Per questo applicativo, in ambiente Dev, verranno utilizzate le seguenti porte:
 
-| Servizio | Porta | Note |
-|---|---|---|
-| **gdr-diary-ui** *(frontend)* | `5173` | Server di sviluppo. È l'unica porta autorizzata nel client Keycloak e nel CORS dell'API. |
-| Anteprima della build e test e2e | `4173` | `npm run preview` e Playwright |
+| Servizio                         | Porta  | Note                                                                                     |
+| -------------------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| **gdr-diary-ui** _(frontend)_    | `5173` | Server di sviluppo. È l'unica porta autorizzata nel client Keycloak e nel CORS dell'API. |
+| Anteprima della build e test e2e | `4173` | `npm run preview` e Playwright                                                           |
 
 Le porte di API, Keycloak e dei container sono nel [gdr-diary-api › Mapping delle porte](../gdr-diary-api/README.md#mapping-delle-porte).
 
@@ -86,25 +86,25 @@ Il CSS, i font e lo script del tema sono **generati** dagli stessi token del fro
 
 ## 2. Struttura del Progetto
 
-### gdr-diary-ui *(Frontend)*
+### gdr-diary-ui _(Frontend)_
 
 Panoramica delle directory principali dell'applicativo:
 
-| Directory | Contenuto |
-|---|---|
-| `/src/routes` | Le rotte dell'applicativo. `+layout.ts` imposta `ssr = false` e `prerender = false`. |
-| `/src/routes/(app)` | Le rotte protette: personaggi, diari, profilo, impostazioni. Il guard in `+layout.ts` fa il login, controlla i ruoli e chiama `POST /me`. |
-| `/src/routes/privacy` | La pagina con l'informativa sulla privacy. |
-| `/src/lib/auth` | Stato di login (`keycloak-js`) e ruoli. |
-| `/src/lib/api` | Client tipizzato verso l'API (`openapi-fetch`), con bearer token e rinnovo automatico, e schema generato. |
-| `/src/lib/components` | Componenti Svelte: `ui` (mattoni generici), `landing`, `privacy`, `app`, `characters`, `diaries`, `book`. |
-| `/src/lib/characters`, `/diaries`, `/book`, `/profile`, `/settings`, `/list` | Logica di ciascuna area: chiamate all'API, stato, impaginazione del libro. |
-| `/src/lib/theme` | Scelta del tema: sistema, chiaro, scuro. |
-| `/src/lib/styles` | Token dei due temi, font e stile delle pagine del diario. |
-| `/src/lib/env.ts` | Variabili d'ambiente validate. |
-| `/keycloak-theme` | Il tema di Keycloak: template, build del CSS ed email. |
-| `/openapi` | `swagger.json`, copia del contratto dell'API. |
-| `/static` | File statici, tra cui `silent-check-sso.html` per il login silenzioso. |
+| Directory                                                                    | Contenuto                                                                                                                                 |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/src/routes`                                                                | Le rotte dell'applicativo. `+layout.ts` imposta `ssr = false` e `prerender = false`.                                                      |
+| `/src/routes/(app)`                                                          | Le rotte protette: personaggi, diari, profilo, impostazioni. Il guard in `+layout.ts` fa il login, controlla i ruoli e chiama `POST /me`. |
+| `/src/routes/privacy`                                                        | La pagina con l'informativa sulla privacy.                                                                                                |
+| `/src/lib/auth`                                                              | Stato di login (`keycloak-js`) e ruoli.                                                                                                   |
+| `/src/lib/api`                                                               | Client tipizzato verso l'API (`openapi-fetch`), con bearer token e rinnovo automatico, e schema generato.                                 |
+| `/src/lib/components`                                                        | Componenti Svelte: `ui` (mattoni generici), `landing`, `privacy`, `app`, `characters`, `diaries`, `book`.                                 |
+| `/src/lib/characters`, `/diaries`, `/book`, `/profile`, `/settings`, `/list` | Logica di ciascuna area: chiamate all'API, stato, impaginazione del libro.                                                                |
+| `/src/lib/theme`                                                             | Scelta del tema: sistema, chiaro, scuro.                                                                                                  |
+| `/src/lib/styles`                                                            | Token dei due temi, font e stile delle pagine del diario.                                                                                 |
+| `/src/lib/env.ts`                                                            | Variabili d'ambiente validate.                                                                                                            |
+| `/keycloak-theme`                                                            | Il tema di Keycloak: template, build del CSS ed email.                                                                                    |
+| `/openapi`                                                                   | `swagger.json`, copia del contratto dell'API.                                                                                             |
+| `/static`                                                                    | File statici, tra cui `silent-check-sso.html` per il login silenzioso.                                                                    |
 
 Gli import interni usano l'alias `#lib/...` con l'estensione `.js`, anche per i file `.ts`.
 
@@ -117,7 +117,7 @@ Gli import interni usano l'alias `#lib/...` con l'estensione `.js`, anche per i 
 - **Node.js 22.17 o successivo** e npm
 - Il backend e Keycloak accesi: vedi [gdr-diary-api › Avvio in ambiente locale](../gdr-diary-api/README.md#3-avvio-in-ambiente-locale)
 
-### gdr-diary-ui *(Frontend)*
+### gdr-diary-ui _(Frontend)_
 
 Per avviare l'applicativo **gdr-diary-ui** utilizzare il terminale e posizionarsi nella root della cartella dell'applicativo.
 
@@ -156,11 +156,11 @@ L'applicativo effettua chiamate a servizi esterni, come descritto di seguito. No
 
 ### Sistemi esterni interrogati
 
-| Sistema | Utilizzo |
-|---|---|
-| **Keycloak** | Login e registrazione (le fa Keycloak, il frontend non ha pagine proprie), rinnovo del token e controllo silenzioso della sessione. Il cambio email e la cancellazione dell'account passano da azioni di Keycloak. |
-| **gdr-diary-api** | Tutti i dati: personaggi, diari, pagine, profilo e impostazioni. |
-| **Storage S3** | Avatar e copertine: il browser li legge con gli indirizzi temporanei restituiti dall'API. |
+| Sistema           | Utilizzo                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Keycloak**      | Login e registrazione (le fa Keycloak, il frontend non ha pagine proprie), rinnovo del token e controllo silenzioso della sessione. Il cambio email e la cancellazione dell'account passano da azioni di Keycloak. |
+| **gdr-diary-api** | Tutti i dati: personaggi, diari, pagine, profilo e impostazioni.                                                                                                                                                   |
+| **Storage S3**    | Avatar e copertine: il browser li legge con gli indirizzi temporanei restituiti dall'API.                                                                                                                          |
 
 ### Sistemi esterni chiamanti
 
@@ -176,22 +176,22 @@ L'applicativo è già configurato per `Vitest` e `Playwright`.
 
 Posizionarsi nella root dell'applicativo da un terminale ed eseguire uno dei comandi:
 
-| Comando | Cosa esegue |
-|---|---|
-| `npm run verify` | Type check, lint, test unitari, controllo del tema Keycloak e build. Da lanciare prima di ogni commit. |
-| `npm run check` | Type check (`svelte-check`). |
-| `npm run lint` | Prettier (solo controllo) ed ESLint. `npm run lint:fix` formatta e corregge. |
-| `npm run test:unit` | Test unitari e dei componenti con Vitest, in modalità watch. Con `-- --run` una sola esecuzione. |
-| `npm run test:e2e` | Test end-to-end con Playwright: scarica i browser, costruisce l'applicativo e lo prova sulla porta `4173`. |
-| `npm test` | Test unitari ed end-to-end. |
+| Comando             | Cosa esegue                                                                                                |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `npm run verify`    | Type check, lint, test unitari, controllo del tema Keycloak e build. Da lanciare prima di ogni commit.     |
+| `npm run check`     | Type check (`svelte-check`).                                                                               |
+| `npm run lint`      | Prettier (solo controllo) ed ESLint. `npm run lint:fix` formatta e corregge.                               |
+| `npm run test:unit` | Test unitari e dei componenti con Vitest, in modalità watch. Con `-- --run` una sola esecuzione.           |
+| `npm run test:e2e`  | Test end-to-end con Playwright: scarica i browser, costruisce l'applicativo e lo prova sulla porta `4173`. |
+| `npm test`          | Test unitari ed end-to-end.                                                                                |
 
 I test stanno accanto al codice:
 
-| File | Cosa prova |
-|---|---|
-| `*.test.ts` | Logica, in ambiente Node. |
-| `*.svelte.spec.ts` | Componenti e pagine, in un browser Chromium. |
-| `*.e2e.ts` | Pagine pubbliche sulla build, con Playwright. |
+| File               | Cosa prova                                    |
+| ------------------ | --------------------------------------------- |
+| `*.test.ts`        | Logica, in ambiente Node.                     |
+| `*.svelte.spec.ts` | Componenti e pagine, in un browser Chromium.  |
+| `*.e2e.ts`         | Pagine pubbliche sulla build, con Playwright. |
 
 > **Nota**: le pagine dell'area protetta non si raggiungono negli end-to-end, perché serve Keycloak. Si provano con i `*.svelte.spec.ts`, con l'API simulata.
 

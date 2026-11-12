@@ -20,6 +20,7 @@ export interface DiaryPageData {
 	pageNumber: number;
 	content: JSONContent;
 	version: number;
+	tag: string | null;
 }
 
 export interface SpreadData {
@@ -66,6 +67,7 @@ function normalize(dto: PageDto): DiaryPageData | null {
 		id: dto.id,
 		pageNumber: dto.pageNumber,
 		version: dto.version ?? 0,
+		tag: dto.tag ?? null,
 		content: content.type === 'doc' ? titlesFromHeadings(content) : emptyDoc()
 	};
 }

@@ -51,6 +51,19 @@ export function getPrivacyContact(): PrivacyContact | undefined {
 	return parsePrivacyContact({ ...import.meta.env });
 }
 
+export const DEFAULT_MAX_SHEETS = 10;
+
+const maxSheetsSchema = z.coerce.number().int().min(1).max(1000);
+
+export function parseMaxSheets(value: unknown): number {
+	const result = maxSheetsSchema.safeParse(value);
+	return result.success ? result.data : DEFAULT_MAX_SHEETS;
+}
+
+export function getMaxSheets(): number {
+	return parseMaxSheets(import.meta.env['VITE_MAX_SHEETS_PER_CHARACTER']);
+}
+
 let cached: AppEnv | undefined;
 
 export function getEnv(): AppEnv {

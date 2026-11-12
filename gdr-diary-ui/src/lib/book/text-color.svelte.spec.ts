@@ -54,7 +54,9 @@ describe('text color', () => {
 		editor.commands.setTextColor('red');
 
 		expect(colored(editor)).toEqual(['come']);
-		const marks = editor.getJSON().content?.[0]?.content?.flatMap((node) => node.marks ?? []);
+		const marks: unknown[] | undefined = editor
+			.getJSON()
+			.content[0]?.content?.flatMap((node: JSONContent): unknown[] => node.marks ?? []);
 		expect(marks).toEqual([{ type: 'textColor', attrs: { color: 'red' } }]);
 	});
 

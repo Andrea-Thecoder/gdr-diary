@@ -7,6 +7,7 @@
 	import ConfirmDeleteDialog from '#lib/components/ui/ConfirmDeleteDialog.svelte';
 	import Container from '#lib/components/ui/Container.svelte';
 	import NoticePopup from '#lib/components/ui/NoticePopup.svelte';
+	import { getMaxSheets } from '#lib/env.js';
 	import { deleteSheet, type SavedSheet, type SheetSummary } from '#lib/sheets/api.js';
 	import { SheetList } from '#lib/sheets/sheets.svelte.js';
 	import { Notice } from '#lib/ui/notice.svelte.js';
@@ -29,8 +30,11 @@
 	let editing = $state<SheetSummary | undefined>(undefined);
 	let deleting = $state<SheetSummary | null>(null);
 
+	const maxSheets = getMaxSheets();
+
 	const name = $derived(character.name ?? 'Il personaggio');
 	const firstTime = $derived(list.status === 'ready' && list.totalRows === 0 && !list.hasFilters);
+	const full = $derived(list.status === 'ready' && !list.hasFilters && list.totalRows >= maxSheets);
 	const showToolbar = $derived(!firstTime && !(list.status === 'error' && list.items.length === 0));
 	const subtitle = $derived(
 		firstTime
@@ -94,8 +98,8 @@
 	tab="sheets"
 	{subtitle}
 	{count}
-	newLabel={firstTime ? undefined : 'Nuova scheda'}
-	onnew={firstTime ? undefined : openDialog}
+	newLabel={firstTime || full ? undefined : 'Nuova scheda'}
+	onnew={firstTime || full ? undefined : openDialog}
 />
 
 <Container class="pt-[clamp(32px,4vw,48px)] pb-[clamp(64px,9vw,112px)]">
@@ -118,7 +122,11 @@
 			<SheetCard {sheet} onedit={openEditor} ondelete={askDelete} />
 		{/snippet}
 		{#snippet newCard()}
-			<NewSheetCard title="Nuova scheda" onclick={openDialog} />
+			<NewSheetCard
+				title="Nuova scheda"
+				limit={full ? maxSheets : undefined}
+				onclick={openDialog}
+			/>
 		{/snippet}
 		{#snippet firstTimeCard()}
 			<NewSheetCard title="Carica la prima scheda" first onclick={openDialog} />

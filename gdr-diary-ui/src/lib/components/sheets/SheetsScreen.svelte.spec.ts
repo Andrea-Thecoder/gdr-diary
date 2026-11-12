@@ -1,6 +1,7 @@
 import { page } from 'vitest/browser';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { FakeXhr } from '#lib/api/xhr-support.js';
 import '../../../routes/layout.css';
 
 type Call = (...args: unknown[]) => Promise<unknown>;
@@ -15,6 +16,10 @@ const { api } = vi.hoisted(() => ({
 }));
 
 vi.mock('#lib/api/index.js', () => ({ getApi: () => api }));
+// le miniature dei PDF hanno i loro test (`SheetPile`): qui non si scarica nessun file
+vi.mock('#lib/pdf/thumbnail.js', () => ({
+	renderThumbnail: () => Promise.reject(new Error('niente miniature nei test della lista'))
+}));
 
 import SheetsScreen from './SheetsScreen.svelte';
 
@@ -86,6 +91,11 @@ beforeEach(async () => {
 	api.DELETE.mockReset();
 	api.GET.mockResolvedValue(listOf(sheets));
 	await page.viewport(1280, 900);
+});
+
+afterEach(() => {
+	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
 });
 
 describe('sheets screen', () => {
@@ -274,6 +284,67 @@ describe('new sheet dialog', () => {
 			.element(page.getByRole('alert').filter({ hasText: 'File non valido' }))
 			.toBeVisible();
 		await expect.element(page.getByRole('dialog', { name: 'Nuova scheda' })).toBeVisible();
+	});
+});
+
+describe('sheets limit', () => {
+	it('offers the new sheet button while the character is under the limit', async () => {
+		await ready();
+
+		await expect.element(page.getByRole('button', { name: 'Nuova scheda' }).first()).toBeVisible();
+		expect(page.getByText('Hai raggiunto il limite').elements()).toHaveLength(0);
+	});
+
+	it('takes the limit from the environment and says so when it is reached', async () => {
+		vi.stubEnv('VITE_MAX_SHEETS_PER_CHARACTER', '3');
+		await ready();
+
+		await expect.element(page.getByText('Hai raggiunto il limite')).toBeVisible();
+		await expect.element(page.getByText(/al massimo 3 schede/)).toBeVisible();
+		expect(page.getByRole('button', { name: 'Nuova scheda' }).elements()).toHaveLength(0);
+	});
+});
+
+describe('upload progress', () => {
+	it('shows how much of the PDF has been sent, then that the sheet is being archived', async () => {
+		vi.stubGlobal('XMLHttpRequest', FakeXhr);
+		api.POST.mockImplementation(async (_path: unknown, options: unknown) => {
+			const send = (options as { fetch: (request: Request) => Promise<Response> }).fetch;
+			const response = await send(
+				new Request('http://api.test/sheets', { method: 'POST', body: 'pdf' })
+			);
+			const data = (await response.json()) as unknown;
+			return { data };
+		});
+		await ready();
+		await page.getByRole('button', { name: 'Nuova scheda' }).first().click();
+		await page.getByLabelText('File del PDF').upload(pdf());
+		await page.getByRole('textbox', { name: 'Titolo *' }).fill('Scheda nuova');
+		const sent = FakeXhr.nextSent();
+
+		await page.getByRole('button', { name: 'Archivia la scheda' }).click();
+		const xhr = await sent;
+		xhr.progress(1, 2);
+
+		const bar = page.getByRole('progressbar');
+		await expect.element(bar).toHaveAttribute('aria-valuenow', '50');
+		await expect.element(bar).toHaveAccessibleName('Carico il PDF… 50%');
+		xhr.progress(2, 2);
+		await expect.element(page.getByRole('progressbar')).toHaveAccessibleName('Archivio la scheda…');
+		xhr.finish(201, JSON.stringify({ ...sheets[0], title: 'Scheda nuova' }));
+		await expect.element(page.getByText('Scheda nuova è stata archiviata.')).toBeVisible();
+		expect(page.getByRole('progressbar').elements()).toHaveLength(0);
+	});
+
+	it('shows no bar when only the fields are saved', async () => {
+		api.PUT.mockResolvedValue({ data: sheets[0] });
+		await ready();
+		await page.getByRole('button', { name: 'Modifica Scheda livello 5' }).click();
+
+		await page.getByRole('button', { name: 'Salva le modifiche' }).click();
+
+		await expect.element(page.getByText('Scheda livello 5 è stata aggiornata.')).toBeVisible();
+		expect(page.getByRole('progressbar').elements()).toHaveLength(0);
 	});
 });
 

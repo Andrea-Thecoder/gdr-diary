@@ -19,4 +19,11 @@ describe('sheetColorFor', () => {
 		const colours = new Set(['a', 'b', 'c', 'd', 'e', 'f'].map((id) => sheetColorFor(id)));
 		expect(colours.size).toBeGreaterThan(1);
 	});
+
+	it('uses every preset over a good number of random ids', () => {
+		const ids = Array.from({ length: 200 }, () => crypto.randomUUID());
+		const colours = new Set(ids.map((id) => sheetColorFor(id)));
+
+		expect(colours.size).toBe(COLOR_PRESETS.length);
+	});
 });

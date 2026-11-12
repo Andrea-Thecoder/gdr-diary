@@ -32,7 +32,7 @@
 			class="relative grid h-[300px] place-items-center overflow-hidden rounded-t-[5px]"
 			style:background={photoBackground(color)}
 		>
-			<SheetPile {title} {color} />
+			<SheetPile {title} {color} pdfUrl={sheet.url ?? null} />
 			<div
 				aria-hidden="true"
 				class="pointer-events-none absolute inset-0 surface-portrait-light"

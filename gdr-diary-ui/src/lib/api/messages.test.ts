@@ -23,7 +23,15 @@ describe('translateMessage validation constraints', () => {
 			'campaignName',
 			'Campagna: contiene caratteri che non si possono salvare'
 		],
-		['Required part is missing', 'file', 'File: è obbligatorio']
+		['Required part is missing', 'file', 'File: è obbligatorio'],
+		[
+			'A diary can have at most 10 different tags',
+			null,
+			'Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.'
+		],
+		['size must be between 1 and 30', 'tag', 'Tag: deve essere lungo da 1 a 30 caratteri'],
+		['must not be blank', 'tag', 'Tag: non può essere vuoto'],
+		['size must be between 0 and 30', 'tag', 'Tag: deve essere lungo al massimo 30 caratteri']
 	])('turns "%s" on %s into Italian', (message, field, expected) => {
 		expect(translateMessage(message, field)).toBe(expected);
 	});
@@ -48,6 +56,10 @@ describe('translateMessage sentences', () => {
 		['Settings too large', 'Le impostazioni sono troppo grandi'],
 		['The diary is full (100 pages)', 'Il diario è pieno: 100 pagine su 100'],
 		[
+			'The character has too many sheets (10)',
+			'Questo personaggio ha già 10 schede, il massimo: elimina quella che non ti serve più per caricarne un’altra'
+		],
+		[
 			'Another page was added at the same time, try again',
 			'Un’altra pagina è stata aggiunta nello stesso momento: riprova'
 		],
@@ -56,9 +68,35 @@ describe('translateMessage sentences', () => {
 		[
 			'Invalid page content at content[0]: unknown node type',
 			'Il contenuto della pagina non è valido'
+		],
+		['Too many files (maximum 3)', 'Puoi allegare al massimo 3 immagini'],
+		['Files too large (maximum total 5 MB)', 'Le immagini insieme superano 5 MB: togline qualcuna'],
+		[
+			'Technical info too large',
+			'Le informazioni tecniche sono troppo lunghe: invia il messaggio senza'
+		],
+		[
+			'Technical info is not a valid JSON object',
+			'Le informazioni tecniche non sono valide: invia il messaggio senza'
+		],
+		[
+			'Technical info contains characters that cannot be stored',
+			'Le informazioni tecniche contengono caratteri che non si possono salvare'
+		],
+		['the privacy policy must be accepted', 'Serve la spunta per poter inviare il messaggio'],
+		['must be idea, bug or love', 'Scegli il tipo di messaggio: idea, problema o complimento'],
+		[
+			'Too many feedback submissions, try again later',
+			'Hai inviato troppi messaggi in poco tempo: riprova più tardi'
 		]
 	])('turns "%s" into Italian', (message, expected) => {
 		expect(translateMessage(message)).toBe(expected);
+	});
+
+	it('does not prefix the consent sentence with the field', () => {
+		expect(translateMessage('the privacy policy must be accepted', 'consent')).toBe(
+			'Serve la spunta per poter inviare il messaggio'
+		);
 	});
 
 	it('does not prefix a sentence with the field', () => {
@@ -118,5 +156,11 @@ describe('translateTitle', () => {
 			'I dati sono cambiati nel frattempo: riprova',
 			'Altro'
 		]);
+	});
+
+	it('turns a business message sent as the title into Italian', () => {
+		expect(translateTitle('A diary can have at most 10 different tags')).toBe(
+			'Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.'
+		);
 	});
 });

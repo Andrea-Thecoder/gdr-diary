@@ -96,7 +96,7 @@
 		<ul
 			class="m-0 mt-3 flex list-none flex-col p-0 max-[899px]:flex-row max-[899px]:flex-wrap max-[899px]:gap-3"
 		>
-			{#each [{ id: 'scrittura', label: 'Scrittura' }, { id: 'aspetto', label: 'Aspetto' }] as item (item.id)}
+			{#each [{ id: 'generale', label: 'Generale' }, { id: 'scrittura', label: 'Scrittura' }, { id: 'aspetto', label: 'Aspetto' }] as item (item.id)}
 				<li>
 					<a
 						href={`#${item.id}`}
@@ -111,6 +111,42 @@
 	</nav>
 
 	<form onsubmit={submit} class="flex min-w-0 flex-[2_1_420px] flex-col gap-6">
+		<div id="generale" class="scroll-mt-6">
+			<SettingsSection title="Generale" intro="Come si comporta l’app mentre lavori.">
+				<FieldRow
+					label="Salvataggio automatico"
+					help="Salva da solo mentre scrivi."
+					labelId={`${ids}-auto`}
+				>
+					<SwitchField
+						checked={draft.autoSave}
+						labelledby={`${ids}-auto`}
+						onchange={(value: boolean) => {
+							draft.autoSave = value;
+						}}
+					/>
+				</FieldRow>
+				{#if draft.autoSave}
+					<FieldRow
+						label="Attesa prima di salvare"
+						help="Quanti secondi di pausa nella scrittura servono prima che il salvataggio parta da solo."
+						labelId={`${ids}-delay`}
+					>
+						<RangeField
+							value={draft.autoSaveDelay}
+							min={AUTO_SAVE_DELAY_MIN}
+							max={AUTO_SAVE_DELAY_MAX}
+							unit="s"
+							labelledby={`${ids}-delay`}
+							onchange={(value: number) => {
+								draft.autoSaveDelay = value;
+							}}
+						/>
+					</FieldRow>
+				{/if}
+			</SettingsSection>
+		</div>
+
 		<div id="scrittura" class="scroll-mt-6">
 			<SettingsSection title="Scrittura" intro="Come si leggono e si scrivono le pagine.">
 				<FieldRow
@@ -157,45 +193,11 @@
 						}}
 					/>
 				</FieldRow>
-				<FieldRow
-					label="Salvataggio automatico"
-					help="Salva da solo mentre scrivi."
-					labelId={`${ids}-auto`}
-				>
-					<SwitchField
-						checked={draft.autoSave}
-						labelledby={`${ids}-auto`}
-						onchange={(value: boolean) => {
-							draft.autoSave = value;
-						}}
-					/>
-				</FieldRow>
-				{#if draft.autoSave}
-					<FieldRow
-						label="Attesa prima di salvare"
-						help="Quanti secondi di pausa nella scrittura servono prima che il salvataggio parta da solo."
-						labelId={`${ids}-delay`}
-					>
-						<RangeField
-							value={draft.autoSaveDelay}
-							min={AUTO_SAVE_DELAY_MIN}
-							max={AUTO_SAVE_DELAY_MAX}
-							unit="s"
-							labelledby={`${ids}-delay`}
-							onchange={(value: number) => {
-								draft.autoSaveDelay = value;
-							}}
-						/>
-					</FieldRow>
-				{/if}
 			</SettingsSection>
 		</div>
 
 		<div id="aspetto" class="scroll-mt-6">
-			<SettingsSection
-				title="Aspetto"
-				intro="Il tema si vede subito, ma resta tuo solo dopo aver salvato."
-			>
+			<SettingsSection title="Aspetto" intro="Impostazioni che riguardano l'aspetto grafico.">
 				<FieldRow label="Tema" help="Sistema segue le impostazioni del tuo dispositivo.">
 					<ThemePicker />
 				</FieldRow>

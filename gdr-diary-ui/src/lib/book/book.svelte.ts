@@ -22,6 +22,7 @@ import {
 	type SpreadData
 } from './pages.js';
 import { isBlankRest, prependDoc } from './pagination.js';
+import { PageTagStore } from './tags.svelte.js';
 import {
 	counterLabel,
 	hasNext,
@@ -133,6 +134,7 @@ export class DiaryBook {
 	bookmark = $state<Bookmark | null>(null);
 	marking = $state(false);
 	readonly notice = new Notice();
+	readonly tags: PageTagStore;
 	readonly pages = new SvelteMap<number, PageState>();
 	readonly dirty = new SvelteSet<number>();
 	readonly editors = new SvelteMap<number, PageHandle>();
@@ -194,7 +196,7 @@ export class DiaryBook {
 		if (this.saving) {
 			return 'saving';
 		}
-		if (this.dirty.size > 0) {
+		if (this.dirty.size > 0 || this.tags.unsaved) {
 			return this.options.autoSave() ? 'pending' : 'unsaved';
 		}
 		return 'saved';
@@ -212,6 +214,10 @@ export class DiaryBook {
 		spread: number,
 		private readonly options: BookOptions
 	) {
+		this.tags = new PageTagStore(api, diaryId);
+		for (const page of initial.pages) {
+			this.tags.seed(page.id, page.tag);
+		}
 		this.total = initial.totalPages;
 		this.bookmark = options.bookmark ?? null;
 		this.store(initial);
@@ -232,6 +238,14 @@ export class DiaryBook {
 		}
 		this.applyDrafts();
 		this.applySpills();
+	}
+
+	private async read(spread: number): Promise<SpreadData> {
+		const data = await fetchSpread(this.api, this.diaryId, spread);
+		for (const page of data.pages) {
+			this.tags.seed(page.id, page.tag);
+		}
+		return data;
 	}
 
 	restore(found: Draft[]): void {
@@ -372,7 +386,7 @@ export class DiaryBook {
 		let spread = spreadOf(Math.max(from, 1));
 		try {
 			while (spread >= 1 && (total === null || found.size < ids.size)) {
-				const data = await fetchSpread(this.api, this.diaryId, spread);
+				const data = await this.read(spread);
 				if (this.disposed) {
 					return null;
 				}
@@ -420,7 +434,7 @@ export class DiaryBook {
 	async loadHeld(): Promise<void> {
 		for (const page of this.held) {
 			try {
-				this.store(await fetchSpread(this.api, this.diaryId, spreadOf(page)));
+				this.store(await this.read(spreadOf(page)));
 			} catch (cause) {
 				this.notice.show(loadMessage(cause), true);
 				return;
@@ -604,6 +618,7 @@ export class DiaryBook {
 		}
 		clearTimeout(this.saveTimer);
 		this.pendingSince = null;
+		void this.tags.flush();
 		this.flushDrafts();
 		this.chain = this.chain.then(() => this.round());
 		return this.chain;
@@ -710,6 +725,7 @@ export class DiaryBook {
 			}
 			if (state.id === null) {
 				this.total = Math.max(this.total, saved.pageNumber);
+				this.tags.seed(saved.id, saved.tag);
 			}
 			return 'saved';
 		} catch (cause) {
@@ -881,6 +897,7 @@ export class DiaryBook {
 			for (const [page, state] of blank) {
 				if (state.id !== null) {
 					await deletePage(this.api, state.id);
+					this.tags.forget(state.id);
 					deleted.push(page);
 				}
 			}
@@ -904,6 +921,10 @@ export class DiaryBook {
 
 	deletable(page: number): boolean {
 		return this.written(page);
+	}
+
+	pageId(page: number): string | null {
+		return this.pages.get(page)?.id ?? null;
 	}
 
 	markable(page: number): boolean {
@@ -963,6 +984,7 @@ export class DiaryBook {
 				return;
 			}
 			await deletePage(this.api, id);
+			this.tags.forget(id);
 			this.renumbered([page]);
 			try {
 				await this.ensure(this.focus);
@@ -1052,7 +1074,7 @@ export class DiaryBook {
 			.map((page) => spreadOf(page))
 			.filter((spread, index, all) => all.indexOf(spread) === index);
 		for (const spread of spreads) {
-			this.store(await fetchSpread(this.api, this.diaryId, spread));
+			this.store(await this.read(spread));
 		}
 	}
 
@@ -1258,7 +1280,8 @@ export class DiaryBook {
 			this.failure !== null ||
 			this.saving ||
 			this.conflict !== null ||
-			this.spilled.size > 0
+			this.spilled.size > 0 ||
+			this.tags.unsaved
 		);
 	}
 
@@ -1275,6 +1298,7 @@ export class DiaryBook {
 		this.dirty.clear();
 		this.leftovers.clear();
 		this.spilled.clear();
+		this.tags.discard();
 		this.failure = null;
 		this.conflict = null;
 		this.offline = false;
@@ -1293,5 +1317,6 @@ export class DiaryBook {
 			clearTimeout(timer);
 		}
 		this.draftTimers.clear();
+		this.tags.dispose();
 	}
 }

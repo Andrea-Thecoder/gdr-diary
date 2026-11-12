@@ -8,11 +8,10 @@
 		front: Snippet;
 		back: Snippet;
 		onfinish: () => void;
-		spread?: boolean;
 		class?: string;
 	}
 
-	let { from, to, front, back, onfinish, spread = true, class: className = '' }: Props = $props();
+	let { from, to, front, back, onfinish, class: className = '' }: Props = $props();
 
 	const forward = untrack(() => to < from);
 	const direction = forward ? '[animation-direction:normal]' : '[animation-direction:reverse]';
@@ -32,14 +31,12 @@
 			direction
 		]}
 	></div>
-	{#if spread}
-		<div
-			class={[
-				'absolute inset-y-0 right-full w-full leaf-cast-side bg-linear-to-l from-[color-mix(in_srgb,var(--page-ink)_50%,transparent)] via-[color-mix(in_srgb,var(--page-ink)_16%,transparent)] to-transparent to-75%',
-				direction
-			]}
-		></div>
-	{/if}
+	<div
+		class={[
+			'absolute inset-y-0 right-full w-full leaf-cast-side bg-linear-to-l from-[color-mix(in_srgb,var(--page-ink)_50%,transparent)] via-[color-mix(in_srgb,var(--page-ink)_16%,transparent)] to-transparent to-75%',
+			direction
+		]}
+	></div>
 	<div
 		class="absolute inset-0 origin-left leaf-swing will-change-transform [transform-style:preserve-3d]"
 		style:--from={String(from)}

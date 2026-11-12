@@ -7,10 +7,18 @@
 		value?: string;
 		maxlength?: number | undefined;
 		icon?: Snippet;
+		oninput?: () => void;
 		class?: string;
 	}
 
-	let { label, value = $bindable(''), maxlength, icon, class: className = '' }: Props = $props();
+	let {
+		label,
+		value = $bindable(''),
+		maxlength,
+		icon,
+		oninput,
+		class: className = ''
+	}: Props = $props();
 
 	const id = $props.id();
 </script>
@@ -35,6 +43,7 @@
 		type="search"
 		bind:value
 		{maxlength}
+		{oninput}
 		placeholder={label}
 		class="h-12 min-w-0 flex-1 bg-transparent text-[18px] text-ink outline-none placeholder:text-soft/75"
 	/>

@@ -64,14 +64,16 @@ function renderPage(
 
 const LEAF = '.leaf-swing';
 
-function leafShown(): boolean {
-	return document.querySelector(LEAF) !== null;
+const SLIDE = '.page-slide-arrive';
+
+function leafShown(selector = LEAF): boolean {
+	return document.querySelector(selector) !== null;
 }
 
-function watchLeaf(): () => boolean {
-	let seen = leafShown();
+function watchLeaf(selector = LEAF): () => boolean {
+	let seen = leafShown(selector);
 	const observer = new MutationObserver(() => {
-		seen = seen || leafShown();
+		seen = seen || leafShown(selector);
 	});
 	observer.observe(document.body, { childList: true, subtree: true });
 	onTestFinished(() => {
@@ -122,7 +124,7 @@ beforeEach(async () => {
 			setPageUrl(String(href));
 		}
 	});
-	preferences.value = { ...DEFAULT_PREFERENCES, pageTurn: false };
+	preferences.value = { ...DEFAULT_PREFERENCES, pageTurn: false, autoSaveDelay: 1 };
 	await page.viewport(1280, 900);
 });
 
@@ -319,6 +321,36 @@ describe('turning pages', () => {
 		await vi.waitFor(() => {
 			expect(leafShown()).toBe(false);
 		});
+	});
+
+	it('slides the page instead of flipping a leaf when the book shows a single page', async () => {
+		await page.viewport(360, 740);
+		mockServer(23);
+		preferences.value = { ...DEFAULT_PREFERENCES, pageTurn: true, reduceMotion: false };
+		renderPage(23);
+		const leafSeen = watchLeaf();
+		const slideSeen = watchLeaf(SLIDE);
+
+		await page.getByRole('button', { name: 'Pagine successive' }).click();
+
+		await expect.element(page.getByText('Pagina 2 di 23')).toBeVisible();
+		expect(slideSeen()).toBe(true);
+		expect(leafSeen()).toBe(false);
+		await vi.waitFor(() => {
+			expect(leafShown(SLIDE)).toBe(false);
+		});
+	});
+
+	it('keeps the leaf for the two pages of a wide screen', async () => {
+		mockServer(23);
+		preferences.value = { ...DEFAULT_PREFERENCES, pageTurn: true, reduceMotion: false };
+		renderPage(23);
+		const slideSeen = watchLeaf(SLIDE);
+
+		await page.getByRole('button', { name: 'Pagine successive' }).click();
+
+		await expect.element(page.getByText('Pagine 3 e 4 di 23')).toBeVisible();
+		expect(slideSeen()).toBe(false);
 	});
 
 	it('turns without the leaf when the reduced motion preference is on', async () => {
@@ -612,31 +644,21 @@ describe('writing', () => {
 		expect(putCalls()).toHaveLength(1);
 	});
 
-	it('brings back the text that was not saved the last time and saves it', async () => {
+	it('shows the saved text instead of an old copy of a page that exists on the server', async () => {
 		mockServer(23);
 		const unsaved: Draft = {
 			diaryId: 'd1',
 			page: 1,
 			pageId: 'p1',
 			baseVersion: 3,
-			content: doc('Testo recuperato'),
+			content: doc('Testo vecchio'),
 			savedAt: 1
 		};
 		renderPage(23, 1, [unsaved]);
 
 		await expect
-			.element(page.getByText('Modifiche non salvate recuperate (pagina 1)'))
-			.toBeVisible();
-		await expect
 			.element(page.getByRole('textbox', { name: 'Pagina 1' }))
-			.toHaveTextContent('Testo recuperato');
-		await vi.waitFor(
-			() => {
-				expect(putCalls()).toHaveLength(1);
-			},
-			{ timeout: 4000 }
-		);
-		expect(JSON.stringify(putCalls()[0]?.[1])).toContain('Testo recuperato');
+			.toHaveTextContent('Testo della pagina 1');
 	});
 
 	it(
@@ -703,13 +725,15 @@ describe('a blank page after a page that is not full', () => {
 			id: 'p1',
 			pageNumber: 1,
 			content: doc('Testo'),
-			version: 3
+			version: 3,
+			tag: null
 		};
 		const second = {
 			id: 'p2',
 			pageNumber: 2,
 			content: emptyDoc(),
-			version: 3
+			version: 3,
+			tag: null
 		};
 		api.GET.mockResolvedValue({ data: { list: [first, second], totalRows: 2 } });
 		api.PUT.mockImplementation((_path: unknown, init: unknown) => {
@@ -759,7 +783,8 @@ describe('blank pages', () => {
 					id,
 					pageNumber: index + 1,
 					content: required(texts.get(id), 'Testo'),
-					version: 3
+					version: 3,
+					tag: null
 				}))
 				.filter((item) => item.pageNumber === 2 * number - 1 || item.pageNumber === 2 * number)
 		});
@@ -984,7 +1009,8 @@ describe('delete page', () => {
 					id: item.id,
 					pageNumber: index + 1,
 					content: doc(item.text),
-					version: 3
+					version: 3,
+					tag: null
 				}))
 				.filter((item) => item.pageNumber === 2 * view - 1 || item.pageNumber === 2 * view);
 			return Promise.resolve({ data: { list: pages, totalRows: list.length } });
@@ -1473,7 +1499,10 @@ describe('bookmark', () => {
 
 	it('says what went wrong and keeps the ribbon as it was when the server refuses', async () => {
 		mockServer(4);
-		api.PUT.mockResolvedValue({ error: { title: 'Page not found' }, response: { ok: false } });
+		api.PUT.mockResolvedValue({
+			error: { status: 404, title: 'NOT_FOUND', violations: [{ message: 'Page not found' }] },
+			response: { ok: false }
+		});
 		renderPage(4);
 		await expect.element(ribbon(2)).toBeVisible();
 
@@ -1491,5 +1520,355 @@ describe('bookmark', () => {
 
 		await expect.element(ribbon(1)).toBeVisible();
 		await expect.element(ribbon(2)).not.toBeInTheDocument();
+	});
+});
+
+describe('tags', () => {
+	const TAGS_PATH = '/diaries/{diaryId}/tags';
+
+	function tagged(total: number, tag: string | null): SpreadData {
+		const data = spreadOf(total, 1);
+		return { ...data, pages: data.pages.map((item) => ({ ...item, tag })) };
+	}
+
+	function renderTagged(total: number, tag: string | null): void {
+		setPageUrl('http://localhost/diaries/d1?vista=1');
+		render(Page, {
+			data: {
+				diary,
+				character,
+				initial: tagged(total, tag),
+				spread: 1,
+				drafts: [],
+				bookmark: null
+			},
+			params: { diaryId: 'd1' }
+		} as never);
+	}
+
+	function serveIndex(list: { name: string; pageNumbers: number[] }[]): void {
+		const pages = api.GET.getMockImplementation() as Call;
+		api.GET.mockImplementation((path: unknown, init: unknown) =>
+			path === TAGS_PATH
+				? Promise.resolve({ data: { list, totalRows: list.length, totalPages: 1, page: 1 } })
+				: pages(path, init)
+		);
+	}
+
+	function note(name: string): ReturnType<typeof page.getByRole> {
+		return page.getByRole('button', { name, exact: true });
+	}
+
+	function addNote(number: number): ReturnType<typeof page.getByRole> {
+		return note(`Metti un tag, pagina ${String(number)}`);
+	}
+
+	function nameField(): ReturnType<typeof page.getByRole> {
+		return page.getByRole('textbox', { name: 'Nome del tag' });
+	}
+
+	function saveForm(): Promise<void> {
+		return page.getByRole('button', { name: 'Salva', exact: true }).last().click();
+	}
+
+	function tagPuts(): unknown[][] {
+		return putCalls().filter((call) => call[0] === '/pages/{id}/tag');
+	}
+
+	it('shows the tag of each written page as a post-it under the page', async () => {
+		mockServer(23);
+		renderTagged(23, 'combat');
+
+		await expect.element(note('Tag combat, pagina 1')).toBeVisible();
+		await expect.element(note('Tag combat, pagina 2')).toBeVisible();
+		const text = page.getByRole('textbox', { name: 'Pagina 1' }).element().getBoundingClientRect();
+		const tag = note('Tag combat, pagina 1').element().getBoundingClientRect();
+		expect(tag.top).toBeGreaterThan(text.bottom);
+	});
+
+	it('shows only the dashed post-it on a page that has no tag, one for each page', async () => {
+		mockServer(23);
+		renderTagged(23, null);
+
+		await expect.element(addNote(1)).toBeVisible();
+		await expect.element(addNote(2)).toBeVisible();
+	});
+
+	it('shows a single post-it for a page: the dashed one goes away once it has its tag', async () => {
+		mockServer(4);
+		renderTagged(4, 'combat');
+
+		await expect.element(note('Tag combat, pagina 1')).toBeVisible();
+		expect(addNote(1).elements()).toHaveLength(0);
+	});
+
+	it('has no post-its for a page that does not exist yet', async () => {
+		mockServer(0);
+		renderPage(0);
+		await expect.element(page.getByRole('textbox', { name: 'Pagina 1' })).toBeVisible();
+
+		expect(page.getByRole('group', { name: /Tag della pagina/ }).elements()).toHaveLength(0);
+	});
+
+	it('keeps the dashed post-it closed until a page that was just written is saved', async () => {
+		mockServer(0);
+		renderPage(0);
+		await page.getByRole('textbox', { name: 'Pagina 1' }).click();
+		await userEvent.keyboard('Primo giorno');
+
+		await expect.element(addNote(1)).toBeDisabled();
+	});
+
+	it('opens a form with the name of the tag when the dashed post-it is clicked', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+
+		await addNote(1).click();
+
+		await expect.element(page.getByRole('heading', { name: 'Nuovo tag' })).toBeVisible();
+		await expect.element(nameField()).toHaveValue('');
+		expect(page.getByRole('button', { name: 'Togli il tag' }).elements()).toHaveLength(0);
+	});
+
+	it('puts the tag on the page and saves it at once, without the version', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+
+		await addNote(1).click();
+		await nameField().fill('Erebor');
+		await saveForm();
+		await expect.element(note('Tag Erebor, pagina 1')).toBeVisible();
+		expect(addNote(1).elements()).toHaveLength(0);
+
+		await vi.waitFor(() => {
+			expect(tagPuts()).toHaveLength(1);
+		});
+		expect(tagPuts()[0]?.[1]).toEqual({
+			params: { path: { id: 'p1' } },
+			body: { tag: 'Erebor' }
+		});
+		await expect.element(page.getByText('Salvato', { exact: true })).toBeVisible();
+	});
+
+	it('asks for a name when the form is sent empty', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+
+		await addNote(1).click();
+		await saveForm();
+
+		await expect.element(page.getByText('Scrivi il nome del tag.')).toBeVisible();
+		await expect.element(page.getByRole('heading', { name: 'Nuovo tag' })).toBeVisible();
+	});
+
+	it('changes the tag from its post-it', async () => {
+		mockServer(4);
+		renderTagged(4, 'combat');
+
+		await note('Tag combat, pagina 1').click();
+		await expect.element(nameField()).toHaveValue('combat');
+		await nameField().fill('scontro');
+		await saveForm();
+
+		await vi.waitFor(() => {
+			expect(tagPuts()).toHaveLength(1);
+		});
+		expect(tagPuts()[0]?.[1]).toEqual({
+			params: { path: { id: 'p1' } },
+			body: { tag: 'scontro' }
+		});
+	});
+
+	it('takes the tag away with the button of the form and sends null', async () => {
+		mockServer(4);
+		renderTagged(4, 'combat');
+
+		await note('Tag combat, pagina 1').click();
+		await page.getByRole('button', { name: 'Togli il tag' }).click();
+		await expect.element(addNote(1)).toBeVisible();
+
+		await vi.waitFor(() => {
+			expect(tagPuts()).toHaveLength(1);
+		});
+		expect(tagPuts()[0]?.[1]).toEqual({ params: { path: { id: 'p1' } }, body: { tag: null } });
+	});
+
+	it('closes the form without changing anything on Annulla', async () => {
+		mockServer(4);
+		renderTagged(4, 'combat');
+
+		await note('Tag combat, pagina 1').click();
+		await nameField().fill('altro');
+		await page.getByRole('button', { name: 'Annulla' }).last().click();
+
+		await expect.element(note('Tag combat, pagina 1')).toBeVisible();
+		expect(page.getByText('Da salvare', { exact: true }).elements()).toHaveLength(0);
+	});
+
+	it('does not take the keys that are typed in the form for the page', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+
+		await addNote(1).click();
+		await nameField().fill('indizi');
+
+		await expect
+			.element(page.getByRole('textbox', { name: 'Pagina 1' }))
+			.toHaveTextContent('Testo della pagina 1');
+		expect(putCalls().filter((call) => call[0] === '/pages/{id}')).toHaveLength(0);
+	});
+
+	it('shows the spelling the diary already uses when the server gives it back', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+		api.PUT.mockResolvedValue({ data: { tag: 'Erebor' } });
+
+		await addNote(1).click();
+		await nameField().fill('erebor');
+		await saveForm();
+		await expect.element(note('Tag Erebor, pagina 1')).toBeVisible();
+		expect(note('Tag erebor, pagina 1').elements()).toHaveLength(0);
+	});
+
+	it('says above the book that the diary already has ten different tags', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+		api.PUT.mockResolvedValue({
+			error: {
+				title: 'BAD_REQUEST',
+				status: 400,
+				violations: [{ message: 'A diary can have at most 10 different tags' }]
+			},
+			response: { status: 400 }
+		});
+
+		await addNote(1).click();
+		await nameField().fill('undicesimo');
+		await saveForm();
+
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent(
+				'Tag della pagina 1: Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.'
+			);
+		await expect.element(note('Tag undicesimo, pagina 1')).toBeVisible();
+		await expect
+			.element(page.getByRole('button', { name: 'Riprova a salvare il tag' }))
+			.toBeVisible();
+	});
+
+	it('shows the message of a 400 about the length of the tag', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+		api.PUT.mockResolvedValue({
+			error: {
+				title: 'BAD_REQUEST',
+				status: 400,
+				violations: [{ field: 'tag', message: 'size must be between 1 and 30' }]
+			},
+			response: { status: 400 }
+		});
+
+		await addNote(1).click();
+		await nameField().fill('Erebor');
+		await saveForm();
+
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent('Tag: deve essere lungo da 1 a 30 caratteri');
+	});
+
+	it('says the page is gone on a 404 and closes the post-it of the tag', async () => {
+		mockServer(4);
+		renderTagged(4, null);
+		api.PUT.mockResolvedValue({ error: { status: 404 }, response: { status: 404 } });
+
+		await addNote(1).click();
+		await nameField().fill('Erebor');
+		await saveForm();
+
+		await expect.element(page.getByRole('alert')).toHaveTextContent(/eliminata altrove/);
+		await expect.element(note('Tag Erebor, pagina 1')).toBeDisabled();
+		expect(page.getByRole('button', { name: 'Riprova a salvare il tag' }).elements()).toHaveLength(
+			0
+		);
+	});
+
+	it('asks the diary for the tags that contain what is being typed', async () => {
+		mockServer(4);
+		serveIndex([]);
+		renderTagged(4, null);
+
+		await addNote(1).click();
+		await nameField().fill('com');
+
+		await vi.waitFor(() => {
+			expect(api.GET).toHaveBeenCalledWith(TAGS_PATH, {
+				params: { path: { diaryId: 'd1' }, query: { page: 1, size: 8, name: 'com' } }
+			});
+		});
+	});
+
+	it('lists the tags of the diary with the pages that have them', async () => {
+		mockServer(23);
+		serveIndex([
+			{ name: 'combat', pageNumbers: [3, 7] },
+			{ name: 'pnj', pageNumbers: [12] }
+		]);
+		renderTagged(23, null);
+
+		await expect.element(page.getByRole('heading', { name: 'Tag del diario' })).toBeVisible();
+		await expect.element(page.getByRole('button', { name: /combat.*pagine 3, 7/ })).toBeVisible();
+		await expect.element(page.getByRole('button', { name: /pnj.*pagina 12/ })).toBeVisible();
+	});
+
+	it('says there are no tags yet', async () => {
+		mockServer(4);
+		serveIndex([]);
+		renderTagged(4, null);
+
+		await expect.element(page.getByText(/Nessun tag ancora/)).toBeVisible();
+	});
+
+	it('opens the first page that has the tag when it is clicked', async () => {
+		mockServer(23);
+		serveIndex([{ name: 'combat', pageNumbers: [3, 7] }]);
+		renderTagged(23, null);
+
+		await page.getByRole('button', { name: /combat.*pagine 3, 7/ }).click();
+
+		await expect.element(page.getByText('Pagine 3 e 4 di 23')).toBeVisible();
+	});
+
+	it('goes on to the next page that has the tag at the next click', async () => {
+		mockServer(23);
+		serveIndex([{ name: 'combat', pageNumbers: [3, 7] }]);
+		renderTagged(23, null);
+		await page.getByRole('button', { name: /combat.*pagine 3, 7/ }).click();
+		await expect.element(page.getByText('Pagine 3 e 4 di 23')).toBeVisible();
+
+		await page.getByRole('button', { name: /combat.*pagine 3, 7/ }).click();
+
+		await expect.element(page.getByText('Pagine 7 e 8 di 23')).toBeVisible();
+	});
+
+	it('shows the problem and a retry when the tags of the diary cannot be read', async () => {
+		mockServer(4);
+		const pages = api.GET.getMockImplementation() as Call;
+		api.GET.mockImplementation((path: unknown, init: unknown) =>
+			path === TAGS_PATH ? Promise.resolve({ error: { status: 500 } }) : pages(path, init)
+		);
+		renderTagged(4, null);
+
+		await expect.element(page.getByRole('button', { name: 'Riprova', exact: true })).toBeVisible();
+	});
+
+	it('keeps the post-its within the width of a phone', async () => {
+		await page.viewport(360, 740);
+		mockServer(4);
+		renderTagged(4, 'un-tag-lungo-lungo-lungo-lunghissimo');
+
+		await expect.element(note('Tag un-tag-lungo-lungo-lungo-lunghissimo, pagina 1')).toBeVisible();
+		expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(360);
 	});
 });

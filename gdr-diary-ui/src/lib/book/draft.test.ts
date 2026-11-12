@@ -16,8 +16,8 @@ function draft(overrides: Partial<Draft> = {}): Draft {
 }
 
 describe('judgeDraft', () => {
-	it('applies a copy that differs from the same page on the server', () => {
-		expect(judgeDraft(draft(), { id: 'p3', content: doc('salvato') }, 10)).toBe('apply');
+	it('drops a copy that differs from the same page on the server', () => {
+		expect(judgeDraft(draft(), { id: 'p3', content: doc('salvato') }, 10)).toBe('drop');
 	});
 
 	it('drops a copy that equals the page on the server', () => {

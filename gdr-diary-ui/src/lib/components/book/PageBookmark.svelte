@@ -25,7 +25,7 @@
 	<span
 		aria-hidden="true"
 		class={[
-			'block h-16 w-5 [clip-path:polygon(0_0,100%_0,100%_100%,50%_78%,0_100%)] surface-ribbon transition-opacity group-hover:opacity-80 group-focus-visible:opacity-100',
+			'block h-16 w-5 transition-opacity [clip-path:polygon(0_0,100%_0,100%_100%,50%_78%,0_100%)] surface-ribbon group-hover:opacity-80 group-focus-visible:opacity-100',
 			marked ? 'opacity-100' : 'opacity-30'
 		]}
 	></span>

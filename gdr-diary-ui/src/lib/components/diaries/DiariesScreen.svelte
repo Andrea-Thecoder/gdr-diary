@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { getApi } from '#lib/api/index.js';
 	import type { CharacterDetail } from '#lib/characters/api.js';
 	import CardList from '#lib/components/ui/CardList.svelte';
@@ -30,6 +30,10 @@
 	const characterId = untrack(() => character.id ?? '');
 	const list = new DiaryList(characterId);
 	const notice = new Notice();
+
+	onDestroy(() => {
+		list.dispose();
+	});
 
 	let dialogOpen = $state(false);
 	let editing = $state<DiaryDetail | undefined>(undefined);

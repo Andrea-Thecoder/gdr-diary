@@ -1,6 +1,6 @@
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { PDFScriptingManager, PDFViewer } from 'pdfjs-dist/legacy/web/pdf_viewer.mjs';
-import { loadPdfjs, PDFJS_ASSETS } from '#lib/pdf/pdfjs.js';
+import { documentOptions, loadPdfjs, PDFJS_ASSETS } from '#lib/pdf/pdfjs.js';
 
 export type EditorStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -57,14 +57,7 @@ export class PdfEditor {
 			eventBus.on('pagesinit', () => {
 				viewer.currentScaleValue = 'page-width';
 			});
-			const task = kit.pdfjs.getDocument({
-				url,
-				wasmUrl: `${PDFJS_ASSETS}wasm/`,
-				standardFontDataUrl: `${PDFJS_ASSETS}standard_fonts/`,
-				cMapUrl: `${PDFJS_ASSETS}cmaps/`,
-				cMapPacked: true,
-				iccUrl: `${PDFJS_ASSETS}iccs/`
-			});
+			const task = kit.pdfjs.getDocument(documentOptions(url));
 			this.task = task;
 			const doc = await task.promise;
 			if (this.isStopped()) {

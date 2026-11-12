@@ -2,11 +2,11 @@
 
 > Procedure operative e risoluzione dei problemi di **gdr-diary-ui** in ambiente di sviluppo locale. La produzione non è ancora definita.
 
-| | |
-|---|---|
-| **Ultimo aggiornamento** | 3 novembre 2026 |
-| **Per l'installazione e la descrizione del progetto** | vedi il [README](README.md) |
-| **Per Keycloak e il backend** | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md) |
+|                                                       |                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| **Ultimo aggiornamento**                              | 3 novembre 2026                                                 |
+| **Per l'installazione e la descrizione del progetto** | vedi il [README](README.md)                                     |
+| **Per Keycloak e il backend**                         | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md) |
 
 **Indice**
 
@@ -23,21 +23,21 @@
 
 Il frontend gira fuori da Docker (`npm run dev`). Per funzionare servono Keycloak e il backend, che si gestiscono dal [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md).
 
-| Servizio | Cosa fa | Dipende da | Controllo di stato |
-|---|---|---|---|
-| **gdr-diary-ui** | Interfaccia web (SPA) | Keycloak, gdr-diary-api | Aprire la [home](http://localhost:5173) |
-| Keycloak | Login, token, ruoli | – | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto) |
-| gdr-diary-api | API REST | PostgreSQL, SeaweedFS, Keycloak | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto) |
+| Servizio         | Cosa fa               | Dipende da                      | Controllo di stato                                                                |
+| ---------------- | --------------------- | ------------------------------- | --------------------------------------------------------------------------------- |
+| **gdr-diary-ui** | Interfaccia web (SPA) | Keycloak, gdr-diary-api         | Aprire la [home](http://localhost:5173)                                           |
+| Keycloak         | Login, token, ruoli   | –                               | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto) |
+| gdr-diary-api    | API REST              | PostgreSQL, SeaweedFS, Keycloak | vedi il [Runbook di gdr-diary-api](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto) |
 
 Le porte sono nel [README › Mapping delle porte](README.md#mapping-delle-porte).
 
 ### Dove guardare i log
 
-| Cosa | Come |
-|---|---|
-| Server di sviluppo | Console in cui gira `npm run dev`. |
+| Cosa               | Come                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Server di sviluppo | Console in cui gira `npm run dev`.                                                                              |
 | Errori nel browser | Console degli strumenti per sviluppatori (F12). La scheda **Network** mostra le chiamate all'API e le risposte. |
-| Keycloak e backend | Vedi il [Runbook di gdr-diary-api › Dove guardare i log](../gdr-diary-api/RUNBOOK.md#dove-guardare-i-log). |
+| Keycloak e backend | Vedi il [Runbook di gdr-diary-api › Dove guardare i log](../gdr-diary-api/RUNBOOK.md#dove-guardare-i-log).      |
 
 ---
 
@@ -129,32 +129,32 @@ Modificare `.env` e riavviare il frontend. Significato e valori: [README › Var
 
 ### Installazione e avvio
 
-| Sintomo | Causa probabile | Rimedio |
-|---|---|---|
-| `npm install` si ferma con un errore sulla versione di Node | Node precedente alla 22.17 (`engine-strict=true`). | Controllare `node --version` e usare Node 22.17 o successivo. |
-| Errore all'avvio sulle variabili d'ambiente | Il file `.env` manca o ha valori non validi (`src/lib/env.ts` li controlla). | `cp .env.example .env`, controllare i valori e riavviare. |
-| Vite parte su una porta diversa, per esempio `5174` | La porta `5173` è occupata da un altro processo. | Chiudere il processo che usa `5173` e riavviare: Keycloak e il CORS dell'API accettano solo quell'indirizzo. |
+| Sintomo                                                     | Causa probabile                                                              | Rimedio                                                                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `npm install` si ferma con un errore sulla versione di Node | Node precedente alla 22.17 (`engine-strict=true`).                           | Controllare `node --version` e usare Node 22.17 o successivo.                                                |
+| Errore all'avvio sulle variabili d'ambiente                 | Il file `.env` manca o ha valori non validi (`src/lib/env.ts` li controlla). | `cp .env.example .env`, controllare i valori e riavviare.                                                    |
+| Vite parte su una porta diversa, per esempio `5174`         | La porta `5173` è occupata da un altro processo.                             | Chiudere il processo che usa `5173` e riavviare: Keycloak e il CORS dell'API accettano solo quell'indirizzo. |
 
 ### Accesso
 
-| Sintomo | Causa probabile | Rimedio |
-|---|---|---|
-| Keycloak mostra «Invalid redirect URI» | Il frontend gira su un indirizzo diverso da `http://localhost:5173`. | Usare la porta `5173` (vedi sopra). |
+| Sintomo                                                                                      | Causa probabile                                                                                                                 | Rimedio                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Keycloak mostra «Invalid redirect URI»                                                       | Il frontend gira su un indirizzo diverso da `http://localhost:5173`.                                                            | Usare la porta `5173` (vedi sopra).                                                                                                                          |
 | Dopo il login si torna alla home con un messaggio in basso a destra, o compare la pagina 403 | L'app ha chiamato `POST /me` e non è andata, oppure l'account non ha né `user` né `admin`: in questi casi disconnette l'utente. | Leggere il messaggio. Per 401, 403 o API che non risponde vedi il [Runbook di gdr-diary-api › Accesso e token](../gdr-diary-api/RUNBOOK.md#accesso-e-token). |
-| Chiamate all'API bloccate da CORS nella console del browser | Il frontend non gira su `http://localhost:5173`, l'unica origine ammessa dall'API, oppure il backend è spento. | Usare la porta `5173` e controllare il backend: [Runbook di gdr-diary-api › Avvio e arresto](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto). |
-| 401 su tutte le chiamate all'API | Il token non ha l'audience del backend o è scaduto. | Vedi il [Runbook di gdr-diary-api › Accesso e token](../gdr-diary-api/RUNBOOK.md#accesso-e-token). |
+| Chiamate all'API bloccate da CORS nella console del browser                                  | Il frontend non gira su `http://localhost:5173`, l'unica origine ammessa dall'API, oppure il backend è spento.                  | Usare la porta `5173` e controllare il backend: [Runbook di gdr-diary-api › Avvio e arresto](../gdr-diary-api/RUNBOOK.md#2-avvio-e-arresto).                 |
+| 401 su tutte le chiamate all'API                                                             | Il token non ha l'audience del backend o è scaduto.                                                                             | Vedi il [Runbook di gdr-diary-api › Accesso e token](../gdr-diary-api/RUNBOOK.md#accesso-e-token).                                                           |
 
 ### Build e test
 
-| Sintomo | Causa probabile | Rimedio |
-|---|---|---|
-| `npm run verify` si ferma su `theme:check` | I file generati del tema Keycloak sono vecchi. | `npm run theme:build` e salvare i file generati. |
-| `npm run check` dà errori di tipo dopo un cambio nel backend | Il contratto dell'API e `schema.d.ts` non sono allineati. | Vedi [Aggiornare il contratto dell'API](#aggiornare-il-contratto-dellapi). |
-| I test dei componenti (`*.svelte.spec.ts`) non partono perché manca il browser | Chromium di Playwright non è installato. | `npx playwright install chromium`. `npm run test:e2e` li scarica da solo. |
-| `npm run test:e2e` non parte | La porta `4173` è occupata. | Chiudere il processo che la usa. |
+| Sintomo                                                                        | Causa probabile                                           | Rimedio                                                                    |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `npm run verify` si ferma su `theme:check`                                     | I file generati del tema Keycloak sono vecchi.            | `npm run theme:build` e salvare i file generati.                           |
+| `npm run check` dà errori di tipo dopo un cambio nel backend                   | Il contratto dell'API e `schema.d.ts` non sono allineati. | Vedi [Aggiornare il contratto dell'API](#aggiornare-il-contratto-dellapi). |
+| I test dei componenti (`*.svelte.spec.ts`) non partono perché manca il browser | Chromium di Playwright non è installato.                  | `npx playwright install chromium`. `npm run test:e2e` li scarica da solo.  |
+| `npm run test:e2e` non parte                                                   | La porta `4173` è occupata.                               | Chiudere il processo che la usa.                                           |
 
 ### Interfaccia
 
-| Sintomo | Causa probabile | Rimedio |
-|---|---|---|
+| Sintomo                               | Causa probabile                     | Rimedio                                   |
+| ------------------------------------- | ----------------------------------- | ----------------------------------------- |
 | Un errore dell'API compare in inglese | Il messaggio non è ancora tradotto. | Aggiungerlo in `src/lib/api/messages.ts`. |

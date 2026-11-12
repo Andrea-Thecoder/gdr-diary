@@ -212,6 +212,25 @@ describe('settings page', () => {
 			.not.toBeChecked();
 	});
 
+	it('keeps the autosave settings in a General section above all the others', async () => {
+		render(Page);
+
+		const sections = [...document.querySelectorAll('form h2')].map((heading) =>
+			heading.textContent.trim()
+		);
+		expect(sections).toEqual(['Generale', 'Scrittura', 'Aspetto']);
+		const general = required(document.querySelector('#generale'), 'Sezione Generale');
+		expect(general.querySelector('[role="switch"]')?.getAttribute('aria-labelledby')).toBeTruthy();
+		await expect
+			.element(page.getByRole('switch', { name: 'Salvataggio automatico' }))
+			.toBeVisible();
+		expect(
+			general.contains(
+				required(document.querySelector('[aria-labelledby$="-auto"]'), 'Salvataggio automatico')
+			)
+		).toBe(true);
+	});
+
 	it('shows the autosave wait in seconds, five by default', async () => {
 		render(Page);
 

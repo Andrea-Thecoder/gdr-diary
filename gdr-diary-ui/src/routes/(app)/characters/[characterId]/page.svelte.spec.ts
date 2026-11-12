@@ -206,6 +206,59 @@ describe('diaries page', () => {
 		await expect.poll(() => lastQuery()['title']).toBe('ceneri');
 	});
 
+	it('has a tag search next to the title search, limited to 30 characters', async () => {
+		await ready();
+
+		const tag = page.getByRole('searchbox', { name: 'Cerca per tag' });
+		await expect.element(tag).toHaveAttribute('maxlength', '30');
+		const title = page.getByRole('searchbox', { name: 'Cerca per titolo' }).element();
+		expect(title.getBoundingClientRect().left).toBeLessThan(
+			tag.element().getBoundingClientRect().left
+		);
+	});
+
+	it('sends the tag together with the title when the filters are applied', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per titolo' }).fill('torre');
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill(' erebo ');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+		expect(lastQuery()['title']).toBe('torre');
+	});
+
+	it('sends the tag by itself after a pause in the typing, without the title that was not applied', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per titolo' }).fill('torre');
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('erebo');
+
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+		expect(lastQuery()['title']).toBeUndefined();
+	});
+
+	it('does not send a tag that is empty or only spaces', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('   ');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+
+		expect(lastQuery()['tag']).toBeUndefined();
+	});
+
+	it('clears the tag with the title', async () => {
+		await ready();
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('erebo');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+
+		await page.getByRole('button', { name: 'Azzera', exact: true }).click();
+
+		await expect.poll(() => lastQuery()['tag']).toBeUndefined();
+		await expect.element(page.getByRole('searchbox', { name: 'Cerca per tag' })).toHaveValue('');
+	});
+
 	it('orders by title and clears the filter and the field', async () => {
 		await ready();
 

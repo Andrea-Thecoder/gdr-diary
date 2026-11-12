@@ -3,6 +3,7 @@
 	import { getApi } from '#lib/api/index.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import DialogHeader from '#lib/components/ui/DialogHeader.svelte';
+	import ProgressBar from '#lib/components/ui/ProgressBar.svelte';
 	import TextField from '#lib/components/ui/TextField.svelte';
 	import { createSheet, updateSheet, type SavedSheet, type SheetSummary } from '#lib/sheets/api.js';
 	import PdfField from './PdfField.svelte';
@@ -36,7 +37,14 @@
 	let titleError = $state<string | null>(null);
 	let fileError = $state<string | null>(null);
 	let submitError = $state<string | null>(null);
+	let progress = $state<number | null>(null);
 
+	const percent = $derived(progress === null ? 0 : Math.round(progress * 100));
+	const progressLabel = $derived(
+		progress !== null && progress >= 1
+			? 'Archivio la scheda…'
+			: `Carico il PDF… ${String(percent)}%`
+	);
 	const current = $derived(initial === undefined ? undefined : { name: 'PDF attuale' });
 
 	function cancel(): void {
@@ -60,13 +68,20 @@
 			return;
 		}
 		submitting = true;
+		progress = file === null ? null : 0;
+		const track = (fraction: number): void => {
+			progress = fraction;
+		};
 		try {
 			const fields = { title, system };
 			const id = initial?.id;
 			if (id !== undefined) {
-				onsaved(await updateSheet(getApi(), id, fields, file));
+				onsaved(await updateSheet(getApi(), id, fields, file, track));
 			} else if (file !== null) {
-				onsaved({ sheet: await createSheet(getApi(), characterId, fields, file), fileError: null });
+				onsaved({
+					sheet: await createSheet(getApi(), characterId, fields, file, track),
+					fileError: null
+				});
 			}
 		} catch (cause) {
 			submitError =
@@ -77,6 +92,7 @@
 						: 'Non riesco a caricare la scheda.';
 		} finally {
 			submitting = false;
+			progress = null;
 		}
 	}
 </script>
@@ -111,6 +127,10 @@
 			maxlength={100}
 		/>
 	</div>
+
+	{#if progress !== null}
+		<ProgressBar class="mt-5" value={percent} max={100} label={progressLabel} />
+	{/if}
 
 	{#if submitError !== null}
 		<p role="alert" class="mx-0 mt-5 mb-0 text-base text-label">{submitError}</p>

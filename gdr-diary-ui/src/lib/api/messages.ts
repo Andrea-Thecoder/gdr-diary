@@ -10,7 +10,10 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
 	file: 'File',
 	settings: 'Impostazioni',
 	size: 'Pagina',
-	page: 'Pagina'
+	page: 'Pagina',
+	tag: 'Tag',
+	message: 'Messaggio',
+	email: 'Email'
 };
 
 const TITLES: Readonly<Record<string, string>> = {
@@ -20,7 +23,9 @@ const TITLES: Readonly<Record<string, string>> = {
 	NOT_FOUND: 'Elemento non trovato',
 	CONFLICT: 'I dati sono cambiati nel frattempo: riprova',
 	CONTENT_TOO_LARGE: 'Il file è troppo grande',
-	INTERNAL_ERROR: 'Si è verificato un errore imprevisto: riprova più tardi'
+	INTERNAL_ERROR: 'Si è verificato un errore imprevisto: riprova più tardi',
+	'A diary can have at most 10 different tags':
+		'Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.'
 };
 
 const SENTENCES: Readonly<Record<string, string>> = {
@@ -52,9 +57,21 @@ const SENTENCES: Readonly<Record<string, string>> = {
 		'Il diario è cambiato mentre lo eliminavi: riprova',
 	'The account changed while it was being deleted, try again':
 		'L’account è cambiato mentre lo eliminavi: riprova',
+	'Technical info too large':
+		'Le informazioni tecniche sono troppo lunghe: invia il messaggio senza',
+	'Technical info is not a valid JSON object':
+		'Le informazioni tecniche non sono valide: invia il messaggio senza',
+	'Technical info contains characters that cannot be stored':
+		'Le informazioni tecniche contengono caratteri che non si possono salvare',
+	'the privacy policy must be accepted': 'Serve la spunta per poter inviare il messaggio',
+	'must be idea, bug or love': 'Scegli il tipo di messaggio: idea, problema o complimento',
+	'Too many feedback submissions, try again later':
+		'Hai inviato troppi messaggi in poco tempo: riprova più tardi',
 	'Diary not found': 'Diario non trovato',
 	'Character not found': 'Personaggio non trovato',
 	'Page not found': 'Pagina non trovata',
+	'A diary can have at most 10 different tags':
+		'Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.',
 	'User not found': 'Utente non trovato',
 	'The token has no email address': 'Il tuo account non ha un indirizzo email',
 	'Authentication required': 'Devi accedere per continuare',
@@ -84,6 +101,18 @@ function sentenceFor(message: string): string | undefined {
 	const full = /^The diary is full \((\d+) pages\)$/.exec(message);
 	if (full?.[1] !== undefined) {
 		return `Il diario è pieno: ${full[1]} pagine su ${full[1]}`;
+	}
+	const sheets = /^The character has too many sheets \((\d+)\)$/.exec(message);
+	if (sheets?.[1] !== undefined) {
+		return `Questo personaggio ha già ${sheets[1]} schede, il massimo: elimina quella che non ti serve più per caricarne un’altra`;
+	}
+	const files = /^Too many files \(maximum (\d+)\)$/.exec(message);
+	if (files?.[1] !== undefined) {
+		return `Puoi allegare al massimo ${files[1]} immagini`;
+	}
+	const total = /^Files too large \(maximum total (\d+) MB\)$/.exec(message);
+	if (total?.[1] !== undefined) {
+		return `Le immagini insieme superano ${total[1]} MB: togline qualcuna`;
 	}
 	if (message.startsWith('Invalid page content at ')) {
 		return 'Il contenuto della pagina non è valido';
@@ -135,7 +164,8 @@ export function fieldLabel(field: string | null | undefined): string | undefined
 	if (field === undefined || field === null) {
 		return undefined;
 	}
-	return FIELD_LABELS[field] ?? FIELD_LABELS[field.split('.')[0] ?? ''];
+	const base = field.replace(/\[[^\]]*\]/g, '');
+	return FIELD_LABELS[base] ?? FIELD_LABELS[base.split('.')[0] ?? ''];
 }
 
 export function translateMessage(message: string, field?: string | null): string {

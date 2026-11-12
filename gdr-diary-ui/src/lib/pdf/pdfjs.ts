@@ -11,6 +11,25 @@ export interface PdfjsKit {
 // cartella dei file di supporto, servita dal plugin di Vite (vite.config.ts)
 export const PDFJS_ASSETS = '/pdfjs/';
 
+// Dove pdf.js trova font, cmap, profili ICC e il wasm dei decodificatori (stessi in editor e miniature).
+export function documentOptions(url: string): {
+	url: string;
+	wasmUrl: string;
+	standardFontDataUrl: string;
+	cMapUrl: string;
+	cMapPacked: boolean;
+	iccUrl: string;
+} {
+	return {
+		url,
+		wasmUrl: `${PDFJS_ASSETS}wasm/`,
+		standardFontDataUrl: `${PDFJS_ASSETS}standard_fonts/`,
+		cMapUrl: `${PDFJS_ASSETS}cmaps/`,
+		cMapPacked: true,
+		iccUrl: `${PDFJS_ASSETS}iccs/`
+	};
+}
+
 let kit: Promise<PdfjsKit> | undefined;
 
 // pdf.js pesa più di un megabyte: si scarica solo quando si apre una scheda.

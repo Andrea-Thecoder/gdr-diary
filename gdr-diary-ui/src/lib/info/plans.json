@@ -1,0 +1,120 @@
+{
+	"plans": [
+		{
+			"id": "free",
+			"kind": "Per cominciare",
+			"name": "Gratuito",
+			"price": "0 €",
+			"per": "per sempre",
+			"text": "Tutto ciò che serve per scrivere le cronache del tuo personaggio.",
+			"points": [
+				"Fino a 3 personaggi e 3 diari",
+				"Fino a 100 pagine per diario",
+				"1 scheda PDF per personaggio",
+				"100 MB per immagini e PDF"
+			],
+			"soon": false
+		},
+		{
+			"id": "premium",
+			"kind": "Per chi scrive tanto",
+			"name": "Premium",
+			"price": "Prezzo da definire",
+			"per": "",
+			"text": "Più spazio e qualche extra. Le voci sono in definizione.",
+			"points": [
+				"Tutto ciò che c’è nel gratuito",
+				"Personaggi e diari illimitati",
+				"10 schede PDF per personaggio",
+				"5 GB per immagini e PDF"
+			],
+			"soon": true
+		}
+	],
+	"groups": [
+		{
+			"title": "Scrittura",
+			"rows": [
+				{
+					"label": "Personaggi per account*",
+					"free": "Fino a 3",
+					"premium": "Illimitati"
+				},
+				{
+					"label": "Diari per account",
+					"free": "Fino a 3",
+					"premium": "Illimitati"
+				},
+				{
+					"label": "Fino a 100 pagine per diario",
+					"free": true,
+					"premium": true
+				},
+				{
+					"label": "Editor di testo ricco e salvataggio automatico",
+					"free": true,
+					"premium": true
+				},
+				{
+					"label": "Tag sulle pagine",
+					"free": true,
+					"premium": true
+				}
+			]
+		},
+		{
+			"title": "Schede e file",
+			"rows": [
+				{
+					"label": "Schede PDF per personaggio",
+					"free": "1",
+					"premium": "10"
+				},
+				{
+					"label": "Compilare il PDF dentro l’app",
+					"free": true,
+					"premium": true
+				},
+				{
+					"label": "Spazio per immagini e PDF",
+					"free": "100 MB",
+					"premium": "5 GB"
+				}
+			]
+		},
+		{
+			"title": "Extra",
+			"rows": [
+				{
+					"label": "Esportazione del diario",
+					"free": true,
+					"premium": true,
+					"soon": true
+				},
+				{
+					"label": "Immagini generate con IA",
+					"free": false,
+					"premium": true,
+					"soon": true
+				},
+				{
+					"label": "Condividere un diario con altri",
+					"free": false,
+					"premium": true,
+					"soon": true
+				},
+				{
+					"label": "Temi e font aggiuntivi",
+					"free": false,
+					"premium": true
+				},
+				{
+					"label": "Assistenza prioritaria",
+					"free": false,
+					"premium": true
+				}
+			]
+		}
+	],
+	"note": "* Per personaggi si intende una combinazione di personaggi e/o master."
+}

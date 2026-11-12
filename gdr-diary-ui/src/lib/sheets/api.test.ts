@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApiClient } from '#lib/api/client.js';
+import { FakeXhr } from '#lib/api/xhr-support.js';
 import {
 	createSheet,
 	deleteSheet,
@@ -86,6 +87,10 @@ describe('fetchSheets', () => {
 	});
 });
 
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
+
 describe('createSheet', () => {
 	it('posts the PDF, the trimmed title and the system as multipart form data', async () => {
 		const { api, requests } = clientWith(() => json({ id: 's1', title: 'Scheda livello 5' }, 201));
@@ -113,6 +118,23 @@ describe('createSheet', () => {
 		const { api } = clientWith(() => json({ title: 'File troppo grande', status: 413 }, 413));
 
 		await expect(createSheet(api, 'c1', fields, pdf)).rejects.toThrow('File troppo grande');
+	});
+
+	it('reports the progress of the upload when asked to', async () => {
+		vi.stubGlobal('XMLHttpRequest', FakeXhr);
+		const { api, requests } = clientWith(() => json({}));
+		const onProgress = vi.fn<(fraction: number) => void>();
+		const sent = FakeXhr.nextSent();
+
+		const upload = createSheet(api, 'c1', fields, pdf, onProgress);
+		const xhr = await sent;
+		xhr.progress(1, 4);
+		xhr.finish(201, '{"id":"s1","title":"Scheda livello 5"}');
+
+		expect(await upload).toEqual({ id: 's1', title: 'Scheda livello 5' });
+		expect(onProgress).toHaveBeenCalledWith(0.25);
+		expect(xhr.headers['authorization']).toBe('Bearer token');
+		expect(requests).toHaveLength(0);
 	});
 });
 

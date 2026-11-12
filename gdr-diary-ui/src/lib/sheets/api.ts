@@ -1,6 +1,7 @@
 import type { ApiClient } from '#lib/api/client.js';
 import { describeApiError } from '#lib/api/client.js';
 import { fileForm } from '#lib/api/multipart.js';
+import { fetchWithProgress, type UploadProgress } from '#lib/api/progress.js';
 import type { components } from '#lib/api/schema.js';
 
 export type SheetSummary = components['schemas']['BaseCharacterSheetDTO'];
@@ -31,6 +32,12 @@ export interface SheetFields {
 export interface SavedSheet {
 	sheet: SheetDetail;
 	fileError: string | null;
+}
+
+function withProgress(onProgress: UploadProgress | undefined): {
+	fetch?: (request: Request) => Promise<Response>;
+} {
+	return onProgress === undefined ? {} : { fetch: fetchWithProgress(onProgress) };
 }
 
 function sheetForm(file: File, fields: SheetFields): () => FormData {
@@ -81,12 +88,14 @@ export async function createSheet(
 	api: ApiClient,
 	characterId: string,
 	fields: SheetFields,
-	file: File
+	file: File,
+	onProgress?: UploadProgress
 ): Promise<SheetDetail> {
 	const { data, error } = await api.POST('/characters/{characterId}/sheets', {
 		params: { path: { characterId } },
 		body: { file: '', title: fields.title.trim() },
-		bodySerializer: sheetForm(file, fields)
+		bodySerializer: sheetForm(file, fields),
+		...withProgress(onProgress)
 	});
 	if (data === undefined) {
 		throw new Error(describeApiError(error, 'Non riesco a caricare la scheda.'));
@@ -98,7 +107,8 @@ export async function updateSheet(
 	api: ApiClient,
 	id: string,
 	fields: SheetFields,
-	file: File | null
+	file: File | null,
+	onProgress?: UploadProgress
 ): Promise<SavedSheet> {
 	const system = fields.system.trim();
 	const { data, error } = await api.PUT('/sheets/{id}', {
@@ -114,7 +124,8 @@ export async function updateSheet(
 	const replaced = await api.PUT('/sheets/{id}/file', {
 		params: { path: { id } },
 		body: { file: '' },
-		bodySerializer: fileForm(file)
+		bodySerializer: fileForm(file),
+		...withProgress(onProgress)
 	});
 	if (replaced.data === undefined) {
 		return {
