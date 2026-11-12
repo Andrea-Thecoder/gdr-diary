@@ -97,6 +97,21 @@ Le immagini sono salvate in uno storage compatibile S3. In locale viene utilizza
 | `app.storage.bucket` | `diary-documents` |
 | `app.storage.access-key` | `admin` |
 | `app.storage.secret-key` | `secret` |
+| `app.storage.create-buckets` | `true` (il backend crea i bucket all'avvio se mancano) |
+
+### Configurazione Feedback
+
+Il modulo pubblico del feedback (`POST /feedback`, senza token) salva gli screenshot in un bucket separato. La lettura e la gestione dei feedback sono solo per il ruolo `admin`.
+
+| Proprietà (`application.properties`) | Valore |
+|---|---|
+| `app.feedback.bucket` | `feedback-documents` |
+| `app.feedback.max-files` | `3` |
+| `app.feedback.max-total-file-size` | `5MB` (in totale, per tutti i file) |
+| `app.feedback.max-technical-info-size` | `2KB` |
+| `app.feedback.timezone` | `Europe/Rome` (fuso dei filtri per data della lista) |
+| `app.feedback.rate-limit-max-requests` | `5` (per indirizzo) |
+| `app.feedback.rate-limit-window` | `1h` |
 
 ### Configurazione SMTP
 

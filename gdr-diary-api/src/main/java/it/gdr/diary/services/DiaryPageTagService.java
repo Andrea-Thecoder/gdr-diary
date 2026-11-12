@@ -23,7 +23,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -48,7 +47,9 @@ public class DiaryPageTagService {
                 .setLabel("findAllDiaryTagsByDiary")
                 .select("name")
                 .fetch("page", "pageNumber")
-                .where().eq("diary.id", diaryId).eq("diary.character.owner.keycloakId", jwtInspector.getSubject());
+                .where()
+                .eq("diary.id", diaryId)
+                .eq("diary.character.owner.keycloakId", jwtInspector.getSubject());
         request.applyFilter(query);
         List<DiaryPageTag> tags = query.orderBy("page.pageNumber").findList();
         Map<String, List<DiaryPageTag>> groups = new LinkedHashMap<>();
@@ -58,7 +59,6 @@ public class DiaryPageTagService {
         List<BaseDiaryTagDTO> all = groups.values().stream()
                 .map(group -> new BaseDiaryTagDTO(group.getFirst().getName(),
                         group.stream().map(tag -> tag.getPage().getPageNumber()).toList()))
-                .sorted(Comparator.comparing(BaseDiaryTagDTO::name, String.CASE_INSENSITIVE_ORDER))
                 .toList();
         int from = (int) Math.min((request.getPage() - 1L) * request.getSize(), all.size());
         int to = Math.min(from + request.getSize(), all.size());

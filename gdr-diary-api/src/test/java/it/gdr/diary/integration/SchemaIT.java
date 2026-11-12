@@ -217,4 +217,92 @@ class SchemaIT extends AbstractIntegrationTest {
     void diaryPageTagName_longerThanThirtyCharacters_isRejected() {
         assertThatThrownBy(() -> insertSameTagOnTwoPages("a".repeat(31), "b")).isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    private void insertFeedback(String type, String status, String email, boolean privacyAccepted, String message) {
+        transactions.executeWithoutResult(transaction -> {
+            jdbc.update("insert into feedback (id, type, status, email, privacy_accepted, message, created_at, updated_at, version, created_by, updated_by) "
+                    + "values (?, ?, ?, ?, ?, ?, now(), now(), 0, 'N/A', 'N/A')", UUID.randomUUID(), type, status, email, privacyAccepted, message);
+            transaction.setRollbackOnly();
+        });
+    }
+
+    private void insertValidFeedbackWithMessage(String message) {
+        insertFeedback("IDEA", "NEW", "alira@example.com", true, message);
+    }
+
+    private void insertTwoFeedbackLinksWithSameDocument() {
+        transactions.executeWithoutResult(transaction -> {
+            UUID feedbackId = UUID.randomUUID();
+            UUID documentId = UUID.randomUUID();
+            jdbc.update("insert into feedback (id, type, status, email, privacy_accepted, message, created_at, updated_at, version, created_by, updated_by) "
+                    + "values (?, 'BUG', 'NEW', 'alira@example.com', true, 'Broken', now(), now(), 0, 'N/A', 'N/A')", feedbackId);
+            jdbc.update("insert into document (id, size, created_at, updated_at, version, name, mime_type, bucket, object_key, created_by, updated_by) "
+                    + "values (?, 1, now(), now(), 0, 'a.png', 'image/png', 'feedback-documents', 'key', 'N/A', 'N/A')", documentId);
+            jdbc.update("insert into feedback_document (id, feedback_id, document_id, created_at, updated_at, version, created_by, updated_by) "
+                    + "values (?, ?, ?, now(), now(), 0, 'N/A', 'N/A')", UUID.randomUUID(), feedbackId, documentId);
+            jdbc.update("insert into feedback_document (id, feedback_id, document_id, created_at, updated_at, version, created_by, updated_by) "
+                    + "values (?, ?, ?, now(), now(), 0, 'N/A', 'N/A')", UUID.randomUUID(), feedbackId, documentId);
+            transaction.setRollbackOnly();
+        });
+    }
+
+    @Test
+    void feedback_validRow_isAccepted() {
+        assertThatCode(() -> insertValidFeedbackWithMessage("Great tags")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void feedbackType_unknownValue_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertFeedback("PRAISE", "NEW", "alira@example.com", true, "Hi")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackStatus_unknownValue_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertFeedback("IDEA", "DONE", "alira@example.com", true, "Hi")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackPrivacyAccepted_false_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertFeedback("IDEA", "NEW", "alira@example.com", false, "Hi")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackEmail_missing_isRejected() {
+        assertThatThrownBy(() -> insertFeedback("IDEA", "NEW", null, true, "Hi")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackMessage_empty_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertValidFeedbackWithMessage("")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackMessage_2000Chars_isAccepted() {
+        assertThatCode(() -> insertValidFeedbackWithMessage("a".repeat(2000))).doesNotThrowAnyException();
+    }
+
+    @Test
+    void feedbackMessage_2001Chars_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertValidFeedbackWithMessage("a".repeat(2001))).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void feedbackMessage_2000EmojisCountedAsCharacters_isAccepted() {
+        assertThatCode(() -> insertValidFeedbackWithMessage("🎲".repeat(2000))).doesNotThrowAnyException();
+    }
+
+    @Test
+    void feedbackDocumentFeedbackForeignKey_schema_restrictsDelete() {
+        assertThat(deleteRuleOf("fk_feedback_document_feedback_id")).isEqualTo("r");
+    }
+
+    @Test
+    void feedbackDocumentDocumentForeignKey_schema_restrictsDelete() {
+        assertThat(deleteRuleOf("fk_feedback_document_document_id")).isEqualTo("r");
+    }
+
+    @Test
+    void feedbackDocument_sameDocumentLinkedTwice_isRejectedByUniqueConstraint() {
+        assertThatThrownBy(this::insertTwoFeedbackLinksWithSameDocument).isInstanceOf(DataIntegrityViolationException.class);
+    }
 }

@@ -35,6 +35,7 @@ public class StorageConfig {
     private String bucket;
     @NotBlank
     private String region = "us-east-1";
+    private boolean createBuckets = true;
     @NotNull
     @DurationMin(seconds = 1)
     @DurationMax(days = 7)

@@ -13,7 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 
 @Getter
 @Setter
-@Schema(description = "Search filter and pagination for the tags of a diary, always sorted by name ignoring case")
+@Schema(description = "Search filter and pagination for the tags of a diary, always sorted by the number of the first page that has each tag")
 public class DiaryTagSearchRequest {
 
     @Size(max = 30)

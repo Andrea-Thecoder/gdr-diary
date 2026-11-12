@@ -135,6 +135,33 @@ class DocumentServiceTest {
     }
 
     @Test
+    void createImageDocument_otherBucket_uploadsToThatBucket() throws Exception {
+        MultipartFile file = file("screenshot.png", "image/png", PNG);
+        ArgumentCaptor<PutObjectArgs> args = ArgumentCaptor.forClass(PutObjectArgs.class);
+
+        service.createImageDocument(file, "feedback-documents");
+
+        verify(minioClient).putObject(args.capture());
+        assertThat(args.getValue().bucket()).isEqualTo("feedback-documents");
+    }
+
+    @Test
+    void createImageDocument_otherBucket_storesThatBucketOnDocument() {
+        MultipartFile file = file("screenshot.png", "image/png", PNG);
+
+        Document document = service.createImageDocument(file, "feedback-documents");
+
+        assertThat(document.getBucket()).isEqualTo("feedback-documents");
+    }
+
+    @Test
+    void createImageDocument_otherBucketWithPdf_throwsServiceException() {
+        MultipartFile file = file("doc.pdf", "application/pdf", PDF);
+
+        assertThatThrownBy(() -> service.createImageDocument(file, "feedback-documents")).isInstanceOf(ServiceException.class);
+    }
+
+    @Test
     void createImageDocument_validPng_savesDocument() {
         MultipartFile file = file("avatar.png", "image/png", PNG);
 

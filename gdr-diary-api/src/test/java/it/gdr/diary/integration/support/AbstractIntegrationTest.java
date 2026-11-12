@@ -30,6 +30,8 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
+    protected static final String FEEDBACK_BUCKET = "feedback-documents";
+
     protected static final byte[] PNG = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
 
@@ -62,15 +64,21 @@ public abstract class AbstractIntegrationTest {
 
     @AfterEach
     void cleanUp() throws Exception {
-        jdbc.execute("truncate table character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
-        for (String key : storedObjectKeys()) {
-            minioClient.removeObject(RemoveObjectArgs.builder().bucket(TestContainers.BUCKET).object(key).build());
+        jdbc.execute("truncate table feedback_document, feedback, character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
+        for (String bucket : List.of(TestContainers.BUCKET, FEEDBACK_BUCKET)) {
+            for (String key : storedObjectKeys(bucket)) {
+                minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build());
+            }
         }
     }
 
     protected List<String> storedObjectKeys() throws Exception {
+        return storedObjectKeys(TestContainers.BUCKET);
+    }
+
+    protected List<String> storedObjectKeys(String bucket) throws Exception {
         List<String> keys = new ArrayList<>();
-        for (Result<Item> item : minioClient.listObjects(ListObjectsArgs.builder().bucket(TestContainers.BUCKET).recursive(true).build())) {
+        for (Result<Item> item : minioClient.listObjects(ListObjectsArgs.builder().bucket(bucket).recursive(true).build())) {
             keys.add(item.get().objectName());
         }
         return keys;

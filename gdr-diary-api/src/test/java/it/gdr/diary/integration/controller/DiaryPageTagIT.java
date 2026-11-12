@@ -582,8 +582,24 @@ class DiaryPageTagIT extends AbstractIntegrationTest {
 
         MvcTestResult result = diaryTags(diaryId, "");
 
-        assertThat(result).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("clues", "combat"));
-        assertThat(result).bodyJson().extractingPath("$.list[*].pageNumbers").isEqualTo(List.of(List.of(2), List.of(1, 3)));
+        assertThat(result).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("combat", "clues"));
+        assertThat(result).bodyJson().extractingPath("$.list[*].pageNumbers").isEqualTo(List.of(List.of(1, 3), List.of(2)));
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_tagsOnDifferentPages_sortsByFirstPageNotByName() {
+        UUID diaryId = diaryWithTaggedPages(null, null, "madonna mia", null, "aaaaaaaa");
+
+        assertThat(diaryTags(diaryId, "")).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("madonna mia", "aaaaaaaa"));
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_diaryWithTagsInOtherDiaryOfTheUser_listsOnlyTagsOfThisDiary() {
+        UUID first = diaryWithTaggedPages("combat");
+        UUID second = createDiary(characterOf(first), "Second");
+        putTag(createDiaryPage(second, "Page"), "clues");
+
+        assertThat(diaryTags(first, "")).bodyJson().extractingPath("$.list[*].name").isEqualTo(List.of("combat"));
     }
 
     @Test

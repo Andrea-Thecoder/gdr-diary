@@ -39,7 +39,7 @@ public class DiaryPageTagController {
             summary = "List the tags of a diary",
             description = "Returns a page of the tags used in the pages of a diary of a character owned by the logged-in user, "
                     + "each with the numbers of the pages that have it (a diary has at most 10 different tags). Tags that differ only by case are grouped. "
-                    + "The tags are always sorted by name ignoring case.")
+                    + "The tags are always sorted by the number of the first page that has them (the first tag of the diary comes first).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page of tags of the diary (empty list if none)"),
             @ApiResponse(responseCode = "400", description = "Invalid search parameters (for example page below 1, size above 100 or name longer than 30 characters), or diary identifier that is not a UUID",

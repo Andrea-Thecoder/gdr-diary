@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import it.gdr.diary.config.AppUserConfig;
 import it.gdr.diary.config.CharacterSheetConfig;
 import it.gdr.diary.config.DiaryPageConfig;
+import it.gdr.diary.config.FeedbackConfig;
 import it.gdr.diary.config.StorageConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,6 +40,15 @@ class ConfigValidationTest {
     @Configuration
     @EnableConfigurationProperties(CharacterSheetConfig.class)
     static class CharacterSheetProperties {
+    }
+
+    @Configuration
+    @EnableConfigurationProperties(FeedbackConfig.class)
+    static class FeedbackProperties {
+    }
+
+    private ApplicationContextRunner feedbackRunner(String... values) {
+        return new ApplicationContextRunner().withUserConfiguration(FeedbackProperties.class).withPropertyValues(values);
     }
 
     private ApplicationContextRunner userRunner(String... values) {
@@ -181,5 +191,37 @@ class ConfigValidationTest {
     @Test
     void startup_negativeMaxSheetsPerCharacter_fails() {
         characterSheetRunner("app.character-sheet.max-sheets-per-character=-1").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_validFeedbackConfig_succeeds() {
+        feedbackRunner("app.feedback.bucket=feedback-documents", "app.feedback.max-files=3", "app.feedback.max-total-file-size=5MB",
+                "app.feedback.max-technical-info-size=2KB", "app.feedback.timezone=Europe/Rome",
+                "app.feedback.rate-limit-max-requests=5", "app.feedback.rate-limit-window=1h")
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void startup_noFeedbackConfig_usesDefaultTimezone() {
+        feedbackRunner().run(context -> assertThat(context.getBean(FeedbackConfig.class).getTimezone().getId()).isEqualTo("Europe/Rome"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "app.feedback.bucket= ",
+            "app.feedback.max-files=0",
+            "app.feedback.max-total-file-size=0B",
+            "app.feedback.max-total-file-size=-1MB",
+            "app.feedback.max-technical-info-size=0B",
+            "app.feedback.timezone=Mars/Olympus",
+            "app.feedback.rate-limit-max-requests=0",
+            "app.feedback.rate-limit-window=0s"})
+    void startup_invalidFeedbackValue_fails(String value) {
+        feedbackRunner(value).run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_storageWithoutCreateBuckets_createsBucketsByDefault() {
+        storageRunner().run(context -> assertThat(context.getBean(StorageConfig.class).isCreateBuckets()).isTrue());
     }
 }

@@ -284,6 +284,38 @@ class SecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void createFeedback_noToken_returnsCreated() {
+        assertThat(mvc.post().uri("/feedback").multipart()
+                .with(request -> {
+                    request.setRemoteAddr("192.0.2.77");
+                    return request;
+                })
+                .param("type", "idea").param("message", "Great tags").param("email", "alira@example.com").param("consent", "true"))
+                .hasStatus(HttpStatus.CREATED);
+    }
+
+    @Test
+    void findAllFeedbacks_userToken_returnsForbidden() {
+        String token = accessToken(TestContainers.FRONTEND_CLIENT, "user1");
+
+        assertThat(mvc.get().uri("/feedback").header(HttpHeaders.AUTHORIZATION, bearer(token))).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void findAllFeedbacks_adminToken_returnsOk() {
+        String token = accessToken(TestContainers.FRONTEND_CLIENT, "admin1");
+
+        assertThat(mvc.get().uri("/feedback").header(HttpHeaders.AUTHORIZATION, bearer(token))).hasStatusOk();
+    }
+
+    @Test
+    void findAllFeedbacks_tokenWithoutRoles_returnsForbidden() {
+        String token = accessToken(TestContainers.FRONTEND_CLIENT, NO_ROLE_USER);
+
+        assertThat(mvc.get().uri("/feedback").header(HttpHeaders.AUTHORIZATION, bearer(token))).hasStatus(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void getActuatorHealth_noToken_returnsOk() {
         assertThat(mvc.get().uri("/actuator/health")).hasStatusOk();
     }

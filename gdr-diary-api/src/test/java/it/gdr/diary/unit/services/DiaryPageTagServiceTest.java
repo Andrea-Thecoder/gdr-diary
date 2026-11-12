@@ -157,7 +157,7 @@ class DiaryPageTagServiceTest {
 
         InOrder order = inOrder(diaries.query(), database);
         order.verify(diaries.query()).forUpdate();
-        order.verify(database).find(DiaryPageTag.class);
+        order.verify(database, atLeastOnce()).find(DiaryPageTag.class);
         verify(diaries.where()).idEq(DIARY_ID);
         verify(diaries.where()).eq("character.owner.keycloakId", SUBJECT);
     }
@@ -500,7 +500,35 @@ class DiaryPageTagServiceTest {
         PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
 
         assertThat(result.getList()).extracting(BaseDiaryTagDTO::name, BaseDiaryTagDTO::pageNumbers)
-                .containsExactly(tuple("clues", List.of((short) 2)), tuple("Combat", List.of((short) 1, (short) 3)));
+                .containsExactly(tuple("Combat", List.of((short) 1, (short) 3)), tuple("clues", List.of((short) 2)));
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_anyDiary_asksTheDatabaseToSortByPageNumber() {
+        QueryStub<DiaryPageTag> found = givenDiaryWithTags();
+
+        service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
+
+        verify(found.where()).orderBy("page.pageNumber");
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_tagsFromTheDatabase_keepsTheOrderOfTheFirstPage() {
+        givenDiaryWithTags(tagOnPage("madonna mia", 3), tagOnPage("aaaaaaaa", 5));
+
+        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
+
+        assertThat(result.getList()).extracting(BaseDiaryTagDTO::name).containsExactly("madonna mia", "aaaaaaaa");
+    }
+
+    @Test
+    void findAllDiaryTagsByDiary_sameTagOnSeveralPages_listsAllItsPageNumbers() {
+        givenDiaryWithTags(tagOnPage("combat", 2), tagOnPage("combat", 4), tagOnPage("combat", 7));
+
+        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
+
+        assertThat(result.getList()).extracting(BaseDiaryTagDTO::pageNumbers)
+                .containsExactly(List.of((short) 2, (short) 4, (short) 7));
     }
 
     @Test

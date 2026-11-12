@@ -9,6 +9,9 @@ import it.gdr.diary.dto.diary.BaseDiaryDTO;
 import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary_page.BaseDiaryPageDTO;
+import it.gdr.diary.dto.feedback.AttachmentFeedbackDTO;
+import it.gdr.diary.dto.feedback.BaseFeedbackDTO;
+import it.gdr.diary.dto.feedback.DetailFeedbackDTO;
 import it.gdr.diary.dto.game_character.BaseGameCharacterDTO;
 import it.gdr.diary.dto.game_character.DetailGameCharacterDTO;
 import it.gdr.diary.model.AppUser;
@@ -16,9 +19,13 @@ import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
+import it.gdr.diary.model.Feedback;
+import it.gdr.diary.model.FeedbackStatus;
+import it.gdr.diary.model.FeedbackType;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -241,6 +248,55 @@ class DtoMappingTest {
     @Test
     void detailCharacterSheetFrom_sheet_doesNotExposeStorageKeys() {
         DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    private static Feedback feedback(String message) {
+        Feedback feedback = new Feedback();
+        feedback.setId(DOCUMENT_ID);
+        feedback.setType(FeedbackType.IDEA);
+        feedback.setStatus(FeedbackStatus.NEW);
+        feedback.setMessage(message);
+        feedback.setPrivacyAccepted(true);
+        return feedback;
+    }
+
+    @Test
+    void baseFeedbackFrom_shortMessage_keepsWholeMessageAsPreview() {
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback("Great tags"));
+
+        assertThat(dto.messagePreview()).isEqualTo("Great tags");
+    }
+
+    @Test
+    void baseFeedbackFrom_messageOf120Chars_keepsWholeMessageAsPreview() {
+        String message = "a".repeat(120);
+
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback(message));
+
+        assertThat(dto.messagePreview()).isEqualTo(message);
+    }
+
+    @Test
+    void baseFeedbackFrom_longMessage_cutsPreviewTo120CharsWithEllipsis() {
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback("a".repeat(2000)));
+
+        assertThat(dto.messagePreview()).hasSize(120).endsWith("...");
+    }
+
+    @Test
+    void detailFeedbackFrom_feedback_keepsWholeMessage() {
+        String message = "a".repeat(2000);
+
+        DetailFeedbackDTO dto = DetailFeedbackDTO.from(feedback(message), List.of());
+
+        assertThat(dto.message()).isEqualTo(message);
+    }
+
+    @Test
+    void attachmentFeedbackFrom_document_doesNotExposeStorageKeys() {
+        AttachmentFeedbackDTO dto = AttachmentFeedbackDTO.from(document(), URL);
 
         assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
     }

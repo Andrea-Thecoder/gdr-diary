@@ -47,11 +47,15 @@ public class DocumentService {
     private final StorageConfig config;
 
     public Document createImageDocument(MultipartFile file) {
-        return createDocument(file, IMAGE_TYPES, config.getMaxFileSize());
+        return createDocument(file, IMAGE_TYPES, config.getMaxFileSize(), config.getBucket());
+    }
+
+    public Document createImageDocument(MultipartFile file, String bucket) {
+        return createDocument(file, IMAGE_TYPES, config.getMaxFileSize(), bucket);
     }
 
     public Document createPdfDocument(MultipartFile file) {
-        return createDocument(file, PDF_TYPES, config.getMaxPdfFileSize());
+        return createDocument(file, PDF_TYPES, config.getMaxPdfFileSize(), config.getBucket());
     }
 
     public void deleteDocumentRecord(Document document) {
@@ -66,7 +70,7 @@ public class DocumentService {
         }
     }
 
-    private Document createDocument(MultipartFile file, Set<String> kindTypes, DataSize maxSize) {
+    private Document createDocument(MultipartFile file, Set<String> kindTypes, DataSize maxSize, String bucket) {
         if (file.isEmpty()) {
             throw new ServiceException("Empty file");
         }
@@ -90,7 +94,7 @@ public class DocumentService {
         document.setName(truncateFileName(name));
         document.setSize(file.getSize());
         document.setMimeType(mimeType);
-        document.setBucket(config.getBucket());
+        document.setBucket(bucket);
         document.setObjectKey(UUID.randomUUID().toString());
         putObject(document, file);
         try {
