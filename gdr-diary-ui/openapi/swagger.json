@@ -37,6 +37,10 @@
       "description": "Manage the PDF sheets of the characters of the logged-in user"
     },
     {
+      "name": "Payments",
+      "description": "The payments of the logged-in user (read only)"
+    },
+    {
       "name": "Diary pages",
       "description": "Manage the pages of the diaries of the logged-in user (maximum 100 pages per diary)"
     }
@@ -1895,12 +1899,12 @@
         "tags": [
           "Users"
         ],
-        "summary": "Delete all the data of the logged-in user",
-        "description": "Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. Everything is deleted in a single transaction: if something fails nothing is deleted. The account on the authentication server is not touched: the client deletes it after this call. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.",
+        "summary": "Delete the account and all the data of the logged-in user",
+        "description": "Permanently deletes the account of the logged-in user: first the user on the authentication server (Keycloak, retried three times with growing waits if it fails; an already deleted user counts as done), then everything the user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. The payments of the user are not deleted: they are kept, detached from the account, because the law requires to retain them. Everything is deleted in a single transaction: if something fails nothing is deleted. If the authentication server cannot delete the user after the retries it answers 502 and deletes nothing in the backend. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.",
         "operationId": "deleteAppUser",
         "responses": {
           "200": {
-            "description": "Data deleted",
+            "description": "Account and data deleted",
             "content": {
               "application/json": {
                 "schema": {
@@ -1920,7 +1924,17 @@
             }
           },
           "409": {
-            "description": "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again",
+            "description": "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted in the backend (the user on the authentication server is already gone, so calling again goes straight to the data), try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The user could not be deleted on the authentication server after the retries: nothing is deleted in the backend, try again later",
             "content": {
               "application/json": {
                 "schema": {
@@ -3380,6 +3394,193 @@
         ]
       }
     },
+    "/me/payments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "List the payments of the logged-in user",
+        "description": "Returns a page of the payments of the logged-in user, optionally filtered by status. Default order: payment date, newest first, with the payments not yet paid last; it can be sorted by paidAt or amount. Payments are read only: they are recorded by the payment integration, not through the API.",
+        "operationId": "findAllPayments",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Status of the payment",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Status of the payment",
+              "enum": [
+                "PENDING",
+                "SUCCEEDED",
+                "FAILED",
+                "REFUNDED"
+              ],
+              "examples": [
+                "SUCCEEDED"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of payments of the logged-in user (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBasePaymentDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1, size above 100 or unknown status)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/payments/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Get a payment",
+        "description": "Returns a single payment of the logged-in user with the provider data and the customer data recorded at the time of the payment.",
+        "operationId": "getPaymentById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Payment identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailPaymentDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payment identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Payment not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/feedback/{id}": {
       "get": {
         "tags": [
@@ -4695,6 +4896,265 @@
             "description": "Temporary URL of the profile image, valid for a few minutes. Null if the user has no profile image",
             "examples": [
               "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "BasePaymentDTO": {
+        "type": "object",
+        "description": "Summary of a payment of the logged-in user, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Payment identifier",
+            "examples": [
+              "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the payment",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "REFUNDED"
+            ],
+            "examples": [
+              "SUCCEEDED"
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in the smallest unit of the currency (cents)",
+            "examples": [
+              2990
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency, ISO 4217 code",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the payment is for",
+            "examples": [
+              "Premium annual"
+            ]
+          },
+          "paidAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the payment succeeded, null until it does",
+            "examples": [
+              "2026-11-10T09:15:00Z"
+            ]
+          },
+          "invoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invoice number, null if there is none",
+            "examples": [
+              "2026-0042"
+            ]
+          },
+          "receiptUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address of the receipt or invoice hosted by the payment provider, null if there is none",
+            "examples": [
+              "https://pay.example/receipts/rcpt_1Nx"
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBasePaymentDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BasePaymentDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "DetailPaymentDTO": {
+        "type": "object",
+        "description": "A payment of the logged-in user with the customer data recorded at the time of the payment",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Payment identifier",
+            "examples": [
+              "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the payment",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "REFUNDED"
+            ],
+            "examples": [
+              "SUCCEEDED"
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in the smallest unit of the currency (cents)",
+            "examples": [
+              2990
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency, ISO 4217 code",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the payment is for",
+            "examples": [
+              "Premium annual"
+            ]
+          },
+          "paidAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the payment succeeded, null until it does",
+            "examples": [
+              "2026-11-10T09:15:00Z"
+            ]
+          },
+          "invoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invoice number, null if there is none",
+            "examples": [
+              "2026-0042"
+            ]
+          },
+          "receiptUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address of the receipt or invoice hosted by the payment provider, null if there is none",
+            "examples": [
+              "https://pay.example/receipts/rcpt_1Nx"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "description": "Payment provider",
+            "enum": [
+              "STRIPE"
+            ],
+            "examples": [
+              "STRIPE"
+            ]
+          },
+          "providerPaymentId": {
+            "type": "string",
+            "description": "Identifier of the transaction at the payment provider",
+            "examples": [
+              "pi_3Nx9Kd2eZvKYlo2C1abcDEFG"
+            ]
+          },
+          "customerEmail": {
+            "type": "string",
+            "description": "Email address of the customer at the time of the payment",
+            "examples": [
+              "alira@example.com"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the customer at the time of the payment, null if not recorded",
+            "examples": [
+              "Alira Stormwind"
+            ]
+          },
+          "customerTaxCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tax code or VAT number of the customer, null if not recorded",
+            "examples": [
+              "RSSMRA80A01H501U"
+            ]
+          },
+          "customerCountry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Country of the customer, ISO 3166-1 alpha-2 code, null if not recorded",
+            "examples": [
+              "IT"
             ]
           }
         }

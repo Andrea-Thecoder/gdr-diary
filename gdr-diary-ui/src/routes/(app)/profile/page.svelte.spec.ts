@@ -39,7 +39,14 @@ vi.mock('#lib/profile/password.js', async (importOriginal) => ({
 	requestPasswordChange: requestPassword
 }));
 
-vi.mock('#lib/api/index.js', () => ({ getApi: () => ({}) }));
+vi.mock('#lib/api/index.js', () => ({
+	getApi: () => ({
+		GET: (path: string) =>
+			path === '/me/payments'
+				? Promise.resolve({ data: { list: [], totalRows: 0, totalPages: 0, page: 1 } })
+				: Promise.reject(new Error(`${path} non serve in questi test`))
+	})
+}));
 vi.mock('#lib/profile/api.js', async (importOriginal) => ({
 	...(await importOriginal<Record<string, unknown>>()),
 	changeAvatar: change,

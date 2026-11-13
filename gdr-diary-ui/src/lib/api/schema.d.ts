@@ -271,8 +271,8 @@ export interface paths {
          */
         post: operations["createAppUser"];
         /**
-         * Delete all the data of the logged-in user
-         * @description Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. Everything is deleted in a single transaction: if something fails nothing is deleted. The account on the authentication server is not touched: the client deletes it after this call. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.
+         * Delete the account and all the data of the logged-in user
+         * @description Permanently deletes the account of the logged-in user: first the user on the authentication server (Keycloak, retried three times with growing waits if it fails; an already deleted user counts as done), then everything the user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. The payments of the user are not deleted: they are kept, detached from the account, because the law requires to retain them. Everything is deleted in a single transaction: if something fails nothing is deleted. If the authentication server cannot delete the user after the retries it answers 502 and deletes nothing in the backend. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.
          */
         delete: operations["deleteAppUser"];
         options?: never;
@@ -498,6 +498,46 @@ export interface paths {
          * @description Admin only. Sets the status of a feedback to ANSWERED. Repeating the call changes nothing.
          */
         patch: operations["markFeedbackAsAnswered"];
+        trace?: never;
+    };
+    "/me/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the payments of the logged-in user
+         * @description Returns a page of the payments of the logged-in user, optionally filtered by status. Default order: payment date, newest first, with the payments not yet paid last; it can be sorted by paidAt or amount. Payments are read only: they are recorded by the payment integration, not through the API.
+         */
+        get: operations["findAllPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a payment
+         * @description Returns a single payment of the logged-in user with the provider data and the customer data recorded at the time of the payment.
+         */
+        get: operations["getPaymentById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/feedback/{id}": {
@@ -1172,6 +1212,160 @@ export interface components {
              * @example http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=...
              */
             avatarUrl?: string | null;
+        };
+        /** @description Summary of a payment of the logged-in user, used in lists */
+        BasePaymentDTO: {
+            /**
+             * Format: uuid
+             * @description Payment identifier
+             * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+             */
+            id?: string;
+            /**
+             * @description Status of the payment
+             * @example SUCCEEDED
+             * @enum {string}
+             */
+            status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+            /**
+             * Format: int64
+             * @description Amount in the smallest unit of the currency (cents)
+             * @example 2990
+             */
+            amountCents?: number;
+            /**
+             * @description Currency, ISO 4217 code
+             * @example EUR
+             */
+            currency?: string;
+            /**
+             * @description What the payment is for
+             * @example Premium annual
+             */
+            description?: string;
+            /**
+             * Format: date-time
+             * @description When the payment succeeded, null until it does
+             * @example 2026-11-10T09:15:00Z
+             */
+            paidAt?: string | null;
+            /**
+             * @description Invoice number, null if there is none
+             * @example 2026-0042
+             */
+            invoiceNumber?: string | null;
+            /**
+             * @description Address of the receipt or invoice hosted by the payment provider, null if there is none
+             * @example https://pay.example/receipts/rcpt_1Nx
+             */
+            receiptUrl?: string | null;
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBasePaymentDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BasePaymentDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             * @example 243
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             * @example 3
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             * @example 100
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             * @example 1
+             */
+            page?: number;
+        };
+        /** @description A payment of the logged-in user with the customer data recorded at the time of the payment */
+        DetailPaymentDTO: {
+            /**
+             * Format: uuid
+             * @description Payment identifier
+             * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+             */
+            id?: string;
+            /**
+             * @description Status of the payment
+             * @example SUCCEEDED
+             * @enum {string}
+             */
+            status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+            /**
+             * Format: int64
+             * @description Amount in the smallest unit of the currency (cents)
+             * @example 2990
+             */
+            amountCents?: number;
+            /**
+             * @description Currency, ISO 4217 code
+             * @example EUR
+             */
+            currency?: string;
+            /**
+             * @description What the payment is for
+             * @example Premium annual
+             */
+            description?: string;
+            /**
+             * Format: date-time
+             * @description When the payment succeeded, null until it does
+             * @example 2026-11-10T09:15:00Z
+             */
+            paidAt?: string | null;
+            /**
+             * @description Invoice number, null if there is none
+             * @example 2026-0042
+             */
+            invoiceNumber?: string | null;
+            /**
+             * @description Address of the receipt or invoice hosted by the payment provider, null if there is none
+             * @example https://pay.example/receipts/rcpt_1Nx
+             */
+            receiptUrl?: string | null;
+            /**
+             * @description Payment provider
+             * @example STRIPE
+             * @enum {string}
+             */
+            provider?: "STRIPE";
+            /**
+             * @description Identifier of the transaction at the payment provider
+             * @example pi_3Nx9Kd2eZvKYlo2C1abcDEFG
+             */
+            providerPaymentId?: string;
+            /**
+             * @description Email address of the customer at the time of the payment
+             * @example alira@example.com
+             */
+            customerEmail?: string;
+            /**
+             * @description Name of the customer at the time of the payment, null if not recorded
+             * @example Alira Stormwind
+             */
+            customerName?: string | null;
+            /**
+             * @description Tax code or VAT number of the customer, null if not recorded
+             * @example RSSMRA80A01H501U
+             */
+            customerTaxCode?: string | null;
+            /**
+             * @description Country of the customer, ISO 3166-1 alpha-2 code, null if not recorded
+             * @example IT
+             */
+            customerCountry?: string | null;
         };
         /** @description Summary of a feedback, as shown in the list */
         BaseFeedbackDTO: {
@@ -3126,7 +3320,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Data deleted */
+            /** @description Account and data deleted */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3144,8 +3338,17 @@ export interface operations {
                     "application/json": components["schemas"]["ExceptionResponse"];
                 };
             };
-            /** @description The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again */
+            /** @description The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted in the backend (the user on the authentication server is already gone, so calling again goes straight to the data), try again */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The user could not be deleted on the authentication server after the retries: nothing is deleted in the backend, try again later */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4116,6 +4319,118 @@ export interface operations {
             };
             /** @description The feedback was modified at the same time by another request: nothing is saved, read it again and retry */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    findAllPayments: {
+        parameters: {
+            query?: {
+                /** @description Status of the payment */
+                status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+                /** @description Field name to sort by (see endpoint docs for allowed values) */
+                sort?: string;
+                /** @description Set to true to sort in descending order */
+                descending?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of payments of the logged-in user (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBasePaymentDTO"];
+                };
+            };
+            /** @description Invalid search parameters (for example page below 1, size above 100 or unknown status) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPaymentById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Payment identifier
+                 * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested payment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPaymentDTO"];
+                };
+            };
+            /** @description Payment identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Payment not found, or owned by another user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
