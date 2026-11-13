@@ -76,6 +76,55 @@ describe('login theme: register page', () => {
 	});
 });
 
+describe('login theme: privacy note on the register page', () => {
+	const page = read('register.ftl');
+	const messages = read('messages/messages_it.properties');
+
+	it('points to the privacy page of the app before the submit button', () => {
+		expect(page).toContain('${client.baseUrl?remove_ending("/")}/privacy');
+		expect(page.indexOf('gdr-privacy-note')).toBeLessThan(page.indexOf('msg("doRegister")'));
+		expect(messages).toContain('gdrPrivacyNote=');
+		expect(messages).toContain('gdrPrivacyLink=informativa sulla privacy');
+	});
+});
+
+describe('login theme: title and text of a step still to do', () => {
+	const page = read('info.ftl');
+
+	it('does not repeat the title in the text', () => {
+		expect(page).toContain('<#if requiredActions??>${msg("gdrOneMoreStep")}<#else>');
+	});
+});
+
+describe('login theme: after the email was confirmed', () => {
+	const page = read('info.ftl');
+
+	it('goes back to the profile, not to the home Keycloak suggests', () => {
+		expect(page).toContain('(messageHeader!"") == msg("emailUpdatedTitle")');
+		expect(page).toContain('client.baseUrl?remove_ending("/") + "/profile"');
+		expect(page.indexOf('+ "/profile"')).toBeLessThan(page.indexOf('backUrl = pageRedirectUri'));
+	});
+
+	it('says that it goes back to the profile', () => {
+		const messages = read('messages/messages_it.properties');
+		expect(page).toContain('<#assign backLabel = "gdrBackToProfile">');
+		expect(messages).toContain('gdrBackToProfile=Torna al profilo');
+		expect(messages).toContain('gdrRedirectingProfile=Ti riporto al profilo');
+	});
+});
+
+describe('login theme: a step still to do', () => {
+	const page = read('info.ftl');
+	const messages = read('messages/messages_it.properties');
+
+	it('offers to continue, not to go back to the diary, and says it in plain words', () => {
+		expect(page).toMatch(/<#if requiredActions\?\?>\s*<#assign backLabel = "gdrContinue">/);
+		expect(messages).toContain('confirmExecutionOfActions=Quasi fatto');
+		expect(messages).toContain('gdrOneMoreStep=Manca un ultimo passo');
+		expect(messages).toContain('requiredAction.UPDATE_PASSWORD=scegli la nuova password');
+	});
+});
+
 describe('login theme: update password page', () => {
 	const page = read('login-update-password.ftl');
 	const theme = read('theme.properties');
@@ -150,11 +199,14 @@ describe('login theme: information page', () => {
 	});
 
 	it('sends a deleted account back to the home, not to a diary that no longer exists', () => {
-		expect(page).toContain('msg("accountDeletedMessage")');
+		const messages = read('messages/messages_it.properties');
+		expect(page).toContain('msg("userDeletedSuccessfully")');
+		expect(page).not.toContain('accountDeletedMessage');
+		expect(page).toContain('(emailRequested || succeeded || accountDeleted)');
+		expect(messages).toContain('userDeletedSuccessfully=Il tuo account è stato eliminato');
 		expect(page).toContain('accountDeleted?then("gdrBackToHome", "gdrBackToApp")');
 		expect(page).toContain('accountDeleted?then("gdrRedirectingHome", "gdrRedirecting")');
 		expect(page).not.toContain('msg("gdrBackToApp")');
-		const messages = read('messages/messages_it.properties');
 		expect(messages).toContain('gdrBackToHome=Torna alla home');
 		expect(messages).toContain('gdrRedirectingHome=Ti riporto alla home');
 	});

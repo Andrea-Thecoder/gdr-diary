@@ -70,6 +70,9 @@ const SENTENCES: Readonly<Record<string, string>> = {
 	'Diary not found': 'Diario non trovato',
 	'Character not found': 'Personaggio non trovato',
 	'Page not found': 'Pagina non trovata',
+	'Sheet not found': 'Scheda non trovata',
+	'Feedback not found': 'Messaggio non trovato',
+	'Not Found': 'Questa pagina non esiste.',
 	'A diary can have at most 10 different tags':
 		'Un diario può avere al massimo 10 tag diversi: usa uno dei tag già usati.',
 	'User not found': 'Utente non trovato',
@@ -78,6 +81,8 @@ const SENTENCES: Readonly<Record<string, string>> = {
 	'Recent authentication required': 'Per continuare devi accedere di nuovo',
 	'A more recent authentication is required': 'Per continuare devi accedere di nuovo',
 	'Access denied': 'Non hai il permesso di farlo',
+	'The account could not be deleted on the authentication server, try again later':
+		'Non riesco a chiudere il tuo accesso in questo momento e non ho cancellato niente: riprova tra poco.',
 	'An unexpected error occurred': 'Si è verificato un errore imprevisto: riprova più tardi'
 };
 

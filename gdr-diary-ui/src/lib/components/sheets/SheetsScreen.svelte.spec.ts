@@ -6,7 +6,8 @@ import '../../../routes/layout.css';
 
 type Call = (...args: unknown[]) => Promise<unknown>;
 
-const { api } = vi.hoisted(() => ({
+const { api, startDownload } = vi.hoisted(() => ({
+	startDownload: vi.fn<(url: string) => void>(),
 	api: {
 		GET: vi.fn<Call>(),
 		POST: vi.fn<Call>(),
@@ -20,6 +21,8 @@ vi.mock('#lib/api/index.js', () => ({ getApi: () => api }));
 vi.mock('#lib/pdf/thumbnail.js', () => ({
 	renderThumbnail: () => Promise.reject(new Error('niente miniature nei test della lista'))
 }));
+
+vi.mock('#lib/sheets/download.js', () => ({ startDownload }));
 
 import SheetsScreen from './SheetsScreen.svelte';
 
@@ -89,6 +92,7 @@ beforeEach(async () => {
 	api.POST.mockReset();
 	api.PUT.mockReset();
 	api.DELETE.mockReset();
+	startDownload.mockReset();
 	api.GET.mockResolvedValue(listOf(sheets));
 	await page.viewport(1280, 900);
 });
@@ -133,14 +137,29 @@ describe('sheets screen', () => {
 		expect(document.body.textContent).not.toMatch(/\b(KB|MB)\b/);
 	});
 
-	it('opens the sheet in the editor screen and offers a download', async () => {
+	it('opens the sheet in the editor screen', async () => {
 		await ready();
 
 		const open = page.getByRole('link', { name: 'Apri la scheda' }).first();
 		await expect.element(open).toHaveAttribute('href', '/characters/id-alira/sheets/s-5');
-		const download = page.getByRole('link', { name: 'Scarica Scheda livello 5' });
-		await expect.element(download).toHaveAttribute('href', 'https://files.test/s-5.pdf?download=1');
-		await expect.element(download).toHaveAttribute('download');
+	});
+
+	it('downloads with a link asked at that moment, not the one of the list', async () => {
+		await ready();
+		api.GET.mockResolvedValue({ data: { id: 's-5', downloadUrl: 'https://files.test/fresh.pdf' } });
+
+		await page.getByRole('button', { name: 'Scarica Scheda livello 5' }).click();
+
+		await expect.poll(() => startDownload.mock.calls).toEqual([['https://files.test/fresh.pdf']]);
+	});
+
+	it('says so when the download link cannot be asked', async () => {
+		await ready();
+		api.GET.mockResolvedValue({ error: { violations: [{ message: 'Sheet not found' }] } });
+
+		await page.getByRole('button', { name: 'Scarica Scheda livello 5' }).click();
+
+		await expect.element(page.getByText('Scheda non trovata')).toBeVisible();
 	});
 
 	it('offers the system filter only when some sheet has a system', async () => {

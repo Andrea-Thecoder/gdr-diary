@@ -219,6 +219,7 @@
 	consequences={[
 		'il personaggio e il suo ritratto;',
 		'tutti i suoi diari, con ogni pagina scritta;',
+		'le sue schede in PDF;',
 		'le copertine che hai caricato.'
 	]}
 	fallbackError="Non riesco a eliminare il personaggio."

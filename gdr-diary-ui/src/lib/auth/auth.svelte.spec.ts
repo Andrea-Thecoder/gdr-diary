@@ -10,6 +10,7 @@ const { instance, clearAllDrafts, constructed } = vi.hoisted(() => ({
 		logout: vi.fn<(options: Record<string, unknown>) => Promise<void>>(),
 		register: vi.fn<(options: Record<string, unknown>) => Promise<void>>(),
 		updateToken: vi.fn<(minValidity: number) => Promise<boolean>>(),
+		clearToken: vi.fn<() => void>(),
 		token: undefined as string | undefined,
 		onActionUpdate: undefined as ((status: string, action?: string) => void) | undefined
 	},
@@ -51,6 +52,7 @@ beforeEach(() => {
 	instance.register.mockResolvedValue();
 	instance.updateToken.mockReset();
 	instance.updateToken.mockResolvedValue(true);
+	instance.clearToken.mockReset();
 	instance.token = undefined;
 	instance.onActionUpdate = undefined;
 	clearAllDrafts.mockReset();
@@ -227,16 +229,40 @@ describe('email change', () => {
 });
 
 describe('account closing', () => {
-	it('forgets the drafts and sends the user to the Keycloak page that deletes the account', async () => {
+	it('forgets the drafts of the deleted account', async () => {
+		instance.init.mockResolvedValue(true);
 		const auth = freshAuth();
 
-		await auth.closeAccount('http://app.test');
+		await auth.forgetDeletedAccount();
 
 		expect(clearAllDrafts).toHaveBeenCalledOnce();
-		expect(instance.login).toHaveBeenCalledWith({
-			action: 'delete_account',
-			redirectUri: 'http://app.test'
-		});
+	});
+
+	it('drops the tokens of the deleted account', async () => {
+		instance.init.mockResolvedValue(true);
+		const auth = freshAuth();
+
+		await auth.forgetDeletedAccount();
+
+		expect(instance.clearToken).toHaveBeenCalledOnce();
+	});
+
+	it('is anonymous after the account was deleted', async () => {
+		instance.init.mockResolvedValue(true);
+		const auth = freshAuth();
+
+		await auth.forgetDeletedAccount();
+
+		expect(auth.status).toBe('anonymous');
+	});
+
+	it('does not send the user to Keycloak to delete the account', async () => {
+		instance.init.mockResolvedValue(true);
+		const auth = freshAuth();
+
+		await auth.forgetDeletedAccount();
+
+		expect([instance.login.mock.calls.length, instance.logout.mock.calls.length]).toEqual([0, 0]);
 	});
 
 	it('keeps the result of another Keycloak action when asked for a different one', async () => {

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { createRawSnippet } from 'svelte';
 import { errorNotice } from '#lib/ui/error-notice.svelte.js';
-import { rememberError } from '#lib/ui/flash-error.js';
+import { rememberError, rememberNotice } from '#lib/ui/flash-error.js';
 import Layout from './+layout.svelte';
 
 const children = createRawSnippet(() => ({ render: () => '<p>Contenuto</p>' }));
@@ -30,6 +30,14 @@ describe('root layout', () => {
 		const box = page.getByRole('alert').element().getBoundingClientRect();
 		expect(window.innerWidth - box.right).toBeLessThan(20);
 		expect(window.innerHeight - box.bottom).toBeLessThan(20);
+		expect(sessionStorage.length).toBe(0);
+	});
+
+	it('shows the message left by the account deletion as a notice, not as an error', async () => {
+		rememberNotice('Il tuo account è stato eliminato.');
+		render(Layout, { children } as never);
+
+		await expect.element(page.getByText('Il tuo account è stato eliminato.')).toBeVisible();
 		expect(sessionStorage.length).toBe(0);
 	});
 

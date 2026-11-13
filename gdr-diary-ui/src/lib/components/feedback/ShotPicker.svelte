@@ -15,6 +15,17 @@
 	const labelId = $props.id();
 	let input = $state<HTMLInputElement | null>(null);
 	let over = $state(false);
+	let previews = $state<string[]>([]);
+
+	$effect(() => {
+		const urls = shots.map((shot) => URL.createObjectURL(shot));
+		previews = urls;
+		return () => {
+			urls.forEach((url) => {
+				URL.revokeObjectURL(url);
+			});
+		};
+	});
 
 	function choose(): void {
 		input?.click();
@@ -57,11 +68,19 @@
 				<li
 					class="flex min-h-[56px] items-center gap-3 rounded-[6px] border border-(--field-border) bg-(--field-bg) px-3.5"
 				>
-					<Icon size={24} strokeWidth={1.6} class="flex-none text-orn">
-						<rect x="3" y="4" width="18" height="16" rx="2" />
-						<circle cx="9" cy="10" r="1.6" />
-						<path d="M21 16l-5-5-8 8" />
-					</Icon>
+					{#if previews[index] === undefined}
+						<Icon size={24} strokeWidth={1.6} class="flex-none text-orn">
+							<rect x="3" y="4" width="18" height="16" rx="2" />
+							<circle cx="9" cy="10" r="1.6" />
+							<path d="M21 16l-5-5-8 8" />
+						</Icon>
+					{:else}
+						<img
+							src={previews[index]}
+							alt=""
+							class="size-[44px] flex-none rounded-[4px] border border-(--field-border) object-cover"
+						/>
+					{/if}
 					<span class="min-w-0 flex-1">
 						<span class="block truncate text-[17px] text-ink">{shot.name}</span>
 						<span class="block text-[14px] text-soft">{formatSize(shot.size)}</span>

@@ -6,6 +6,7 @@ import {
 	deleteSheet,
 	fetchSheet,
 	fetchSheets,
+	freshDownloadUrl,
 	replaceSheetFile,
 	updateSheet,
 	type SheetFields
@@ -253,5 +254,26 @@ describe('replaceSheetFile', () => {
 		const { api } = clientWith(() => json({ title: 'File troppo grande', status: 413 }, 413));
 
 		await expect(replaceSheetFile(api, 's1', pdf)).rejects.toThrow('File troppo grande');
+	});
+});
+
+describe('freshDownloadUrl', () => {
+	it('asks the sheet again and returns its download link', async () => {
+		const { api, requests } = clientWith(() =>
+			json({ id: 's1', downloadUrl: 'http://files.test/s1.pdf?fresh=1' })
+		);
+
+		const url = await freshDownloadUrl(api, 's1');
+
+		expect(new URL(requests[0]?.url ?? '').pathname).toBe('/base/sheets/s1');
+		expect(url).toBe('http://files.test/s1.pdf?fresh=1');
+	});
+
+	it('fails with the reason of the API when the sheet is gone', async () => {
+		const { api } = clientWith(() =>
+			json({ title: 'NOT_FOUND', status: 404, violations: [{ message: 'Sheet not found' }] }, 404)
+		);
+
+		await expect(freshDownloadUrl(api, 's1')).rejects.toThrow('Scheda non trovata');
 	});
 });

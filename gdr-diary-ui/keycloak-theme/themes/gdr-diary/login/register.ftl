@@ -45,6 +45,13 @@
                 </div>
             </#if>
 
+            <#-- Il servizio non ha termini da accettare: basta dire dove si legge l’informativa, che sta nell’app. -->
+            <#if (client.baseUrl)?has_content>
+                <p id="gdr-privacy-note" class="col-span-full m-0 text-base text-soft">
+                    ${msg("gdrPrivacyNote")}<a href="${client.baseUrl?remove_ending("/")}/privacy" target="_blank" rel="noopener" class="text-soft underline underline-offset-4 hover:opacity-80">${msg("gdrPrivacyLink")}</a>.
+                </p>
+            </#if>
+
             <div class="${properties.kcFormButtonsClass!} col-span-full">
                 <button type="submit" class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!}">${msg("doRegister")}</button>
             </div>

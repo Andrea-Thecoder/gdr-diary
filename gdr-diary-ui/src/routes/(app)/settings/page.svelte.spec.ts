@@ -184,6 +184,16 @@ describe('settings page', () => {
 		expect(api.PATCH).not.toHaveBeenCalled();
 	});
 
+	it('puts the saved theme back when the page is reloaded without saving', async () => {
+		document.cookie = 'gdr-theme=pergamena; Path=/';
+		render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+
+		window.dispatchEvent(new Event('pagehide'));
+
+		expect(storedTheme()).toBe('pergamena');
+	});
+
 	it('keeps the choice and says why when saving the theme fails', async () => {
 		api.PATCH.mockResolvedValue({ error: { title: 'Settings too large', status: 400 } });
 		render(Page);

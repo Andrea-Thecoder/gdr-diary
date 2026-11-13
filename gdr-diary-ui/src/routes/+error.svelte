@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { translateMessage } from '#lib/api/messages.js';
 	import { auth } from '#lib/auth/auth.svelte.js';
 	import BrandLink from '#lib/components/ui/BrandLink.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -19,6 +20,7 @@
 					? 'Qualcosa non risponde'
 					: 'Qualcosa è andato storto'
 	);
+	const reason = $derived(translateMessage(page.error?.message ?? 'Qualcosa è andato storto.'));
 	const retry = $derived(status >= 500);
 	const signedIn = $derived(auth.status === 'authenticated');
 	const actionClass = 'w-full min-[480px]:w-auto';
@@ -69,7 +71,7 @@
 			<OrnamentRule class="my-6" />
 
 			<p class="m-0 text-[19px] text-soft">
-				{page.error?.message ?? 'Qualcosa è andato storto.'}
+				{reason}
 			</p>
 
 			<div

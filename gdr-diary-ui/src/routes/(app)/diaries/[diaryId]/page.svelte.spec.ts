@@ -187,6 +187,15 @@ describe('open diary', () => {
 			.toHaveAttribute('contenteditable', 'false');
 	});
 
+	it('says why the sheet after the last page cannot be written yet', async () => {
+		mockServer(23);
+		renderPage(23, 12);
+
+		await expect
+			.element(page.getByText('Questa pagina si apre quando la precedente è piena.'))
+			.toBeVisible();
+	});
+
 	it('guides the first page of an empty diary', async () => {
 		mockServer(0);
 		renderPage(0);

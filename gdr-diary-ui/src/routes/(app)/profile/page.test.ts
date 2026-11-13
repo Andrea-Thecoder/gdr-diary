@@ -31,6 +31,24 @@ describe('profile page load', () => {
 		expect(fetchProfile).toHaveBeenCalledWith(api);
 	});
 
+	it('reads the profile only after the user was synced, so a new email is already there', async () => {
+		let synced: (id: string) => void = () => undefined;
+		ensureAppUser.mockReturnValue(
+			new Promise<string>((done) => {
+				synced = done;
+			})
+		);
+		fetchProfile.mockResolvedValue({ email: 'nuova@example.com' });
+
+		const loading = runLoad();
+		await Promise.resolve();
+		const readBeforeSync = fetchProfile.mock.calls.length;
+		synced('u1');
+		await loading;
+
+		expect([readBeforeSync, fetchProfile.mock.calls.length]).toEqual([0, 1]);
+	});
+
 	it('answers 502 when the profile cannot be read', async () => {
 		fetchProfile.mockRejectedValue(new Error('Profilo non disponibile'));
 		ensureAppUser.mockResolvedValue('u1');

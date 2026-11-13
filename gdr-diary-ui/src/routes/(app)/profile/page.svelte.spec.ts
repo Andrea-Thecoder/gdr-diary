@@ -493,7 +493,7 @@ describe('profile page', () => {
 		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
 	});
 
-	it('deletes the data and then sends the user to Keycloak to close the account once confirmed', async () => {
+	it('deletes the account and then closes the session once confirmed', async () => {
 		renderPage();
 		await page.getByRole('button', { name: 'Elimina account' }).click();
 

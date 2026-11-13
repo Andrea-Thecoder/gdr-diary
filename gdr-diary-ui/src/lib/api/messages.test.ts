@@ -54,6 +54,13 @@ describe('translateMessage sentences', () => {
 		['Empty file', 'Il file è vuoto'],
 		['Page content too large', 'Il testo della pagina è troppo lungo'],
 		['Settings too large', 'Le impostazioni sono troppo grandi'],
+		['Sheet not found', 'Scheda non trovata'],
+		[
+			'The account could not be deleted on the authentication server, try again later',
+			'Non riesco a chiudere il tuo accesso in questo momento e non ho cancellato niente: riprova tra poco.'
+		],
+		['Feedback not found', 'Messaggio non trovato'],
+		['Not Found', 'Questa pagina non esiste.'],
 		['The diary is full (100 pages)', 'Il diario è pieno: 100 pagine su 100'],
 		[
 			'The character has too many sheets (10)',

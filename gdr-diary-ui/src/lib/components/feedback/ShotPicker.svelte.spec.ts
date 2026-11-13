@@ -48,6 +48,19 @@ describe('ShotPicker', () => {
 		await expect.element(page.getByText('480 KB')).toBeVisible();
 	});
 
+	it('shows a small picture of every image, each its own', async () => {
+		render(ShotPicker, { ...props, shots: [png('a.png'), png('b.png'), png('c.png')] });
+
+		await vi.waitFor(() => {
+			expect(document.querySelectorAll('ul img')).toHaveLength(3);
+		});
+		const sources = Array.from(document.querySelectorAll('ul img')).map((image) =>
+			image.getAttribute('src')
+		);
+
+		expect(new Set(sources).size).toBe(3);
+	});
+
 	it('removes a file with its own button', async () => {
 		const onremove = vi.fn();
 		render(ShotPicker, { ...props, shots: [png('a.png'), png('b.png')], onremove });

@@ -5,7 +5,8 @@
 		PAGE_WIDTH,
 		bookScale,
 		fontPixels,
-		lineHeightFor
+		lineHeightFor,
+		ribbonOffset
 	} from '#lib/book/layout.js';
 	import { thickness } from '#lib/book/spread.js';
 	import { checkTag } from '#lib/book/tags.js';
@@ -97,7 +98,10 @@
 	}
 
 	function hintFor(page: number): string {
-		return book.last === 0 && page === 1 ? 'Comincia a scrivere la tua storia...' : '';
+		if (book.last === 0 && page === 1) {
+			return 'Comincia a scrivere la tua storia...';
+		}
+		return book.editable(page) ? '' : 'Questa pagina si apre quando la precedente è piena.';
 	}
 </script>
 
@@ -158,6 +162,7 @@
 									{page}
 									marked={book.marked(page)}
 									disabled={book.marking}
+									offset={ribbonOffset(scale)}
 									onclick={() => {
 										void book.toggleBookmark(page);
 									}}

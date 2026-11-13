@@ -7,7 +7,7 @@ import '../layout.css';
 const { state } = vi.hoisted(() => ({ state: { page: { route: { id: '/(app)/characters' } } } }));
 
 vi.mock('$app/state', () => state);
-vi.mock('$app/navigation', () => ({ afterNavigate: vi.fn() }));
+vi.mock('$app/navigation', () => ({ afterNavigate: vi.fn(), goto: vi.fn() }));
 vi.mock('#lib/auth/auth.svelte.js', () => ({
 	auth: {
 		status: 'authenticated',

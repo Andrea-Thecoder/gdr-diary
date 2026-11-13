@@ -10,6 +10,7 @@
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import { backLinkClasses } from '#lib/components/ui/button.js';
 	import { silhouetteFor } from '#lib/characters/appearance.js';
+	import { isMaster } from '#lib/characters/kind.js';
 	import type { CharacterDetail } from '#lib/characters/api.js';
 	import type { CharacterTab } from '#lib/characters/tabs.js';
 
@@ -44,7 +45,9 @@
 				class="size-28 flex-none rounded-full border-2 border-orn"
 			/>
 			<div class="min-w-0 flex-[1_1_240px]">
-				<Eyebrow class="mb-2 text-label">Il personaggio</Eyebrow>
+				<Eyebrow class="mb-2 text-label">
+					{isMaster(character.kind) ? 'Il master' : 'Il personaggio'}
+				</Eyebrow>
 				<h1
 					id="page-title"
 					class="m-0 font-display text-[clamp(34px,4.6vw,56px)] leading-[1.04] font-bold [overflow-wrap:anywhere] text-ink"

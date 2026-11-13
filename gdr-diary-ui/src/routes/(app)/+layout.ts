@@ -1,11 +1,9 @@
 import { error, redirect } from '@sveltejs/kit';
 import { resolve } from '$app/paths';
 import { ensureAppUser } from '#lib/api/me.js';
-import { CLOSE_INCOMPLETE, closingWasInterrupted } from '#lib/profile/account.js';
 import { accountSync } from '#lib/settings/account.js';
 import { auth } from '#lib/auth/auth.svelte.js';
 import { decideAccess } from '#lib/auth/roles.js';
-import { errorNotice } from '#lib/ui/error-notice.svelte.js';
 import { recallError, rememberError } from '#lib/ui/flash-error.js';
 import type { LayoutLoad } from './$types';
 
@@ -48,10 +46,6 @@ export const load: LayoutLoad = async () => {
 	}
 
 	await accountSync.run();
-
-	if (await closingWasInterrupted()) {
-		errorNotice.show(CLOSE_INCOMPLETE, true);
-	}
 
 	return {};
 };

@@ -62,10 +62,11 @@ export class AuthState {
 		await this.requireKeycloak().login({ action: 'UPDATE_EMAIL', redirectUri: returnTo });
 	}
 
-	async closeAccount(returnTo: string): Promise<void> {
+	async forgetDeletedAccount(): Promise<void> {
 		await this.init();
 		await clearAllDrafts();
-		await this.requireKeycloak().login({ action: 'delete_account', redirectUri: returnTo });
+		this.requireKeycloak().clearToken();
+		this.applyAnonymous();
 	}
 
 	async takeActionResult(action?: string): Promise<ActionResult | undefined> {

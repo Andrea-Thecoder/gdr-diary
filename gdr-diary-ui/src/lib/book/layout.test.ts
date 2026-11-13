@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BODY_HEIGHT, bookScale, fontPixels, lineHeightFor, linesPerPage } from './layout.js';
+import {
+	BODY_HEIGHT,
+	bookScale,
+	fontPixels,
+	lineHeightFor,
+	linesPerPage,
+	PAGE_SIDE,
+	ribbonOffset
+} from './layout.js';
 
 describe('book layout', () => {
 	it('fits a whole number of lines in the page body for every spacing', () => {
@@ -27,4 +35,15 @@ describe('book layout', () => {
 		expect(bookScale(0, false)).toBe(1);
 		expect(bookScale(474, false)).toBe(0.5);
 	});
+
+	it('keeps the bookmark where it was on a page at full size', () => {
+		expect(ribbonOffset(1)).toBe(12);
+	});
+
+	it.each([0.5, 0.6, 0.75, 0.9])(
+		'keeps the bookmark out of the text on a page scaled to %s',
+		(scale) => {
+			expect(ribbonOffset(scale) + 32).toBeLessThan(PAGE_SIDE * scale);
+		}
+	);
 });

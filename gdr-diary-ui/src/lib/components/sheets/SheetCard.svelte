@@ -16,9 +16,10 @@
 		sheet: SheetSummary;
 		onedit: (sheet: SheetSummary) => void;
 		ondelete: (sheet: SheetSummary) => void;
+		ondownload: (sheet: SheetSummary) => void;
 	}
 
-	let { sheet, onedit, ondelete }: Props = $props();
+	let { sheet, onedit, ondelete, ondownload }: Props = $props();
 
 	const title = $derived(sheet.title ?? '');
 	const system = $derived(sheet.system?.trim() ?? '');
@@ -77,19 +78,19 @@
 				<span>Apri<span class="sr-only"> la scheda</span></span>
 				<ArrowIcon />
 			</a>
-			<!-- eslint-disable svelte/no-navigation-without-resolve -- l'URL di download è assoluto (storage), non una rotta dell'app -->
-			<a
-				href={sheet.downloadUrl}
-				download
+			<button
+				type="button"
 				aria-label={`Scarica ${title}`}
 				title={`Scarica ${title}`}
-				class="relative z-10 flex size-[50px] flex-none items-center justify-center rounded-[4px] border border-(color:--nav-border) text-nav-ink hover:opacity-85"
+				onclick={() => {
+					ondownload(sheet);
+				}}
+				class="relative z-10 flex size-[50px] flex-none cursor-pointer items-center justify-center rounded-[4px] border border-(color:--nav-border) text-nav-ink hover:opacity-85"
 			>
 				<Icon size={20} strokeWidth={1.8}>
 					<path d="M12 4v11M7 11l5 5 5-5M5 20h14" />
 				</Icon>
-			</a>
-			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			</button>
 		</CardActions>
 	{/snippet}
 </PortraitCard>

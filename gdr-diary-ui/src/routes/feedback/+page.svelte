@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { auth } from '#lib/auth/auth.svelte.js';
 	import FeedbackForm from '#lib/components/feedback/FeedbackForm.svelte';
 	import InfoPage from '#lib/components/info/InfoPage.svelte';
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
@@ -38,7 +39,7 @@
 			!sent && 'min-[901px]:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]'
 		]}
 	>
-		<FeedbackForm bind:sent {from} />
+		<FeedbackForm bind:sent {from} knownEmail={auth.user?.email ?? ''} />
 		{#if !sent}
 			<aside class="flex flex-col gap-7">
 				<SettingsSection title="Cerchi altro?">

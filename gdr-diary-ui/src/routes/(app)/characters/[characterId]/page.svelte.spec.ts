@@ -96,6 +96,12 @@ beforeEach(async () => {
 });
 
 describe('diaries page', () => {
+	it('calls a game master by its name in the header', async () => {
+		renderPage({ ...character, kind: 'GAME_MASTER' });
+
+		await expect.element(page.getByText('Il master', { exact: true })).toBeVisible();
+	});
+
 	it('shows the character in the header', async () => {
 		await ready();
 

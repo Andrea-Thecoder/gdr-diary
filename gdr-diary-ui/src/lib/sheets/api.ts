@@ -153,6 +153,14 @@ export async function fetchSheet(api: ApiClient, id: string): Promise<SheetDetai
 	return data;
 }
 
+export async function freshDownloadUrl(api: ApiClient, id: string): Promise<string> {
+	const { data, error } = await api.GET('/sheets/{id}', { params: { path: { id } } });
+	if (data?.downloadUrl === undefined) {
+		throw new Error(describeApiError(error, 'Non riesco a scaricare la scheda. Riprova.'));
+	}
+	return data.downloadUrl;
+}
+
 export async function replaceSheetFile(
 	api: ApiClient,
 	id: string,

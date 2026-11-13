@@ -8,7 +8,13 @@
 	import Container from '#lib/components/ui/Container.svelte';
 	import NoticePopup from '#lib/components/ui/NoticePopup.svelte';
 	import { getMaxSheets } from '#lib/env.js';
-	import { deleteSheet, type SavedSheet, type SheetSummary } from '#lib/sheets/api.js';
+	import {
+		deleteSheet,
+		freshDownloadUrl,
+		type SavedSheet,
+		type SheetSummary
+	} from '#lib/sheets/api.js';
+	import { startDownload } from '#lib/sheets/download.js';
 	import { SheetList } from '#lib/sheets/sheets.svelte.js';
 	import { Notice } from '#lib/ui/notice.svelte.js';
 	import NewSheetCard from './NewSheetCard.svelte';
@@ -69,6 +75,20 @@
 		deleting = sheet;
 	}
 
+	async function download(sheet: SheetSummary): Promise<void> {
+		if (sheet.id === undefined) {
+			return;
+		}
+		try {
+			startDownload(await freshDownloadUrl(getApi(), sheet.id));
+		} catch (cause) {
+			notice.show(
+				cause instanceof Error ? cause.message : 'Non riesco a scaricare la scheda. Riprova.',
+				true
+			);
+		}
+	}
+
 	async function removeSheet(): Promise<void> {
 		const target = deleting;
 		if (target?.id === undefined) {
@@ -119,7 +139,14 @@
 		}}
 	>
 		{#snippet card(sheet: SheetSummary)}
-			<SheetCard {sheet} onedit={openEditor} ondelete={askDelete} />
+			<SheetCard
+				{sheet}
+				onedit={openEditor}
+				ondelete={askDelete}
+				ondownload={(target: SheetSummary) => {
+					void download(target);
+				}}
+			/>
 		{/snippet}
 		{#snippet newCard()}
 			<NewSheetCard

@@ -40,7 +40,7 @@
 	consequences={[
 		'tutti i tuoi personaggi;',
 		'tutti i loro diari, con ogni pagina scritta;',
-		'le immagini che hai caricato;',
+		'le schede in PDF e le immagini che hai caricato;',
 		'il tuo accesso: non potrai più entrare con questo indirizzo.'
 	]}
 	fallbackError="Non riesco a eliminare l’account."

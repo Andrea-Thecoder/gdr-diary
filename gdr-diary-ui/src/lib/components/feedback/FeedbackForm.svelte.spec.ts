@@ -22,6 +22,18 @@ describe('FeedbackForm', () => {
 		await page.viewport(1280, 900);
 	});
 
+	it('starts with the email of who is signed in', async () => {
+		render(FeedbackForm, { send, knownEmail: 'alira@esempio.it' });
+
+		await expect.element(page.getByLabelText('La tua email')).toHaveValue('alira@esempio.it');
+	});
+
+	it('leaves the email empty for a visitor', async () => {
+		render(FeedbackForm, { send });
+
+		await expect.element(page.getByLabelText('La tua email')).toHaveValue('');
+	});
+
 	it('offers the three kinds, with a problem already chosen', async () => {
 		render(FeedbackForm, { send });
 
@@ -257,6 +269,17 @@ describe('FeedbackForm', () => {
 
 		await expect.element(page.getByText('Teletrasporto alla Home in 6 secondi…')).toBeVisible();
 		expect(leave).not.toHaveBeenCalled();
+	});
+
+	it('announces the teleport with the same words to assistive technology', async () => {
+		render(FeedbackForm, { send, leave });
+		await fillValid();
+
+		await page.getByRole('button', { name: 'Invia il feedback' }).click();
+
+		await expect
+			.element(page.getByRole('status'))
+			.toHaveTextContent('Teletrasporto alla Home in 6 secondi.');
 	});
 
 	it('goes back to the home page by itself when the time is over', async () => {

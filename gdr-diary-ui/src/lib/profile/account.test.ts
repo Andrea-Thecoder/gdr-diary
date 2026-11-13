@@ -1,44 +1,59 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { auth } = vi.hoisted(() => ({
-	auth: {
-		closeAccount: vi.fn<(returnTo: string) => Promise<void>>(),
-		takeActionResult: vi.fn<(action?: string) => Promise<unknown>>()
-	}
+const { auth, rememberNotice, assign } = vi.hoisted(() => ({
+	auth: { forgetDeletedAccount: vi.fn<() => Promise<void>>() },
+	rememberNotice: vi.fn<(message: string) => void>(),
+	assign: vi.fn<(url: string) => void>()
 }));
 
 vi.mock('#lib/auth/auth.svelte.js', () => ({ auth }));
+vi.mock('#lib/ui/flash-error.js', () => ({ rememberNotice }));
 
-import { closeAccount, closingWasInterrupted } from './account.js';
+import { ACCOUNT_DELETED, closeAccount } from './account.js';
 
 describe('account closing', () => {
 	beforeEach(() => {
-		auth.closeAccount.mockReset();
-		auth.closeAccount.mockResolvedValue();
-		auth.takeActionResult.mockReset();
-		vi.stubGlobal('window', { location: { origin: 'http://app.test' } });
+		auth.forgetDeletedAccount.mockReset();
+		auth.forgetDeletedAccount.mockResolvedValue();
+		rememberNotice.mockReset();
+		assign.mockReset();
+		vi.stubGlobal('window', { location: { origin: 'http://app.test', assign } });
 	});
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
 	});
 
-	it('comes back to the home after the Keycloak page', async () => {
+	it('forgets the session of the deleted account', async () => {
 		await closeAccount();
 
-		expect(auth.closeAccount).toHaveBeenCalledWith('http://app.test');
+		expect(auth.forgetDeletedAccount).toHaveBeenCalledOnce();
 	});
 
-	it('is interrupted when Keycloak sends the user back with a result for the deletion', async () => {
-		auth.takeActionResult.mockResolvedValue({ status: 'cancelled', action: 'delete_account' });
+	it('leaves a message for the home page', async () => {
+		await closeAccount();
 
-		expect(await closingWasInterrupted()).toBe(true);
-		expect(auth.takeActionResult).toHaveBeenCalledWith('delete_account');
+		expect(rememberNotice).toHaveBeenCalledWith(ACCOUNT_DELETED);
 	});
 
-	it('is not interrupted when there is nothing to tell', async () => {
-		auth.takeActionResult.mockResolvedValue(undefined);
+	it('goes back to the home without passing through Keycloak', async () => {
+		await closeAccount();
 
-		expect(await closingWasInterrupted()).toBe(false);
+		expect(assign).toHaveBeenCalledWith('http://app.test');
+	});
+
+	it('goes home only after the session was forgotten', async () => {
+		const order: string[] = [];
+		auth.forgetDeletedAccount.mockImplementation(() => {
+			order.push('forget');
+			return Promise.resolve();
+		});
+		assign.mockImplementation(() => {
+			order.push('home');
+		});
+
+		await closeAccount();
+
+		expect(order).toEqual(['forget', 'home']);
 	});
 });

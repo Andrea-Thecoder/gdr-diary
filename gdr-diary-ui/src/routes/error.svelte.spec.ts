@@ -67,6 +67,14 @@ describe('error page', () => {
 			.toBeVisible();
 	});
 
+	it('says in Italian that the page does not exist', async () => {
+		state.page.status = 404;
+		state.page.error = { message: 'Not Found' };
+		render(ErrorPage);
+
+		await expect.element(page.getByText('Questa pagina non esiste.')).toBeVisible();
+	});
+
 	it('does not offer to retry a page the account is not allowed to see', async () => {
 		state.page.status = 403;
 		render(ErrorPage);

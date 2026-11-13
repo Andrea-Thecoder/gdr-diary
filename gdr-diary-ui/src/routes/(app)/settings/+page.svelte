@@ -45,11 +45,13 @@
 	});
 	const dirty = $derived(Object.keys(changes).length > 0);
 
-	onDestroy(() => {
+	function restoreSavedTheme(): void {
 		if (theme.preference !== savedTheme) {
 			theme.select(savedTheme);
 		}
-	});
+	}
+
+	onDestroy(restoreSavedTheme);
 
 	async function submit(event: SubmitEvent): Promise<void> {
 		event.preventDefault();
@@ -75,6 +77,8 @@
 		saveError = null;
 	}
 </script>
+
+<svelte:window onpagehide={restoreSavedTheme} />
 
 <svelte:head>
 	<title>Impostazioni · Diario GDR</title>

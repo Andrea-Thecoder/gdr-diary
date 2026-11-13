@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { getEnv } from '#lib/env.js';
@@ -27,6 +28,7 @@
 	interface Props {
 		sent?: boolean;
 		from?: string;
+		knownEmail?: string;
 		send?: (draft: FeedbackDraft) => Promise<void>;
 		leave?: () => void;
 		redirectIn?: number;
@@ -36,6 +38,7 @@
 	let {
 		sent = $bindable(false),
 		from = '',
+		knownEmail = '',
 		send = (draft) => sendFeedback(getEnv().VITE_API_BASE_URL, draft),
 		leave = () => void goto(resolve('/')),
 		redirectIn = REDIRECT_SECONDS,
@@ -54,6 +57,12 @@
 	let sending = $state(false);
 	let failure = $state<string | null>(null);
 	let elapsed = $state(0);
+
+	$effect(() => {
+		if (knownEmail !== '' && untrack(() => email) === '') {
+			email = knownEmail;
+		}
+	});
 
 	const draft = $derived<FeedbackDraft>({
 		type,
@@ -129,7 +138,7 @@
 			<p aria-hidden="true" class="m-0 text-[18px] text-soft">
 				Teletrasporto alla Home in {secondsLabel(redirectIn - elapsed)}…
 			</p>
-			<p class="sr-only" role="status">Tra {secondsLabel(redirectIn)} torni alla home.</p>
+			<p class="sr-only" role="status">Teletrasporto alla Home in {secondsLabel(redirectIn)}.</p>
 		</div>
 	</SettingsSection>
 {:else}
