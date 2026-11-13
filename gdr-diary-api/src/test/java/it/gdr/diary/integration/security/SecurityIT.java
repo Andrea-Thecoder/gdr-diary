@@ -14,11 +14,13 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,6 +47,8 @@ class SecurityIT extends AbstractIntegrationTest {
     private static final String NO_ROLE_USER = "norole1";
     private static final String NEW_USER = "newuser1";
     private static final String OTHER_CLIENT = "other-client";
+
+    private final List<String> deletableUsernames = new ArrayList<>();
 
     private static String noRoleUserId;
     private static String newUserId;
@@ -228,10 +232,58 @@ class SecurityIT extends AbstractIntegrationTest {
         assertThat(Instant.ofEpochSecond(authTime)).isAfter(Instant.now().minus(Duration.ofMinutes(1)));
     }
 
+    private String createDeletableUser() {
+        String username = "delete" + UUID.randomUUID().toString().substring(0, 8);
+        deletableUsernames.add(username);
+        createKeycloakUser(username);
+        return username;
+    }
+
+    @AfterEach
+    void deleteLeftoverDeletableUsers() {
+        deletableUsernames.stream()
+                .flatMap(username -> realm().users().searchByUsername(username, true).stream())
+                .forEach(user -> realm().users().delete(user.getId()).close());
+        deletableUsernames.clear();
+    }
+
     @Test
     void deleteAppUser_freshBrowserLogin_returnsOk() {
-        String token = KeycloakBrowserLogin.accessToken(NEW_USER, PASSWORD);
+        String username = createDeletableUser();
+        String token = KeycloakBrowserLogin.accessToken(username, PASSWORD);
         mvc.post().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+
+        assertThat(mvc.delete().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token))).hasStatusOk();
+    }
+
+    @Test
+    void deleteAppUser_freshBrowserLogin_deletesTheUserOnKeycloak() {
+        String username = createDeletableUser();
+        String token = KeycloakBrowserLogin.accessToken(username, PASSWORD);
+        mvc.post().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+
+        mvc.delete().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+
+        assertThat(realm().users().searchByUsername(username, true)).isEmpty();
+    }
+
+    @Test
+    void deleteAppUser_freshBrowserLogin_deletesTheBackendData() {
+        String username = createDeletableUser();
+        String token = KeycloakBrowserLogin.accessToken(username, PASSWORD);
+        mvc.post().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+
+        mvc.delete().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+
+        assertThat(countRows("app_user")).isZero();
+    }
+
+    @Test
+    void deleteAppUser_userAlreadyDeletedOnKeycloak_returnsOk() {
+        String username = createDeletableUser();
+        String token = KeycloakBrowserLogin.accessToken(username, PASSWORD);
+        mvc.post().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
+        mvc.delete().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token)).exchange();
 
         assertThat(mvc.delete().uri("/me").header(HttpHeaders.AUTHORIZATION, bearer(token))).hasStatusOk();
     }

@@ -203,6 +203,23 @@ class AppUserControllerTest {
     }
 
     @Test
+    void deleteAppUser_keycloakUnavailable_returnsBadGateway() {
+        doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "The account could not be deleted on the authentication server, try again later"))
+                .when(service).deleteAppUser();
+
+        assertThat(mvc.delete().uri("/me")).hasStatus(HttpStatus.BAD_GATEWAY);
+    }
+
+    @Test
+    void deleteAppUser_keycloakUnavailable_returnsMessageInBody() {
+        doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "The account could not be deleted on the authentication server, try again later"))
+                .when(service).deleteAppUser();
+
+        assertThat(mvc.delete().uri("/me")).bodyJson().extractingPath("$.violations[0].message")
+                .isEqualTo("The account could not be deleted on the authentication server, try again later");
+    }
+
+    @Test
     void updateAppUserSettings_emptySettings_returnsViolationOnSettingsField() {
         assertThat(mvc.patch().uri("/me/settings").contentType(MediaType.APPLICATION_JSON).content("{\"settings\":{}}"))
                 .bodyJson().extractingPath("$.violations[0].field").isEqualTo("settings");

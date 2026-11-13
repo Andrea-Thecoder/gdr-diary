@@ -34,6 +34,7 @@ import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.AppUserService;
 import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
+import it.gdr.diary.services.KeycloakUserService;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
 import java.sql.SQLException;
@@ -81,6 +82,8 @@ class AppUserServiceTest {
     private Transaction transaction;
     @Mock
     private DiaryPageTagService tagService;
+    @Mock
+    private KeycloakUserService keycloakUserService;
 
     private final AppUserConfig config = new AppUserConfig();
     private final MultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1});
@@ -91,7 +94,7 @@ class AppUserServiceTest {
     @BeforeEach
     void setUp() {
         service = new AppUserService(database, jwtInspector, JsonMapper.builder().build(), config, documentService,
-                Clock.fixed(NOW, ZoneOffset.UTC), tagService);
+                Clock.fixed(NOW, ZoneOffset.UTC), tagService, keycloakUserService);
         lenient().when(jwtInspector.getSubject()).thenReturn(SUBJECT);
         users = stubFindLeniently(database, AppUser.class);
     }
@@ -573,6 +576,67 @@ class AppUserServiceTest {
         sheet.setId(UUID.randomUUID());
         sheet.setDocument(document);
         return sheet;
+    }
+
+    @Test
+    void deleteAppUser_recentLogin_deletesKeycloakUserBeforeBackendData() {
+        givenRecentAuthentication();
+        AppUser user = storedUser(EMAIL);
+        givenStoredUser(user);
+        givenCharacters(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteAppUser();
+
+        InOrder order = inOrder(keycloakUserService, database);
+        order.verify(keycloakUserService).deleteKeycloakUser(SUBJECT);
+        order.verify(database).beginTransaction();
+    }
+
+    @Test
+    void deleteAppUser_userMissingInBackend_stillDeletesKeycloakUser() {
+        givenRecentAuthentication();
+
+        service.deleteAppUser();
+
+        verify(keycloakUserService).deleteKeycloakUser(SUBJECT);
+    }
+
+    @Test
+    void deleteAppUser_keycloakFails_propagatesTheException() {
+        givenRecentAuthentication();
+        doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "down")).when(keycloakUserService).deleteKeycloakUser(SUBJECT);
+
+        assertThatThrownBy(() -> service.deleteAppUser())
+                .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
+    }
+
+    @Test
+    void deleteAppUser_keycloakFails_runsNoBackendQuery() {
+        givenRecentAuthentication();
+        doThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "down")).when(keycloakUserService).deleteKeycloakUser(SUBJECT);
+
+        catchThrowable(() -> service.deleteAppUser());
+
+        verifyNoInteractions(database, documentService);
+    }
+
+    @Test
+    void deleteAppUser_loginTooOld_neverCallsKeycloak() {
+        when(jwtInspector.getAuthTime()).thenReturn(Optional.of(NOW.minus(Duration.ofHours(1))));
+
+        catchThrowable(() -> service.deleteAppUser());
+
+        verifyNoInteractions(keycloakUserService);
+    }
+
+    @Test
+    void deleteAppUser_noAuthTime_neverCallsKeycloak() {
+        when(jwtInspector.getAuthTime()).thenReturn(Optional.empty());
+
+        catchThrowable(() -> service.deleteAppUser());
+
+        verifyNoInteractions(keycloakUserService);
     }
 
     @Test

@@ -24,7 +24,13 @@ import it.gdr.diary.model.FeedbackStatus;
 import it.gdr.diary.model.FeedbackType;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
+import it.gdr.diary.model.Payment;
+import it.gdr.diary.model.PaymentProvider;
+import it.gdr.diary.model.PaymentStatus;
+import it.gdr.diary.dto.payment.BasePaymentDTO;
+import it.gdr.diary.dto.payment.DetailPaymentDTO;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -299,5 +305,48 @@ class DtoMappingTest {
         AttachmentFeedbackDTO dto = AttachmentFeedbackDTO.from(document(), URL);
 
         assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    private static Payment payment() {
+        Payment payment = new Payment();
+        payment.setId(DOCUMENT_ID);
+        payment.setProvider(PaymentProvider.STRIPE);
+        payment.setProviderPaymentId("pi_123");
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setAmountCents(2990);
+        payment.setCurrency("EUR");
+        payment.setDescription("Premium annual");
+        payment.setCustomerEmail("alira@example.com");
+        payment.setRetainUntil(LocalDate.of(2036, 12, 31));
+        return payment;
+    }
+
+    @Test
+    void basePaymentFrom_paymentNotPaidYet_keepsOptionalFieldsNull() {
+        BasePaymentDTO dto = BasePaymentDTO.from(payment());
+
+        assertThat(dto).extracting(BasePaymentDTO::paidAt, BasePaymentDTO::invoiceNumber, BasePaymentDTO::receiptUrl)
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void detailPaymentFrom_payment_copiesCustomerAndProviderData() {
+        Payment payment = payment();
+        payment.setCustomerName("Alira Stormwind");
+        payment.setCustomerTaxCode("RSSMRA80A01H501U");
+        payment.setCustomerCountry("IT");
+
+        DetailPaymentDTO dto = DetailPaymentDTO.from(payment);
+
+        assertThat(dto).extracting(DetailPaymentDTO::provider, DetailPaymentDTO::providerPaymentId, DetailPaymentDTO::customerEmail,
+                        DetailPaymentDTO::customerName, DetailPaymentDTO::customerTaxCode, DetailPaymentDTO::customerCountry)
+                .containsExactly(PaymentProvider.STRIPE, "pi_123", "alira@example.com", "Alira Stormwind", "RSSMRA80A01H501U", "IT");
+    }
+
+    @Test
+    void detailPaymentFrom_payment_doesNotExposeRetentionDate() {
+        DetailPaymentDTO dto = DetailPaymentDTO.from(payment());
+
+        assertThat(dto.toString()).doesNotContain("2036", "retain");
     }
 }

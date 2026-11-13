@@ -7,6 +7,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import it.gdr.diary.integration.support.AbstractIntegrationTest;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -119,6 +121,13 @@ class SchemaIT extends AbstractIntegrationTest {
             insertTag(otherDiaryId, insertPage(diaryId, 1), "combat");
             status.setRollbackOnly();
         });
+    }
+
+    private void insertPayment(String providerPaymentId, long amountCents, String currency, String country) {
+        jdbc.update("insert into payment (id, provider, provider_payment_id, status, amount_cents, currency, description, customer_email, "
+                + "customer_country, retain_until, created_at, updated_at, version, created_by, updated_by) "
+                + "values (?, 'STRIPE', ?, 'SUCCEEDED', ?, ?, 'Premium', 'a@b.example', ?, current_date, now(), now(), 0, 'test', 'test')",
+                UUID.randomUUID(), providerPaymentId, amountCents, currency, country);
     }
 
     @Test
@@ -304,5 +313,39 @@ class SchemaIT extends AbstractIntegrationTest {
     @Test
     void feedbackDocument_sameDocumentLinkedTwice_isRejectedByUniqueConstraint() {
         assertThatThrownBy(this::insertTwoFeedbackLinksWithSameDocument).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void paymentAppUserForeignKey_schema_setsNullOnDelete() {
+        assertThat(deleteRuleOf("fk_payment_app_user_id")).isEqualTo("n");
+    }
+
+    @Test
+    void payment_validRow_isAccepted() {
+        assertThatCode(() -> insertPayment("pi_valid", 0, "EUR", "IT")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void payment_negativeAmount_isRejectedByCheckConstraint() {
+        assertThatThrownBy(() -> insertPayment("pi_negative", -1, "EUR", "IT")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"eur", "EU", "EURO", "E1R"})
+    void payment_malformedCurrency_isRejectedByCheckConstraint(String currency) {
+        assertThatThrownBy(() -> insertPayment("pi_currency", 100, currency, "IT")).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"it", "ITA", "I"})
+    void payment_malformedCountry_isRejectedByCheckConstraint(String country) {
+        assertThatThrownBy(() -> insertPayment("pi_country", 100, "EUR", country)).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void payment_sameProviderPaymentIdTwice_isRejectedByUniqueConstraint() {
+        insertPayment("pi_same", 100, "EUR", "IT");
+
+        assertThatThrownBy(() -> insertPayment("pi_same", 200, "EUR", "IT")).isInstanceOf(DataIntegrityViolationException.class);
     }
 }

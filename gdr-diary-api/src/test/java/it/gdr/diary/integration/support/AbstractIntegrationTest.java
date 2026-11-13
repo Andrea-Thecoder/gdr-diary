@@ -60,11 +60,13 @@ public abstract class AbstractIntegrationTest {
         registry.add("app.storage.secret-key", () -> TestContainers.STORAGE_SECRET_KEY);
         registry.add("app.storage.bucket", () -> TestContainers.BUCKET);
         registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", TestContainers::issuerUri);
+        registry.add("app.keycloak-admin.server-url", TestContainers.KEYCLOAK::getAuthServerUrl);
+        registry.add("app.keycloak-admin.realm", () -> TestContainers.REALM);
     }
 
     @AfterEach
     void cleanUp() throws Exception {
-        jdbc.execute("truncate table feedback_document, feedback, character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
+        jdbc.execute("truncate table payment, feedback_document, feedback, character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
         for (String bucket : List.of(TestContainers.BUCKET, FEEDBACK_BUCKET)) {
             for (String key : storedObjectKeys(bucket)) {
                 minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build());

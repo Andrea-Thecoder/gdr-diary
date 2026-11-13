@@ -49,6 +49,7 @@ public class AppUserService {
     private final DocumentService documentService;
     private final Clock clock;
     private final DiaryPageTagService tagService;
+    private final KeycloakUserService keycloakUserService;
 
     public UUID createAppUser() {
         String keycloakId = jwtInspector.getSubject();
@@ -99,9 +100,11 @@ public class AppUserService {
 
     public void deleteAppUser() {
         requireRecentAuthentication();
+        String subject = jwtInspector.getSubject();
+        keycloakUserService.deleteKeycloakUser(subject);
         List<Document> documents;
         try {
-            documents = deleteAppUserData(jwtInspector.getSubject());
+            documents = deleteAppUserData(subject);
         } catch (PersistenceException e) {
             if (SqlStates.isForeignKeyViolation(e)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "The account changed while it was being deleted, try again");

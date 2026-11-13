@@ -19,7 +19,7 @@ Il backend gira fuori da Docker (`./mvnw spring-boot:run`), gli altri servizi ne
 | `seaweedfs` | Storage S3 delle immagini | `8333` | – | nessuno |
 | `mailpit` | Email di Keycloak | `8025` (web), `1025` (SMTP) | – | nessuno |
 
-Ordine di avvio: prima i container (aspettare che i servizi con controllo di stato siano `healthy`), poi il backend. Il backend all'avvio non contatta Keycloak: scarica le chiavi di firma alla prima richiesta con un token. Contatta invece lo storage per creare i bucket se mancano (se lo storage è spento scrive un avviso e parte lo stesso).
+Ordine di avvio: prima i container (aspettare che i servizi con controllo di stato siano `healthy`), poi il backend. Il backend all'avvio non contatta Keycloak: scarica le chiavi di firma alla prima richiesta con un token, e il client admin prende il suo token alla prima cancellazione di un account. Contatta invece lo storage per creare i bucket se mancano (se lo storage è spento scrive un avviso e parte lo stesso).
 
 ### Dove guardare i log
 
@@ -65,6 +65,17 @@ Il nome del volume è il nome della cartella del compose seguito da `_` e dal no
 
 In alternativa si cambiano le impostazioni dalla console di Keycloak e si riportano a mano nel file JSON.
 
+### Creare il client admin del backend
+
+`DELETE /me` cancella l'utente su Keycloak con il client `gdr-diary-backend-admin`. Il file del realm lo contiene, ma l'importazione avviene solo alla prima creazione: in un realm già esistente va creato a mano. Console Keycloak (`http://localhost:8180`, utente `admin`, password `secret`) → realm `gdr-diary-dev`:
+
+1. **Clients** → **Create client** → *Client type* `OpenID Connect`, *Client ID* `gdr-diary-backend-admin` → **Next**.
+2. *Client authentication* **On**, *Authorization* **Off**; in *Authentication flow* lasciare acceso solo **Service accounts roles** (spegnere *Standard flow* e *Direct access grants*) → **Next** → **Save**.
+3. Scheda **Credentials** → *Client Authenticator* `Client Id and Secret` → in *Client secret* il valore usato da `app.keycloak-admin.client-secret` (in sviluppo `secret`; si può rigenerare con **Regenerate**).
+4. Scheda **Service accounts roles** → **Assign role** → filtrare per **Filter by clients** → `realm-management` `manage-users` → **Assign**.
+
+Controllo: `curl -s -d grant_type=client_credentials -d client_id=gdr-diary-backend-admin -d client_secret=secret http://localhost:8180/realms/gdr-diary-dev/protocol/openid-connect/token` restituisce un `access_token`.
+
 ### Azzerare il database dell'applicazione
 
 ```bash
@@ -82,9 +93,9 @@ Console Keycloak (`http://localhost:8180`, utente `admin`, password `secret`) �
 
 ### Cancellare un utente
 
-L'ordine è: prima `DELETE /me` sul backend, poi la cancellazione dell'account su Keycloak (la lancia il frontend con l'azione `delete_account`).
+`DELETE /me` cancella prima l'utente su Keycloak (client `gdr-diary-backend-admin`, con 3 tentativi in più a intervalli crescenti) e solo dopo i dati del backend. Il frontend non cancella più l'account.
 
-- Se il frontend si ferma sull'ultimo passo, `DELETE /me` si può richiamare: se l'utente non c'è più nel database risponde 200 senza fare niente.
+- Si può richiamare: se l'utente non c'è più su Keycloak (404) si considera fatto, e se non c'è più nel database risponde 200 senza fare niente. Dopo un 502 o un 409 si richiama entro i 5 minuti dall'ultimo accesso con la password (`auth_time`), altrimenti il 401 chiede di rifare il login.
 - L'account su Keycloak si può cancellare a mano dalla console: **Users** → l'utente → **Delete**.
 
 ### Leggere le email di Keycloak
@@ -136,13 +147,14 @@ docker compose restart keycloak
 | 403 | Nel token manca il ruolo `user` o `admin` in `realm_access.roles`. | Assegnare il ruolo o inserire l'utente nel gruppo `users`, poi nuovo login. |
 | `GET /me` risponde 404 | L'utente non è ancora stato creato nel database. | Chiamare `POST /me` dopo il login (lo fa il frontend). |
 | `POST /me` risponde 400 «The token has no email address» | Il token non ha il claim `email`. | Controllare che l'utente abbia un'email in Keycloak. |
+| `DELETE /me` risponde 502 «The account could not be deleted on the authentication server» | Keycloak non risponde o rifiuta la cancellazione anche dopo i tentativi (nel log del backend ci sono i `WARN` «Keycloak user ... not deleted» con lo stato HTTP): il client `gdr-diary-backend-admin` manca, ha un secret diverso da `app.keycloak-admin.client-secret` o non ha il ruolo `manage-users` (401 o 403), oppure `app.keycloak-admin.server-url` o `realm` sono sbagliati, o Keycloak è fermo. Nel backend non è stato cancellato niente. | Creare o correggere il client (vedi «Creare il client admin del backend»), controllare `server-url` e `realm`, poi ripetere la chiamata. |
 | `DELETE /me` risponde 401 con `insufficient_user_authentication` | L'accesso è più vecchio di 5 minuti (`app.user.delete-max-auth-age`), oppure il token è stato preso con il password grant e non ha `auth_time`. | Rifare il login con la password dal frontend (Authorization Code con PKCE) e ripetere subito la chiamata. |
 
 ### Avvio
 
 | Sintomo | Causa probabile | Rimedio |
 |---|---|---|
-| Il backend non parte con un errore di configurazione | Le proprietà sono validate e un valore sbagliato blocca l'avvio. Endpoint, chiavi e bucket dello storage sono obbligatori, `url-expiry` va da 1 secondo a 7 giorni, le dimensioni devono essere maggiori di zero, `delete-max-auth-age` almeno 1 secondo. | Leggere il log: indica la proprietà. |
+| Il backend non parte con un errore di configurazione | Le proprietà sono validate e un valore sbagliato blocca l'avvio. Endpoint, chiavi e bucket dello storage sono obbligatori, `url-expiry` va da 1 secondo a 7 giorni, le dimensioni devono essere maggiori di zero, `delete-max-auth-age` almeno 1 secondo, `app.keycloak-admin.*` (`server-url`, `realm`, `client-id`, `client-secret`) obbligatorio. | Leggere il log: indica la proprietà. |
 | Il build fallisce con un errore sulla versione di Java | È in uso un JDK diverso dal 25. | Controllare `java -version` e usare il JDK 25. |
 | Connection refused sulla porta `5432` | `postgres` non è partito o non è `healthy`. | `docker compose ps`, poi `docker compose logs postgres`. |
 | Il backend non parte con errori di Flyway o di schema | Il volume del database esisteva già prima dello script `init-db-postgres.sql`, che gira solo alla creazione del volume: lo schema `dev` manca. | Azzerare il database (vedi sezione 2). |

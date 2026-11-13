@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").hasRole(AppRole.ADMIN.name())
                         .requestMatchers(HttpMethod.POST, "/feedback").permitAll()
                         .requestMatchers("/feedback", "/feedback/**").hasRole(AppRole.ADMIN.name())
+                        .requestMatchers("/me/payments", "/me/payments/**").hasAnyRole(AppRole.names())
                         .requestMatchers("/me", "/me/**").authenticated()
                         .anyRequest().hasAnyRole(AppRole.names()))
                 .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter())))
