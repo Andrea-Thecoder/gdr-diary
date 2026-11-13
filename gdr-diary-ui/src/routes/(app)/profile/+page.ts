@@ -6,7 +6,8 @@ import type { PageLoad } from './$types';
 
 export const load: PageLoad = async () => {
 	try {
-		const [profile, id] = await Promise.all([fetchProfile(getApi()), ensureAppUser()]);
+		const id = await ensureAppUser();
+		const profile = await fetchProfile(getApi());
 		return { profile, id };
 	} catch {
 		error(502, 'Non riesco a leggere il tuo profilo. Riprova più tardi.');

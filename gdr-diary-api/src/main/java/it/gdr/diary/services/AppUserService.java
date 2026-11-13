@@ -11,6 +11,7 @@ import it.gdr.diary.exception.RecentAuthenticationRequiredException;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
@@ -47,6 +48,8 @@ public class AppUserService {
     private final AppUserConfig config;
     private final DocumentService documentService;
     private final Clock clock;
+    private final DiaryPageTagService tagService;
+    private final KeycloakUserService keycloakUserService;
 
     public UUID createAppUser() {
         String keycloakId = jwtInspector.getSubject();
@@ -97,9 +100,11 @@ public class AppUserService {
 
     public void deleteAppUser() {
         requireRecentAuthentication();
+        String subject = jwtInspector.getSubject();
+        keycloakUserService.deleteKeycloakUser(subject);
         List<Document> documents;
         try {
-            documents = deleteAppUserData(jwtInspector.getSubject());
+            documents = deleteAppUserData(subject);
         } catch (PersistenceException e) {
             if (SqlStates.isForeignKeyViolation(e)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "The account changed while it was being deleted, try again");
@@ -135,15 +140,26 @@ public class AppUserService {
                     .where().eq("owner.id", user.getId())
                     .findList();
             if (!characters.isEmpty()) {
+                List<CharacterSheet> sheets = database.find(CharacterSheet.class)
+                        .setLabel("deleteAppUserSheets")
+                        .fetch("document")
+                        .where().in("character.id", characters.stream().map(GameCharacter::getId).toList())
+                        .findList();
+                if (!sheets.isEmpty()) {
+                    sheets.stream().map(CharacterSheet::getDocument).forEach(documents::add);
+                    database.deleteAll(sheets);
+                }
                 List<Diary> diaries = database.find(Diary.class)
                         .setLabel("deleteAppUserDiaries")
                         .fetch("coverDocument")
                         .where().in("character.id", characters.stream().map(GameCharacter::getId).toList())
                         .findList();
                 if (!diaries.isEmpty()) {
+                    List<UUID> diaryIds = diaries.stream().map(Diary::getId).toList();
+                    tagService.deleteDiaryPageTagsByDiaries(diaryIds);
                     database.find(DiaryPage.class)
                             .setLabel("deleteAppUserPages")
-                            .where().in("diary.id", diaries.stream().map(Diary::getId).toList())
+                            .where().in("diary.id", diaryIds)
                             .delete();
                     diaries.stream().map(Diary::getCoverDocument).filter(Objects::nonNull).forEach(documents::add);
                     database.deleteAll(diaries);

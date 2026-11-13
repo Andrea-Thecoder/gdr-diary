@@ -48,11 +48,17 @@ describe('fetchDiaries', () => {
 			json({ list: [{ id: 'd1', title: 'Cronache' }], totalRows: 13, totalPages: 2, page: 1 })
 		);
 
-		const result = await fetchDiaries(api, 'c1', { title: ' Cron ', descending: true, page: 2 });
+		const result = await fetchDiaries(api, 'c1', {
+			title: ' Cron ',
+			tag: ' erebo ',
+			descending: true,
+			page: 2
+		});
 
 		const url = new URL(requests[0]?.url ?? '');
 		expect(url.pathname).toBe('/base/characters/c1/diaries');
 		expect(url.searchParams.get('title')).toBe('Cron');
+		expect(url.searchParams.get('tag')).toBe('erebo');
 		expect(url.searchParams.get('sort')).toBe('title');
 		expect(url.searchParams.get('descending')).toBe('true');
 		expect(url.searchParams.get('page')).toBe('2');
@@ -65,19 +71,21 @@ describe('fetchDiaries', () => {
 		});
 	});
 
-	it('leaves out an empty title', async () => {
+	it('leaves out an empty title and an empty tag', async () => {
 		const { api, requests } = clientWith(() => json({ list: [] }));
 
-		await fetchDiaries(api, 'c1', { title: '  ', descending: false, page: 1 });
+		await fetchDiaries(api, 'c1', { title: '  ', tag: '  ', descending: false, page: 1 });
 
-		expect(new URL(requests[0]?.url ?? '').searchParams.has('title')).toBe(false);
+		const url = new URL(requests[0]?.url ?? '');
+		expect(url.searchParams.has('title')).toBe(false);
+		expect(url.searchParams.has('tag')).toBe(false);
 	});
 
 	it('throws a readable error when the call fails', async () => {
 		const { api } = clientWith(() => json({ title: 'Boom', status: 500 }, 500));
 
 		await expect(
-			fetchDiaries(api, 'c1', { title: '', descending: false, page: 1 })
+			fetchDiaries(api, 'c1', { title: '', tag: '', descending: false, page: 1 })
 		).rejects.toThrow();
 	});
 });

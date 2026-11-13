@@ -155,19 +155,24 @@ public class AppUserController {
     }
 
     @Operation(
-            summary = "Delete all the data of the logged-in user",
-            description = "Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, "
+            summary = "Delete the account and all the data of the logged-in user",
+            description = "Permanently deletes the account of the logged-in user: first the user on the authentication server (Keycloak, "
+                    + "retried three times with growing waits if it fails; an already deleted user counts as done), then everything the user has in the backend: all the characters with their diaries and pages, "
                     + "the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. "
+                    + "The payments of the user are not deleted: they are kept, detached from the account, because the law requires to retain them. "
                     + "Everything is deleted in a single transaction: if something fails nothing is deleted. "
-                    + "The account on the authentication server is not touched: the client deletes it after this call. "
+                    + "If the authentication server cannot delete the user after the retries it answers 502 and deletes nothing in the backend. "
                     + "It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. "
                     + "It is idempotent: if the user has no data any more it still answers 200.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Data deleted"),
+            @ApiResponse(responseCode = "200", description = "Account and data deleted"),
             @ApiResponse(responseCode = "401", description = "Missing, expired or invalid token, or the last login with the password is older than app.user.delete-max-auth-age (the answer carries WWW-Authenticate with error insufficient_user_authentication and the client must ask for the password again)",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ExceptionResponse.class))),
-            @ApiResponse(responseCode = "409", description = "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again",
+            @ApiResponse(responseCode = "409", description = "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted in the backend (the user on the authentication server is already gone, so calling again goes straight to the data), try again",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ExceptionResponse.class))),
+            @ApiResponse(responseCode = "502", description = "The user could not be deleted on the authentication server after the retries: nothing is deleted in the backend, try again later",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ExceptionResponse.class)))
     })

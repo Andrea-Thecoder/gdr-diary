@@ -3,18 +3,35 @@ package it.gdr.diary.unit.dto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import it.gdr.diary.dto.app_user.DetailAppUserDTO;
+import it.gdr.diary.dto.character_sheet.BaseCharacterSheetDTO;
+import it.gdr.diary.dto.character_sheet.DetailCharacterSheetDTO;
 import it.gdr.diary.dto.diary.BaseDiaryDTO;
 import it.gdr.diary.dto.diary.BookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.DetailDiaryDTO;
 import it.gdr.diary.dto.diary_page.BaseDiaryPageDTO;
+import it.gdr.diary.dto.feedback.AttachmentFeedbackDTO;
+import it.gdr.diary.dto.feedback.BaseFeedbackDTO;
+import it.gdr.diary.dto.feedback.DetailFeedbackDTO;
 import it.gdr.diary.dto.game_character.BaseGameCharacterDTO;
 import it.gdr.diary.dto.game_character.DetailGameCharacterDTO;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
+import it.gdr.diary.model.Feedback;
+import it.gdr.diary.model.FeedbackStatus;
+import it.gdr.diary.model.FeedbackType;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
+import it.gdr.diary.model.Payment;
+import it.gdr.diary.model.PaymentProvider;
+import it.gdr.diary.model.PaymentStatus;
+import it.gdr.diary.dto.payment.BasePaymentDTO;
+import it.gdr.diary.dto.payment.DetailPaymentDTO;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -142,9 +159,9 @@ class DtoMappingTest {
         page.setContent(Map.of("type", "doc"));
         page.setVersion(7L);
 
-        BaseDiaryPageDTO dto = BaseDiaryPageDTO.from(page);
+        BaseDiaryPageDTO dto = BaseDiaryPageDTO.from(page, "elfo");
 
-        assertThat(dto).isEqualTo(new BaseDiaryPageDTO(pageId, (short) 3, Map.of("type", "doc"), 7L));
+        assertThat(dto).isEqualTo(new BaseDiaryPageDTO(pageId, (short) 3, Map.of("type", "doc"), 7L, "elfo"));
     }
 
     @Test
@@ -164,5 +181,172 @@ class DtoMappingTest {
         BookmarkDiaryDTO dto = BookmarkDiaryDTO.from(null);
 
         assertThat(dto).isEqualTo(new BookmarkDiaryDTO(null, null));
+    }
+
+    private static final UUID SHEET_ID = UUID.fromString("7d1e5a52-9a0c-4b57-8c64-0f7a1d9a4e21");
+    private static final Instant SHEET_CREATED_AT = Instant.parse("2026-11-05T10:15:30Z");
+    private static final String DOWNLOAD_URL = "https://storage.example/download";
+
+    private static CharacterSheet sheet() {
+        Document pdf = document();
+        pdf.setName("alira.pdf");
+        pdf.setSize(2048L);
+        CharacterSheet sheet = new CharacterSheet();
+        sheet.setId(SHEET_ID);
+        sheet.setCharacter(character());
+        sheet.setDocument(pdf);
+        sheet.setTitle("Alira, level 9");
+        sheet.setGameSystem("D&D 5e");
+        sheet.setCreatedAt(SHEET_CREATED_AT);
+        return sheet;
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheet_copiesSummaryFieldsAndUrls() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto).isEqualTo(new BaseCharacterSheetDTO(SHEET_ID, CHARACTER_ID, "Alira, level 9", "D&D 5e", 2048L,
+                SHEET_CREATED_AT, URL, DOWNLOAD_URL));
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheetWithoutSystem_returnsNullSystem() {
+        CharacterSheet sheet = sheet();
+        sheet.setGameSystem(null);
+
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet, URL, DOWNLOAD_URL);
+
+        assertThat(dto.system()).isNull();
+    }
+
+    @Test
+    void baseCharacterSheetFrom_nullUrls_keepsThemNull() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), null, null);
+
+        assertThat(dto).extracting(BaseCharacterSheetDTO::url, BaseCharacterSheetDTO::downloadUrl).containsOnlyNulls();
+    }
+
+    @Test
+    void baseCharacterSheetFrom_sheet_doesNotExposeStorageKeys() {
+        BaseCharacterSheetDTO dto = BaseCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheet_copiesAllFieldsAndUrls() {
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto).isEqualTo(new DetailCharacterSheetDTO(SHEET_ID, CHARACTER_ID, "Alira, level 9", "D&D 5e", "alira.pdf",
+                2048L, SHEET_CREATED_AT, URL, DOWNLOAD_URL));
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheetWithoutSystem_returnsNullSystem() {
+        CharacterSheet sheet = sheet();
+        sheet.setGameSystem(null);
+
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet, URL, DOWNLOAD_URL);
+
+        assertThat(dto.system()).isNull();
+    }
+
+    @Test
+    void detailCharacterSheetFrom_sheet_doesNotExposeStorageKeys() {
+        DetailCharacterSheetDTO dto = DetailCharacterSheetDTO.from(sheet(), URL, DOWNLOAD_URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    private static Feedback feedback(String message) {
+        Feedback feedback = new Feedback();
+        feedback.setId(DOCUMENT_ID);
+        feedback.setType(FeedbackType.IDEA);
+        feedback.setStatus(FeedbackStatus.NEW);
+        feedback.setMessage(message);
+        feedback.setPrivacyAccepted(true);
+        return feedback;
+    }
+
+    @Test
+    void baseFeedbackFrom_shortMessage_keepsWholeMessageAsPreview() {
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback("Great tags"));
+
+        assertThat(dto.messagePreview()).isEqualTo("Great tags");
+    }
+
+    @Test
+    void baseFeedbackFrom_messageOf120Chars_keepsWholeMessageAsPreview() {
+        String message = "a".repeat(120);
+
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback(message));
+
+        assertThat(dto.messagePreview()).isEqualTo(message);
+    }
+
+    @Test
+    void baseFeedbackFrom_longMessage_cutsPreviewTo120CharsWithEllipsis() {
+        BaseFeedbackDTO dto = BaseFeedbackDTO.from(feedback("a".repeat(2000)));
+
+        assertThat(dto.messagePreview()).hasSize(120).endsWith("...");
+    }
+
+    @Test
+    void detailFeedbackFrom_feedback_keepsWholeMessage() {
+        String message = "a".repeat(2000);
+
+        DetailFeedbackDTO dto = DetailFeedbackDTO.from(feedback(message), List.of());
+
+        assertThat(dto.message()).isEqualTo(message);
+    }
+
+    @Test
+    void attachmentFeedbackFrom_document_doesNotExposeStorageKeys() {
+        AttachmentFeedbackDTO dto = AttachmentFeedbackDTO.from(document(), URL);
+
+        assertThat(dto.toString()).doesNotContain("secret-key", "diary-documents");
+    }
+
+    private static Payment payment() {
+        Payment payment = new Payment();
+        payment.setId(DOCUMENT_ID);
+        payment.setProvider(PaymentProvider.STRIPE);
+        payment.setProviderPaymentId("pi_123");
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setAmountCents(2990);
+        payment.setCurrency("EUR");
+        payment.setDescription("Premium annual");
+        payment.setCustomerEmail("alira@example.com");
+        payment.setRetainUntil(LocalDate.of(2036, 12, 31));
+        return payment;
+    }
+
+    @Test
+    void basePaymentFrom_paymentNotPaidYet_keepsOptionalFieldsNull() {
+        BasePaymentDTO dto = BasePaymentDTO.from(payment());
+
+        assertThat(dto).extracting(BasePaymentDTO::paidAt, BasePaymentDTO::invoiceNumber, BasePaymentDTO::receiptUrl)
+                .containsOnlyNulls();
+    }
+
+    @Test
+    void detailPaymentFrom_payment_copiesCustomerAndProviderData() {
+        Payment payment = payment();
+        payment.setCustomerName("Alira Stormwind");
+        payment.setCustomerTaxCode("RSSMRA80A01H501U");
+        payment.setCustomerCountry("IT");
+
+        DetailPaymentDTO dto = DetailPaymentDTO.from(payment);
+
+        assertThat(dto).extracting(DetailPaymentDTO::provider, DetailPaymentDTO::providerPaymentId, DetailPaymentDTO::customerEmail,
+                        DetailPaymentDTO::customerName, DetailPaymentDTO::customerTaxCode, DetailPaymentDTO::customerCountry)
+                .containsExactly(PaymentProvider.STRIPE, "pi_123", "alira@example.com", "Alira Stormwind", "RSSMRA80A01H501U", "IT");
+    }
+
+    @Test
+    void detailPaymentFrom_payment_doesNotExposeRetentionDate() {
+        DetailPaymentDTO dto = DetailPaymentDTO.from(payment());
+
+        assertThat(dto.toString()).doesNotContain("2036", "retain");
     }
 }

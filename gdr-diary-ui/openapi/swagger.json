@@ -21,8 +21,24 @@
       "description": "Manage the role-playing characters of the logged-in user"
     },
     {
+      "name": "Feedback",
+      "description": "Public feedback form (no login) and management of the received feedback (admin only)"
+    },
+    {
+      "name": "Diary page tags",
+      "description": "Manage the tags of the pages of the diaries of the logged-in user"
+    },
+    {
       "name": "Users",
       "description": "The logged-in user"
+    },
+    {
+      "name": "Character sheets",
+      "description": "Manage the PDF sheets of the characters of the logged-in user"
+    },
+    {
+      "name": "Payments",
+      "description": "The payments of the logged-in user (read only)"
     },
     {
       "name": "Diary pages",
@@ -30,13 +46,342 @@
     }
   ],
   "paths": {
+    "/sheets/{id}": {
+      "get": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Get a sheet",
+        "description": "Returns a single sheet of a character owned by the logged-in user, with fresh temporary URLs (the ones returned by the list expire after a few minutes).",
+        "operationId": "getCharacterSheetById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested sheet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Update a sheet",
+        "description": "Replaces title and game system of a sheet of a character owned by the logged-in user. Fields not sent are set to empty (the title cannot be empty). The PDF file is not changed.",
+        "operationId": "updateCharacterSheet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCharacterSheetDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sheet updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example blank title), or sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The sheet was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Delete a sheet",
+        "description": "Deletes a sheet of a character owned by the logged-in user, together with its PDF file. The operation cannot be undone.",
+        "operationId": "deleteCharacterSheet",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sheet deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/sheets/{id}/file": {
+      "put": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Replace the PDF of a sheet",
+        "description": "Uploads a PDF that replaces the file of a sheet of a character owned by the logged-in user. Title and game system are kept. The same checks as the upload of a new sheet apply. The previous file is replaced and deleted.",
+        "operationId": "updateCharacterSheetFile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Sheet identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The PDF file that replaces the current one"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF replaced",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file part, malformed multipart request, empty file, file that is not a PDF, missing or mismatching content type, extension not matching the content, file too large, or sheet identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Sheet not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The sheet was modified at the same time by another request: the PDF is not changed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/pages/{id}": {
       "put": {
         "tags": [
           "Diary pages"
         ],
         "summary": "Update a page",
-        "description": "Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size. The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next update.",
+        "description": "Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size. The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next update.",
         "operationId": "updateDiaryPage",
         "parameters": [
           {
@@ -174,6 +519,82 @@
           },
           "409": {
             "description": "A page of the diary was modified at the same time by another request: nothing is deleted, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/pages/{id}/tag": {
+      "put": {
+        "tags": [
+          "Diary page tags"
+        ],
+        "summary": "Set the tag of a page",
+        "description": "Replaces the tag of a page of a diary of a character owned by the logged-in user. A page has at most one tag, 1 to 30 characters without control characters; a null tag removes it. A diary can have at most 10 different tags (ignoring case): if the diary already has the tag with another case, that spelling is kept. The tag is not part of the page content: saving it does not change the version of the page. The response gives the tag the page has now (null if none).",
+        "operationId": "updateDiaryPageTag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Page identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDiaryPageTagDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tag replaced, with the tag the page has now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailDiaryPageTagDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (blank or too long tag, control characters, characters that cannot be stored), a new tag when the diary already has 10 different tags, or page identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Page not found, its character is owned by another user, or the page was deleted at the same time",
             "content": {
               "application/json": {
                 "schema": {
@@ -561,210 +982,6 @@
         ]
       }
     },
-    "/diaries/{id}/bookmark": {
-      "get": {
-        "tags": [
-          "Diaries"
-        ],
-        "summary": "Get the bookmark of a diary",
-        "description": "Returns the page marked with the bookmark of a diary of a character owned by the logged-in user. When the diary has no bookmark the response is an empty object.",
-        "operationId": "getDiaryBookmark",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Diary identifier",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Bookmark of the diary; empty object when there is none",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Diary identifier that is not a UUID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired or invalid token"
-          },
-          "403": {
-            "description": "The user has neither the user nor the admin role"
-          },
-          "404": {
-            "description": "Diary not found, or its character is owned by another user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      },
-      "put": {
-        "tags": [
-          "Diaries"
-        ],
-        "summary": "Set the bookmark of a diary",
-        "description": "Marks a page of the diary with the bookmark, replacing the previous one: a diary has at most one bookmark. The page must belong to the diary. The bookmark follows the page when other pages are deleted and goes away when the page is deleted.",
-        "operationId": "updateDiaryBookmark",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Diary identifier",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateBookmarkDiaryDTO"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Bookmark set",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Missing page identifier, or identifier that is not a UUID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired or invalid token"
-          },
-          "403": {
-            "description": "The user has neither the user nor the admin role"
-          },
-          "404": {
-            "description": "Diary or page not found, or the diary's character is owned by another user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Diaries"
-        ],
-        "summary": "Remove the bookmark of a diary",
-        "description": "Removes the bookmark of a diary of a character owned by the logged-in user. It does nothing when the diary has no bookmark.",
-        "operationId": "deleteDiaryBookmark",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "description": "Diary identifier",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Bookmark removed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Diary identifier that is not a UUID",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired or invalid token"
-          },
-          "403": {
-            "description": "The user has neither the user nor the admin role"
-          },
-          "404": {
-            "description": "Diary not found, or its character is owned by another user",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
     "/diaries/{id}/cover": {
       "put": {
         "tags": [
@@ -938,6 +1155,230 @@
           },
           "409": {
             "description": "The diary was modified at the same time by another request: the cover is not removed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/diaries/{id}/bookmark": {
+      "get": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Get the bookmark of a diary",
+        "description": "Returns the page the reader left the bookmark on, in a diary of a character owned by the logged-in user. Both fields of the response are null when the diary has no bookmark.",
+        "operationId": "getDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bookmark of the diary (empty if there is none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Set the bookmark of a diary",
+        "description": "Puts the bookmark of a diary of a character owned by the logged-in user on one of its pages. A diary has at most one bookmark: the previous one, if any, is replaced. When the bookmarked page is deleted the bookmark disappears.",
+        "operationId": "updateDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBookmarkDiaryDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bookmark set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkDiaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example missing or malformed page identifier), or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found or its character is owned by another user, or the page does not belong to the diary (or was deleted meanwhile)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary was modified at the same time by another request: the bookmark is not changed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Diaries"
+        ],
+        "summary": "Remove the bookmark of a diary",
+        "description": "Removes the bookmark of a diary of a character owned by the logged-in user. The operation succeeds also when the diary has no bookmark.",
+        "operationId": "deleteDiaryBookmark",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookmark removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The diary was modified at the same time by another request: the bookmark is not removed, try again",
             "content": {
               "application/json": {
                 "schema": {
@@ -1458,12 +1899,12 @@
         "tags": [
           "Users"
         ],
-        "summary": "Delete all the data of the logged-in user",
-        "description": "Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. Everything is deleted in a single transaction: if something fails nothing is deleted. The account on the authentication server is not touched: the client deletes it after this call. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.",
+        "summary": "Delete the account and all the data of the logged-in user",
+        "description": "Permanently deletes the account of the logged-in user: first the user on the authentication server (Keycloak, retried three times with growing waits if it fails; an already deleted user counts as done), then everything the user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. The payments of the user are not deleted: they are kept, detached from the account, because the law requires to retain them. Everything is deleted in a single transaction: if something fails nothing is deleted. If the authentication server cannot delete the user after the retries it answers 502 and deletes nothing in the backend. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.",
         "operationId": "deleteAppUser",
         "responses": {
           "200": {
-            "description": "Data deleted",
+            "description": "Account and data deleted",
             "content": {
               "application/json": {
                 "schema": {
@@ -1483,7 +1924,17 @@
             }
           },
           "409": {
-            "description": "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again",
+            "description": "The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted in the backend (the user on the authentication server is already gone, so calling again goes straight to the data), try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The user could not be deleted on the authentication server after the retries: nothing is deleted in the backend, try again later",
             "content": {
               "application/json": {
                 "schema": {
@@ -1498,6 +1949,257 @@
             "bearerAuth": []
           }
         ]
+      }
+    },
+    "/feedback": {
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "List the feedback",
+        "description": "Admin only. Returns a page of the received feedback, newest first by default, filtered and sorted according to the search parameters (type, status, text contained in the email, and the period of reception: createdFrom and createdTo are dates without time, both included, from 00:00:00 of the first day to 23:59:59 of the last day in the time zone app.feedback.timezone, each one can be used alone or together).",
+        "operationId": "findAllFeedbacks",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Type of feedback",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Type of feedback",
+              "enum": [
+                "IDEA",
+                "BUG",
+                "LOVE"
+              ],
+              "examples": [
+                "BUG"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Processing status",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Processing status",
+              "enum": [
+                "NEW",
+                "READ",
+                "ANSWERED",
+                "ARCHIVED"
+              ],
+              "examples": [
+                "NEW"
+              ]
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "description": "Case-insensitive text contained in the email address",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the email address",
+              "examples": [
+                "example.com"
+              ],
+              "maxLength": 254,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "description": "Only feedback received on this day or later (from 00:00:00 of that day), date without time",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Only feedback received on this day or later (from 00:00:00 of that day), date without time",
+              "examples": [
+                "2026-11-01"
+              ]
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "description": "Only feedback received on this day or earlier (until 23:59:59 of that day), date without time",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Only feedback received on this day or earlier (until 23:59:59 of that day), date without time",
+              "examples": [
+                "2026-11-30"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of feedback (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1, size above 100, unknown type or status, date that is not in the format yyyy-MM-dd, or createdFrom after createdTo)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Send a feedback",
+        "description": "Public endpoint, no token needed. Multipart request with the form fields and up to app.feedback.max-files images (default 3) in the repeated part 'files', for a total of at most app.feedback.max-total-file-size (default 5 MB). Images must be PNG, JPEG or WebP: the real content of each file is checked, not only the declared type, and the declared content type and the extension must match the content. Empty file parts are ignored. The privacy consent is mandatory. The field 'website' is a trap for bots: if it is filled, the request answers 201 but nothing is saved. Each client address can send a limited number of requests per period (app.feedback.rate-limit-max-requests per app.feedback.rate-limit-window).",
+        "operationId": "createFeedback",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertFeedbackDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Feedback received (also when it was discarded by the trap field)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid fields (unknown type, blank or too long message, missing or invalid email, consent missing or false), technical information that is not a JSON object or too large, too many files, files too large in total, empty or unsupported file, declared content type or extension not matching the content, or malformed multipart request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many submissions from the same address, see the Retry-After header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/diaries/{diaryId}/pages": {
@@ -1582,7 +2284,7 @@
           "Diary pages"
         ],
         "summary": "Create a page",
-        "description": "Adds a page at the end of a diary of a character owned by the logged-in user. The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size.",
+        "description": "Adds a page at the end of a diary of a character owned by the logged-in user. The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size.",
         "operationId": "createDiaryPage",
         "parameters": [
           {
@@ -1845,13 +2547,259 @@
         ]
       }
     },
+    "/characters/{characterId}/sheets": {
+      "get": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "List the sheets of a character",
+        "description": "Returns a page of the PDF sheets of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: upload date). Each sheet has two temporary URLs: one to open the PDF in the browser and one that downloads it.",
+        "operationId": "findAllCharacterSheetsByCharacter",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Case-insensitive text contained in the title",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the title",
+              "examples": [
+                "Alira"
+              ],
+              "maxLength": 100,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "system",
+            "in": "query",
+            "description": "Game system, compared ignoring case",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Game system, compared ignoring case",
+              "examples": [
+                "D&D 5e"
+              ],
+              "maxLength": 100,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of sheets of the character (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1 or size above 100), or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Character sheets"
+        ],
+        "summary": "Upload a sheet for a character",
+        "description": "Uploads a PDF as a new sheet of a character owned by the logged-in user, in a single step: the multipart request has the file part and the title (required) and game system (optional) fields. The real content of the file is checked, not only the declared type: the file must start with the PDF signature, the declared content type must be present and, like the extension, must match the content and the size must not exceed the configured limit. A character can have a limited number of sheets (app.character-sheet.max-sheets-per-character, default 10).",
+        "operationId": "createCharacterSheet",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertCharacterSheetDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sheet created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterSheetDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing file part, malformed multipart request, blank or too long title, empty file, file that is not a PDF, missing or mismatching content type, extension not matching the content, file too large, too many sheets for the character, or character identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, owned by another user, or deleted while the sheet was being uploaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than the maximum request size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/characters/{characterId}/diaries": {
       "get": {
         "tags": [
           "Diaries"
         ],
         "summary": "List the diaries of a character",
-        "description": "Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: title).",
+        "description": "Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: title). The tag filter keeps the diaries that have at least one page with a tag containing the given text.",
         "operationId": "findAllDiariesByCharacter",
         "parameters": [
           {
@@ -1877,6 +2825,21 @@
                 "Chapter"
               ],
               "maxLength": 255,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "description": "Case-insensitive text contained in a tag of at least one page of the diary",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in a tag of at least one page of the diary",
+              "examples": [
+                "combat"
+              ],
+              "maxLength": 30,
               "minLength": 0
             }
           },
@@ -2126,10 +3089,878 @@
           }
         ]
       }
+    },
+    "/feedback/{id}/unread": {
+      "patch": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Mark a feedback as unread",
+        "description": "Admin only. Sets the status of a feedback back to NEW (to be read). Repeating the call changes nothing.",
+        "operationId": "markFeedbackAsUnread",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback marked as unread",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feedback was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/feedback/{id}/read": {
+      "patch": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Mark a feedback as read",
+        "description": "Admin only. Sets the status of a feedback to READ. Repeating the call changes nothing.",
+        "operationId": "markFeedbackAsRead",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback marked as read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feedback was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/feedback/{id}/archive": {
+      "patch": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Archive a feedback",
+        "description": "Admin only. Sets the status of a feedback to ARCHIVED. Repeating the call changes nothing.",
+        "operationId": "archiveFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feedback was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/feedback/{id}/answered": {
+      "patch": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Mark a feedback as answered",
+        "description": "Admin only. Sets the status of a feedback to ANSWERED. Repeating the call changes nothing.",
+        "operationId": "markFeedbackAsAnswered",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback marked as answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feedback was modified at the same time by another request: nothing is saved, read it again and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/payments": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "List the payments of the logged-in user",
+        "description": "Returns a page of the payments of the logged-in user, optionally filtered by status. Default order: payment date, newest first, with the payments not yet paid last; it can be sorted by paidAt or amount. Payments are read only: they are recorded by the payment integration, not through the API.",
+        "operationId": "findAllPayments",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Status of the payment",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Status of the payment",
+              "enum": [
+                "PENDING",
+                "SUCCEEDED",
+                "FAILED",
+                "REFUNDED"
+              ],
+              "examples": [
+                "SUCCEEDED"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Field name to sort by (see endpoint docs for allowed values)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field name to sort by (see endpoint docs for allowed values)",
+              "examples": [
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "descending",
+            "in": "query",
+            "description": "Set to true to sort in descending order",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set to true to sort in descending order",
+              "examples": [
+                false
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of payments of the logged-in user (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBasePaymentDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1, size above 100 or unknown status)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me/payments/{id}": {
+      "get": {
+        "tags": [
+          "Payments"
+        ],
+        "summary": "Get a payment",
+        "description": "Returns a single payment of the logged-in user with the provider data and the customer data recorded at the time of the payment.",
+        "operationId": "getPaymentById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Payment identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested payment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailPaymentDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payment identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Payment not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/feedback/{id}": {
+      "get": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Get a feedback",
+        "description": "Admin only. Returns a feedback with its text, technical information and the attached images, each with a temporary URL.",
+        "operationId": "getFeedbackById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested feedback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailFeedbackDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Delete a feedback",
+        "description": "Admin only. Deletes a feedback together with its attached images, for example when the sender asks to remove their data. The operation cannot be undone.",
+        "operationId": "deleteFeedback",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Feedback identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feedback deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResultDTOVoid"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Feedback identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user does not have the admin role"
+          },
+          "404": {
+            "description": "Feedback not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/diaries/{diaryId}/tags": {
+      "get": {
+        "tags": [
+          "Diary page tags"
+        ],
+        "summary": "List the tags of a diary",
+        "description": "Returns a page of the tags used in the pages of a diary of a character owned by the logged-in user, each with the numbers of the pages that have it (a diary has at most 10 different tags). Tags that differ only by case are grouped. The tags are always sorted by the number of the first page that has them (the first tag of the diary comes first).",
+        "operationId": "findAllDiaryTagsByDiary",
+        "parameters": [
+          {
+            "name": "diaryId",
+            "in": "path",
+            "description": "Diary identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "5c1e8a42-93d7-4f0b-8a16-0d6b7e2f9a31"
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Case-insensitive text contained in the tag",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Case-insensitive text contained in the tag",
+              "examples": [
+                "comb"
+              ],
+              "maxLength": 30,
+              "minLength": 0
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-based)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Page number (1-based)",
+              "examples": [
+                1
+              ],
+              "minimum": 1
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "Number of results per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "description": "Number of results per page",
+              "examples": [
+                20
+              ],
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page of tags of the diary (empty list if none)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultDTOBaseDiaryTagDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search parameters (for example page below 1, size above 100 or name longer than 30 characters), or diary identifier that is not a UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Diary not found, or its character is owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "UpdateCharacterSheetDTO": {
+        "type": "object",
+        "description": "Data to update a sheet",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the sheet",
+            "examples": [
+              "Alira, level 9"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system of the sheet, empty to remove it",
+            "examples": [
+              "D&D 5e"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "ExceptionResponse": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "violations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Violation"
+            }
+          }
+        }
+      },
+      "Violation": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DetailCharacterSheetDTO": {
+        "type": "object",
+        "description": "A sheet of a character of the logged-in user",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sheet identifier",
+            "examples": [
+              "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+            ]
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the sheet belongs to",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the sheet",
+            "examples": [
+              "Alira, level 8"
+            ]
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system of the sheet, null if not indicated",
+            "examples": [
+              "D&D 5e"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Original name of the uploaded PDF file",
+            "examples": [
+              "alira-lv8.pdf"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the PDF file in bytes",
+            "examples": [
+              1468006
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sheet was uploaded",
+            "examples": [
+              "2026-10-12T18:30:00Z"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Temporary URL to open the PDF in the browser",
+            "examples": [
+              "http://localhost:8333/diary-documents/3f1c2a6e?X-Amz-Expires=300"
+            ]
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Temporary URL that downloads the PDF as an attachment",
+            "examples": [
+              "http://localhost:8333/diary-documents/3f1c2a6e?response-content-disposition=attachment&X-Amz-Expires=300"
+            ]
+          }
+        }
+      },
       "UpdateDiaryPageDTO": {
         "type": "object",
         "description": "Data to update a page of a diary",
@@ -2169,35 +4000,6 @@
           "content",
           "version"
         ]
-      },
-      "ExceptionResponse": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "violations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Violation"
-            }
-          }
-        }
-      },
-      "Violation": {
-        "type": "object",
-        "properties": {
-          "field": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
       },
       "BaseDiaryPageDTO": {
         "type": "object",
@@ -2246,6 +4048,51 @@
             "description": "Version of the page: to be sent back when the page is updated, so that changes made elsewhere in the meantime are detected",
             "examples": [
               3
+            ]
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tag of the page, null if the page has no tag",
+            "examples": [
+              "combat"
+            ]
+          }
+        }
+      },
+      "UpdateDiaryPageTagDTO": {
+        "type": "object",
+        "description": "Tag of a page of a diary. It replaces the tag the page has now",
+        "properties": {
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New tag of the page, 1 to 30 characters without control characters, or null to remove the tag. Surrounding spaces are removed. A diary can have at most 10 different tags (ignoring case): if the diary already has the tag with another case, that spelling is kept",
+            "examples": [
+              "combat"
+            ],
+            "maxLength": 30,
+            "minLength": 1,
+            "pattern": "^(?=.*\\S)[^\\p{Cntrl}]*$"
+          }
+        }
+      },
+      "DetailDiaryPageTagDTO": {
+        "type": "object",
+        "description": "Tag of a page of a diary",
+        "properties": {
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tag of the page, null if the page has no tag",
+            "examples": [
+              "combat"
             ]
           }
         }
@@ -2411,6 +4258,45 @@
           }
         }
       },
+      "UpdateBookmarkDiaryDTO": {
+        "type": "object",
+        "description": "Page of a diary to put the bookmark on",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of a page of the same diary",
+            "example": "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+          }
+        },
+        "required": [
+          "pageId"
+        ]
+      },
+      "BookmarkDiaryDTO": {
+        "type": "object",
+        "description": "Bookmark of a diary: the page the reader left a marker on. Both fields are null when the diary has no bookmark",
+        "properties": {
+          "pageId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Identifier of the bookmarked page",
+            "example": "7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45"
+          },
+          "pageNumber": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Number of the bookmarked page inside the diary",
+            "example": 12
+          }
+        }
+      },
       "UpdateGameCharacterDTO": {
         "type": "object",
         "description": "Data to fully replace a character",
@@ -2556,6 +4442,98 @@
           }
         }
       },
+      "InsertFeedbackDTO": {
+        "type": "object",
+        "description": "Data of a feedback, sent as form fields together with the optional image parts",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type of feedback, compared ignoring case",
+            "enum": [
+              "idea",
+              "bug",
+              "love"
+            ],
+            "examples": [
+              "idea"
+            ],
+            "pattern": "(?i)idea|bug|love"
+          },
+          "message": {
+            "type": "string",
+            "description": "Text of the feedback",
+            "examples": [
+              "The page tags are great, could I choose their color?"
+            ],
+            "maxLength": 2000,
+            "minLength": 0
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email address of the sender, to answer to",
+            "examples": [
+              "alira@example.com"
+            ],
+            "maxLength": 254,
+            "minLength": 0
+          },
+          "technicalInfo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Technical information of the sender (browser, screen size, page), as the text of a JSON object",
+            "examples": [
+              {
+                "browser": "Firefox 130",
+                "screen": "1360x768"
+              }
+            ]
+          },
+          "consent": {
+            "type": "boolean",
+            "description": "Acceptance of the privacy policy: it must be true",
+            "examples": [
+              true
+            ]
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Trap field for bots: it must be empty or missing, a real user never fills it",
+            "examples": [
+              ""
+            ],
+            "maxLength": 500,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "consent",
+          "email",
+          "message",
+          "type"
+        ]
+      },
+      "SimpleResultDTOVoid": {
+        "type": "object",
+        "description": "Generic single-item response envelope used by all non-paginated endpoints",
+        "properties": {
+          "payload": {
+            "description": "The response payload; null when the operation returns no content (e.g. delete)"
+          },
+          "message": {
+            "type": "string",
+            "description": "Optional human-readable message accompanying the response",
+            "examples": [
+              "Ship successfully deleted"
+            ]
+          }
+        }
+      },
       "InsertDiaryPageDTO": {
         "type": "object",
         "description": "Data to create a page of a diary. The page number is assigned by the server",
@@ -2641,6 +4619,36 @@
         "required": [
           "kind",
           "name"
+        ]
+      },
+      "InsertCharacterSheetDTO": {
+        "type": "object",
+        "description": "Data to create a sheet, sent as form fields together with the PDF file part",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the sheet",
+            "examples": [
+              "Alira, level 8"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system of the sheet",
+            "examples": [
+              "D&D 5e"
+            ],
+            "maxLength": 100,
+            "minLength": 0
+          }
+        },
+        "required": [
+          "title"
         ]
       },
       "InsertDiaryDTO": {
@@ -2736,6 +4744,124 @@
           }
         }
       },
+      "AttachmentFeedbackDTO": {
+        "type": "object",
+        "description": "An image attached to a feedback",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Original name of the uploaded file",
+            "examples": [
+              "screenshot.png"
+            ]
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "Type of the file",
+            "examples": [
+              "image/png"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the file in bytes",
+            "examples": [
+              482113
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Temporary URL to open the image",
+            "examples": [
+              "http://localhost:8333/feedback-documents/3f1c2a6e?X-Amz-Expires=300"
+            ]
+          }
+        }
+      },
+      "DetailFeedbackDTO": {
+        "type": "object",
+        "description": "A feedback with its text, technical information and attached images",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Feedback identifier",
+            "examples": [
+              "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of feedback",
+            "enum": [
+              "IDEA",
+              "BUG",
+              "LOVE"
+            ],
+            "examples": [
+              "IDEA"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Processing status of the feedback",
+            "enum": [
+              "NEW",
+              "READ",
+              "ANSWERED",
+              "ARCHIVED"
+            ],
+            "examples": [
+              "NEW"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address left by the sender",
+            "examples": [
+              "alira@example.com"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Text of the feedback",
+            "examples": [
+              "The page tags are great, could I choose their color?"
+            ]
+          },
+          "technicalInfo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "Technical information sent with the feedback, null if not sent"
+          },
+          "privacyAccepted": {
+            "type": "boolean",
+            "description": "Whether the sender accepted the privacy policy (always true)",
+            "examples": [
+              true
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the feedback was received",
+            "examples": [
+              "2026-11-11T18:30:00Z"
+            ]
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Images attached to the feedback (empty list if none)",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentFeedbackDTO"
+            }
+          }
+        }
+      },
       "DetailAppUserDTO": {
         "type": "object",
         "description": "The logged-in user",
@@ -2770,6 +4896,437 @@
             "description": "Temporary URL of the profile image, valid for a few minutes. Null if the user has no profile image",
             "examples": [
               "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          }
+        }
+      },
+      "BasePaymentDTO": {
+        "type": "object",
+        "description": "Summary of a payment of the logged-in user, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Payment identifier",
+            "examples": [
+              "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the payment",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "REFUNDED"
+            ],
+            "examples": [
+              "SUCCEEDED"
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in the smallest unit of the currency (cents)",
+            "examples": [
+              2990
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency, ISO 4217 code",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the payment is for",
+            "examples": [
+              "Premium annual"
+            ]
+          },
+          "paidAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the payment succeeded, null until it does",
+            "examples": [
+              "2026-11-10T09:15:00Z"
+            ]
+          },
+          "invoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invoice number, null if there is none",
+            "examples": [
+              "2026-0042"
+            ]
+          },
+          "receiptUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address of the receipt or invoice hosted by the payment provider, null if there is none",
+            "examples": [
+              "https://pay.example/receipts/rcpt_1Nx"
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBasePaymentDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BasePaymentDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "DetailPaymentDTO": {
+        "type": "object",
+        "description": "A payment of the logged-in user with the customer data recorded at the time of the payment",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Payment identifier",
+            "examples": [
+              "9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Status of the payment",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "REFUNDED"
+            ],
+            "examples": [
+              "SUCCEEDED"
+            ]
+          },
+          "amountCents": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in the smallest unit of the currency (cents)",
+            "examples": [
+              2990
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency, ISO 4217 code",
+            "examples": [
+              "EUR"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "description": "What the payment is for",
+            "examples": [
+              "Premium annual"
+            ]
+          },
+          "paidAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the payment succeeded, null until it does",
+            "examples": [
+              "2026-11-10T09:15:00Z"
+            ]
+          },
+          "invoiceNumber": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Invoice number, null if there is none",
+            "examples": [
+              "2026-0042"
+            ]
+          },
+          "receiptUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Address of the receipt or invoice hosted by the payment provider, null if there is none",
+            "examples": [
+              "https://pay.example/receipts/rcpt_1Nx"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "description": "Payment provider",
+            "enum": [
+              "STRIPE"
+            ],
+            "examples": [
+              "STRIPE"
+            ]
+          },
+          "providerPaymentId": {
+            "type": "string",
+            "description": "Identifier of the transaction at the payment provider",
+            "examples": [
+              "pi_3Nx9Kd2eZvKYlo2C1abcDEFG"
+            ]
+          },
+          "customerEmail": {
+            "type": "string",
+            "description": "Email address of the customer at the time of the payment",
+            "examples": [
+              "alira@example.com"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the customer at the time of the payment, null if not recorded",
+            "examples": [
+              "Alira Stormwind"
+            ]
+          },
+          "customerTaxCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Tax code or VAT number of the customer, null if not recorded",
+            "examples": [
+              "RSSMRA80A01H501U"
+            ]
+          },
+          "customerCountry": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Country of the customer, ISO 3166-1 alpha-2 code, null if not recorded",
+            "examples": [
+              "IT"
+            ]
+          }
+        }
+      },
+      "BaseFeedbackDTO": {
+        "type": "object",
+        "description": "Summary of a feedback, as shown in the list",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Feedback identifier",
+            "examples": [
+              "7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of feedback",
+            "enum": [
+              "IDEA",
+              "BUG",
+              "LOVE"
+            ],
+            "examples": [
+              "IDEA"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Processing status of the feedback",
+            "enum": [
+              "NEW",
+              "READ",
+              "ANSWERED",
+              "ARCHIVED"
+            ],
+            "examples": [
+              "NEW"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address left by the sender",
+            "examples": [
+              "alira@example.com"
+            ]
+          },
+          "messagePreview": {
+            "type": "string",
+            "description": "First characters of the text of the feedback",
+            "examples": [
+              "The page tags are great, could I choose their color?"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the feedback was received",
+            "examples": [
+              "2026-11-11T18:30:00Z"
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBaseFeedbackDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseFeedbackDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
+      "BaseDiaryTagDTO": {
+        "type": "object",
+        "description": "A tag of a diary with the pages that have it, used in the list of the tags of a diary",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Tag as written on the first page that has it. Tags that differ only by case are grouped",
+            "examples": [
+              "combat"
+            ]
+          },
+          "pageNumbers": {
+            "type": "array",
+            "description": "Numbers of the pages of the diary that have the tag, in ascending order",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        }
+      },
+      "PagedResultDTOBaseDiaryTagDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseDiaryTagDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
             ]
           }
         }
@@ -2926,6 +5483,120 @@
           }
         }
       },
+      "BaseCharacterSheetDTO": {
+        "type": "object",
+        "description": "Summary of a sheet of a character of the logged-in user, used in lists",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Sheet identifier",
+            "examples": [
+              "4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10"
+            ]
+          },
+          "characterId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of the character the sheet belongs to",
+            "examples": [
+              "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the sheet",
+            "examples": [
+              "Alira, level 8"
+            ]
+          },
+          "system": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Game system of the sheet, null if not indicated",
+            "examples": [
+              "D&D 5e"
+            ]
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the PDF file in bytes",
+            "examples": [
+              1468006
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the sheet was uploaded",
+            "examples": [
+              "2026-10-12T18:30:00Z"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Temporary URL to open the PDF in the browser",
+            "examples": [
+              "http://localhost:8333/diary-documents/3f1c2a6e?X-Amz-Expires=300"
+            ]
+          },
+          "downloadUrl": {
+            "type": "string",
+            "description": "Temporary URL that downloads the PDF as an attachment",
+            "examples": [
+              "http://localhost:8333/diary-documents/3f1c2a6e?response-content-disposition=attachment&X-Amz-Expires=300"
+            ]
+          }
+        }
+      },
+      "PagedResultDTOBaseCharacterSheetDTO": {
+        "type": "object",
+        "description": "Generic paginated response envelope used by all list endpoints",
+        "properties": {
+          "list": {
+            "type": "array",
+            "description": "Current page of items",
+            "items": {
+              "$ref": "#/components/schemas/BaseCharacterSheetDTO"
+            }
+          },
+          "totalRows": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of rows matching the query across all pages",
+            "examples": [
+              243
+            ]
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of available pages based on pageSize",
+            "examples": [
+              3
+            ]
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Maximum number of items returned per page",
+            "examples": [
+              100
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Current page number (1-based)",
+            "examples": [
+              1
+            ]
+          }
+        }
+      },
       "BaseDiaryDTO": {
         "type": "object",
         "description": "Summary of a diary of a character, used in lists",
@@ -3019,55 +5690,6 @@
             ]
           }
         }
-      },
-      "SimpleResultDTOVoid": {
-        "type": "object",
-        "description": "Generic single-item response envelope used by all non-paginated endpoints",
-        "properties": {
-          "payload": {
-            "description": "The response payload; null when the operation returns no content (e.g. delete)"
-          },
-          "message": {
-            "type": "string",
-            "description": "Optional human-readable message accompanying the response",
-            "examples": [
-              "Ship successfully deleted"
-            ]
-          }
-        }
-      },
-      "BookmarkDiaryDTO": {
-        "type": "object",
-        "description": "The page marked with the bookmark of a diary",
-        "properties": {
-          "pageId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Identifier of the bookmarked page",
-            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
-          },
-          "pageNumber": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Number of the bookmarked page, starting from 1",
-            "example": 12
-          }
-        }
-      },
-      "UpdateBookmarkDiaryDTO": {
-        "type": "object",
-        "description": "The page to mark with the bookmark",
-        "properties": {
-          "pageId": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Identifier of a page of the diary",
-            "example": "7c9e6679-7425-40de-944b-e07fc1f90ae7"
-          }
-        },
-        "required": [
-          "pageId"
-        ]
       }
     },
     "securitySchemes": {

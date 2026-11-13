@@ -117,6 +117,20 @@
         "post.logout.redirect.uris": "http://localhost:5173/*"
       },
       "baseUrl": "/"
+    },
+    {
+      "clientId": "gdr-diary-backend-admin",
+      "name": "GDR Diary backend (account deletion)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "frontchannelLogout": false
     }
   ],
   "users": [
@@ -155,6 +169,16 @@
       "realmRoles": [
         "admin"
       ]
+    },
+    {
+      "username": "service-account-gdr-diary-backend-admin",
+      "enabled": true,
+      "serviceAccountClientId": "gdr-diary-backend-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users"
+        ]
+      }
     }
   ],
   "requiredActions": [

@@ -47,7 +47,9 @@ describe('fetchBookmark', () => {
 	});
 
 	it('throws the message of the API when the diary is not found', async () => {
-		const { api } = clientWith(() => json({ title: 'Diary not found' }, 404));
+		const { api } = clientWith(() =>
+			json({ status: 404, title: 'NOT_FOUND', violations: [{ message: 'Diary not found' }] }, 404)
+		);
 
 		await expect(fetchBookmark(api, 'd1')).rejects.toThrow('Diario non trovato');
 	});
@@ -66,7 +68,9 @@ describe('setBookmark', () => {
 	});
 
 	it('throws the message of the API when the page is not found', async () => {
-		const { api } = clientWith(() => json({ title: 'Page not found' }, 404));
+		const { api } = clientWith(() =>
+			json({ status: 404, title: 'NOT_FOUND', violations: [{ message: 'Page not found' }] }, 404)
+		);
 
 		await expect(setBookmark(api, 'd1', 'p3')).rejects.toThrow('Pagina non trovata');
 	});
@@ -91,7 +95,9 @@ describe('removeBookmark', () => {
 	});
 
 	it('accepts a diary that is already gone', async () => {
-		const { api } = clientWith(() => json({ title: 'Diary not found' }, 404));
+		const { api } = clientWith(() =>
+			json({ status: 404, title: 'NOT_FOUND', violations: [{ message: 'Diary not found' }] }, 404)
+		);
 
 		await expect(removeBookmark(api, 'd1')).resolves.toBeUndefined();
 	});

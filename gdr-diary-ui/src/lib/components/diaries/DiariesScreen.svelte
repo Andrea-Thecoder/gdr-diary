@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import { getApi } from '#lib/api/index.js';
 	import type { CharacterDetail } from '#lib/characters/api.js';
 	import CardList from '#lib/components/ui/CardList.svelte';
@@ -31,6 +31,10 @@
 	const list = new DiaryList(characterId);
 	const notice = new Notice();
 
+	onDestroy(() => {
+		list.dispose();
+	});
+
 	let dialogOpen = $state(false);
 	let editing = $state<DiaryDetail | undefined>(undefined);
 	let deleting = $state<DiarySummary | null>(null);
@@ -41,8 +45,9 @@
 	const subtitle = $derived(
 		firstTime
 			? `${name} non ha ancora nessun diario. Rilegane uno e comincia dalla prima pagina.`
-			: 'È ora di scrivere qualcosa di epico.'
+			: 'Ogni diario ha le sue pagine, fino a cento. Scegli quello da aprire o rilegane uno nuovo.'
 	);
+	const count = $derived(list.status === 'ready' ? list.totalRows : undefined);
 
 	$effect(() => {
 		if (list.queryKey) {
@@ -107,9 +112,16 @@
 	}
 </script>
 
-<CharacterHeader {character} {subtitle} showNew={!firstTime} onnew={openDialog} />
+<CharacterHeader
+	{character}
+	tab="diaries"
+	{subtitle}
+	{count}
+	newLabel={firstTime ? undefined : 'Nuovo diario'}
+	onnew={firstTime ? undefined : openDialog}
+/>
 
-<Container class="pb-[clamp(64px,9vw,112px)]">
+<Container class="pt-[clamp(32px,4vw,48px)] pb-[clamp(64px,9vw,112px)]">
 	{#if showToolbar}
 		<DiaryToolbar {list} />
 	{/if}

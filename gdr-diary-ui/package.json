@@ -66,6 +66,7 @@
 		"@tiptap/starter-kit": "^3.32.0",
 		"keycloak-js": "^26.2.4",
 		"openapi-fetch": "^0.17.0",
+		"pdfjs-dist": "^6.5.438",
 		"zod": "^4.6.7"
 	},
 	"overrides": {

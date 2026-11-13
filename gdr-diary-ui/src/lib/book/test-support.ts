@@ -29,7 +29,8 @@ export function spreadData(
 			id: `p${String(page)}`,
 			pageNumber: page,
 			content: doc(text(page)),
-			version: 3
+			version: 3,
+			tag: null
 		}));
 	return { pages, totalPages: total };
 }
@@ -47,12 +48,20 @@ export function draftFixture(overrides: Partial<Draft> = {}): Draft {
 }
 
 export function serveBook(api: BookApiMocks, total: number, text?: (page: number) => string): void {
-	api.GET.mockImplementation((_path: unknown, init: unknown) => {
+	api.GET.mockImplementation((path: unknown, init: unknown) => {
+		if (path === '/diaries/{diaryId}/tags') {
+			return Promise.resolve({ data: { list: [], totalRows: 0, totalPages: 0, page: 1 } });
+		}
 		const view = Number((init as { params: { query: { page: string } } }).params.query.page);
 		const data = spreadData(total, view, text);
 		return Promise.resolve({ data: { list: data.pages, totalRows: total } });
 	});
-	api.PUT.mockImplementation((_path: unknown, init: unknown) => {
+	api.PUT.mockImplementation((path: unknown, init: unknown) => {
+		if (path === '/pages/{id}/tag') {
+			return Promise.resolve({
+				data: { tag: (init as { body: { tag: string | null } }).body.tag }
+			});
+		}
 		const id = (init as { params: { path: { id: string } } }).params.path.id;
 		return Promise.resolve({ data: { id, pageNumber: Number(id.slice(1)), content: {} } });
 	});

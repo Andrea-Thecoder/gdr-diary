@@ -1525,7 +1525,8 @@ describe('blank pages', () => {
 					id: item.id,
 					pageNumber: index + 1,
 					content: item.content,
-					version: 3
+					version: 3,
+					tag: null
 				}))
 				.filter((page) => page.pageNumber === 2 * spread - 1 || page.pageNumber === 2 * spread);
 			return { pages, totalPages: list.length };
@@ -2151,7 +2152,10 @@ describe('bookmark', () => {
 
 	it('keeps the bookmark and says why when the server refuses it', async () => {
 		const { book, PUT } = setup(6, { bookmark: mark }, 2);
-		PUT.mockResolvedValue({ error: { title: 'Page not found' }, response: { ok: false } });
+		PUT.mockResolvedValue({
+			error: { status: 404, title: 'NOT_FOUND', violations: [{ message: 'Page not found' }] },
+			response: { ok: false }
+		});
 
 		await book.toggleBookmark(4);
 
@@ -2254,5 +2258,98 @@ describe('bookmark', () => {
 		await book.removePage(2);
 
 		expect(book.bookmark).toEqual({ pageId: 'p1', pageNumber: 1 });
+	});
+});
+
+describe('tags of the pages', () => {
+	it('knows the tag of the pages it was opened with', () => {
+		const spread = spreadData(4, 1);
+		const tagged = {
+			...spread,
+			pages: spread.pages.map((page) => ({ ...page, tag: `tag${page.id}` }))
+		};
+		const opened = new DiaryBook({ GET: vi.fn<Call>() } as unknown as ApiClient, 'd1', tagged, 1, {
+			autoSave: () => true,
+			drafts: createMemoryDraftStore(),
+			animate: () => false,
+			onview: vi.fn<(spread: number) => void>()
+		});
+		expect(opened.tags.tagOf('p1')).toBe('tagp1');
+		expect(opened.tags.tagOf('p2')).toBe('tagp2');
+	});
+
+	it('learns the tag of the pages it loads later', async () => {
+		const { book, GET } = setup(6);
+		GET.mockResolvedValue({
+			data: {
+				list: [
+					{ id: 'p3', pageNumber: 3, version: 3, content: doc('tre'), tag: 'combat' },
+					{ id: 'p4', pageNumber: 4, version: 3, content: doc('quattro') }
+				],
+				totalRows: 6,
+				totalPages: 3,
+				page: 2
+			}
+		});
+
+		await book.turn('forward');
+
+		expect(book.tags.tagOf('p3')).toBe('combat');
+		expect(book.tags.tagOf('p4')).toBeNull();
+	});
+
+	it('gives the id of a saved page and none for a page that is not there', () => {
+		const { book } = setup(4);
+		expect(book.pageId(1)).toBe('p1');
+		expect(book.pageId(9)).toBeNull();
+	});
+
+	it('saves the tag at once, without waiting for the pause of the autosave', async () => {
+		const { book, PUT } = setup(4);
+		PUT.mockResolvedValue({ data: { tag: 'Erebor' } });
+		book.tags.set('p1', 'Erebor');
+		expect(book.unsaved).toBe(true);
+		expect(book.state).toBe('pending');
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(PUT).toHaveBeenCalledTimes(1);
+		expect(PUT).toHaveBeenCalledWith('/pages/{id}/tag', {
+			params: { path: { id: 'p1' } },
+			body: { tag: 'Erebor' }
+		});
+		expect(book.unsaved).toBe(false);
+		expect(book.state).toBe('saved');
+	});
+
+	it('saves the tag even when the autosave of the text is off', async () => {
+		const { book, PUT } = setup(4, { autoSave: () => false });
+		PUT.mockResolvedValue({ data: { tag: 'Erebor' } });
+		book.tags.set('p1', 'Erebor');
+
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(PUT).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not touch the version of the page when it saves the tag', async () => {
+		const { book, PUT } = setup(4);
+		PUT.mockResolvedValue({ data: { tag: 'Erebor' } });
+		book.tags.set('p1', 'Erebor');
+
+		await vi.advanceTimersByTimeAsync(SAVE_DELAY);
+
+		expect(PUT).toHaveBeenCalledTimes(1);
+		expect(PUT.mock.calls[0]?.[0]).toBe('/pages/{id}/tag');
+	});
+
+	it('forgets the tag of a page that is deleted', async () => {
+		const { book, DELETE } = setup(4);
+		DELETE.mockResolvedValue({ response: { ok: true } });
+		book.tags.seed('p2', 'combat');
+
+		await book.removePage(2);
+
+		expect(book.tags.tagOf('p2')).toBeNull();
 	});
 });

@@ -37,7 +37,7 @@ Il riuso è una regola, non un'ottimizzazione finale.
 - Ogni cancellazione chiede conferma con `ConfirmDeleteDialog` (`components/ui`): si passano titolo, elenco di cosa si perde e `onconfirm`; mai un altro popup di conferma. Il cestino delle card è `CardDeleteButton` dentro `CardActions`, quello della pagina è `PageTrash`.
 - Un elenco con ricerca e card (personaggi, diari, in futuro altri) usa `PagedList` (`lib/list`) per lo stato, `ListToolbar` per i filtri e `CardList` per gli stati e la griglia: si scrive solo la card e il suo form.
 - Prima di scrivere markup per un elemento visivo si cita (anche solo nella risposta) il componente esistente che si riusa o si generalizza, oppure perché non ce n'è nessuno.
-- Componenti **generici** in `components/ui` (`Container`, `BrandLink`, `SectionHeading`, `SubHeading`, `Eyebrow`, `Icon`, `QuillIcon`, `IconButton`, `BurgerButton`, `ThemeToggle`, `Tabs`, `ChoiceCards`, `SegmentedControl`, `SwitchField`, `RangeField`, `SaveBar`, `ToggleButton`, `ProgressBar`, `StepIndicator`, `PortraitCard`, `GhostCard`, `SettingsSection`, `FieldRow`, `ReadOnlyValue`, `Popup`, `NoticePopup`, `CardList`, `ListToolbar`, `DialogHeader`, `ColorField`, `ImageUpload`, `SelectField`, `OrnamentRule`, `CardEditButton`, `CardDeleteButton`, `CardActions`, `TrashIcon`, `ConfirmDeleteDialog`, `NewCard`, `ArrowIcon`): niente testi o concetti del dominio dentro, tutto arriva da props e snippet.
+- Componenti **generici** in `components/ui` (`Container`, `BrandLink`, `SectionHeading`, `SubHeading`, `Eyebrow`, `Icon`, `QuillIcon`, `IconButton`, `BurgerButton`, `ThemeToggle`, `Tabs`, `TabNav`, `ChoiceCards`, `SegmentedControl`, `SwitchField`, `RangeField`, `SaveBar`, `ToggleButton`, `ProgressBar`, `StepIndicator`, `PortraitCard`, `GhostCard`, `SettingsSection`, `FieldRow`, `ReadOnlyValue`, `Popup`, `NoticePopup`, `CardList`, `ListToolbar`, `DialogHeader`, `ColorField`, `ImageUpload`, `SelectField`, `TagChip`, `PostIt`, `CheckField`, `OrnamentRule`, `CardEditButton`, `CardDeleteButton`, `CardActions`, `TrashIcon`, `ConfirmDeleteDialog`, `NewCard`, `ArrowIcon`): niente testi o concetti del dominio dentro, tutto arriva da props e snippet.
 - Componenti **di dominio** in `components/<area>` (per esempio `landing`, poi `characters`, `diaries`): compongono quelli generici.
 - Props tipizzate con un'`interface Props`, valori di default espliciti, varianti con unioni di stringhe (`size: 'sm' | 'md'`), non con booleani multipli.
 - Ogni componente accetta `class` per le estensioni di layout e usa gli snippet (`children`, snippet con nome) per i contenuti. Mai `<slot>`.
@@ -126,15 +126,22 @@ src/
   lib/
     auth/                 stato di login (keycloak-js), ruoli, azioni
     api/                  client tipizzato, schema generato, POST /me
+    info/                 dati delle pagine informative: `faq.ts`, `plans.json` (righe e celle dei Piani) letto e controllato da `plans.ts`
     components/
       ui/                 mattoni generici riutilizzabili
       landing/            componenti della home
+      info/               guscio e componenti delle pagine informative (`InfoPage`, `InfoHeader`, `InfoFooter`, `FaqBrowser`, `PlanCard`, `PlanTable`, `CopyEmailButton`)
+      feedback/           modulo di feedback (`FeedbackForm`, `ShotPicker`)
       privacy/            mattoni dell'informativa (`PolicySection`, `PolicyList`, `PolicyFacts`, `PolicyContact`)
-      app/                header e menu account dell'area protetta
+      app/                header, footer e menu account dell'area protetta
       characters/         schermata dei personaggi (card, barra, dialog)
       diaries/            diari del personaggio (card, dialog, `ClosedBook`)
+      sheets/             schede del personaggio in PDF (card, dialog, campo PDF, schermata)
       book/               il diario aperto: libro, pagine Tiptap, angoli, barra, salvataggio
     characters/           colori e silhouette, `kind` (personaggio o master), chiamate API, stato della lista
+                          e le schede della pagina del personaggio (`tabs.ts`, `load.ts`)
+    sheets/               schede in PDF: chiamate API, formati (peso, data, controllo del file), stato della lista
+    pdf/                  editor dei PDF compilabili (pdf.js, `PdfEditor`): caricamento lazy, apertura, salvataggio; `test-support.ts` ha due PDF di prova
     book/                 diario aperto: `DiaryBook` (stato, salvataggio, sfoglio), pagine API, impaginazione automatica, misure
     theme/                scelta del tema: sistema / chiaro / scuro
     styles/tokens.css     token dei due temi, utility e font

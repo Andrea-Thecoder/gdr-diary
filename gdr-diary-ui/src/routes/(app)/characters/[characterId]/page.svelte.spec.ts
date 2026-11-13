@@ -96,13 +96,19 @@ beforeEach(async () => {
 });
 
 describe('diaries page', () => {
+	it('calls a game master by its name in the header', async () => {
+		renderPage({ ...character, kind: 'GAME_MASTER' });
+
+		await expect.element(page.getByText('Il master', { exact: true })).toBeVisible();
+	});
+
 	it('shows the character in the header', async () => {
 		await ready();
 
 		await expect
 			.element(page.getByRole('heading', { level: 1 }))
 			.toHaveTextContent('Alira dei Salici');
-		await expect.element(page.getByText('I diari di')).toBeVisible();
+		await expect.element(page.getByText('Il personaggio', { exact: true })).toBeVisible();
 		await expect.element(page.getByText('Il Nord Spezzato').first()).toBeVisible();
 		await expect
 			.element(page.getByRole('link', { name: 'Tutti i personaggi' }))
@@ -113,15 +119,15 @@ describe('diaries page', () => {
 		renderPage({ ...character, description: 'Elfa del nord, esule dei Salici.' });
 
 		await expect.element(page.getByText('Elfa del nord, esule dei Salici.')).toBeVisible();
-		expect(document.body.textContent).not.toContain('È ora di scrivere qualcosa di epico');
+		expect(document.body.textContent).not.toContain('Ogni diario ha le sue pagine');
 	});
 
-	it('shows the epic sentence when the description is empty or only spaces', async () => {
+	it('shows the lead text when the description is empty or only spaces', async () => {
 		renderPage({ ...character, description: '   ' });
 		await expect.element(page.getByRole('heading', { name: 'Cronache del Nord' })).toBeVisible();
 
 		expect(document.querySelector('[data-character-description]')).toBeNull();
-		await expect.element(page.getByText('È ora di scrivere qualcosa di epico.')).toBeVisible();
+		await expect.element(page.getByText(/Ogni diario ha le sue pagine/)).toBeVisible();
 	});
 
 	it('asks for the diaries of this character sorted by title', async () => {
@@ -204,6 +210,59 @@ describe('diaries page', () => {
 		await page.getByRole('searchbox', { name: 'Cerca per titolo' }).fill('ceneri');
 		await userEvent.keyboard('{Enter}');
 		await expect.poll(() => lastQuery()['title']).toBe('ceneri');
+	});
+
+	it('has a tag search next to the title search, limited to 30 characters', async () => {
+		await ready();
+
+		const tag = page.getByRole('searchbox', { name: 'Cerca per tag' });
+		await expect.element(tag).toHaveAttribute('maxlength', '30');
+		const title = page.getByRole('searchbox', { name: 'Cerca per titolo' }).element();
+		expect(title.getBoundingClientRect().left).toBeLessThan(
+			tag.element().getBoundingClientRect().left
+		);
+	});
+
+	it('sends the tag together with the title when the filters are applied', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per titolo' }).fill('torre');
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill(' erebo ');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+		expect(lastQuery()['title']).toBe('torre');
+	});
+
+	it('sends the tag by itself after a pause in the typing, without the title that was not applied', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per titolo' }).fill('torre');
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('erebo');
+
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+		expect(lastQuery()['title']).toBeUndefined();
+	});
+
+	it('does not send a tag that is empty or only spaces', async () => {
+		await ready();
+
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('   ');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+
+		expect(lastQuery()['tag']).toBeUndefined();
+	});
+
+	it('clears the tag with the title', async () => {
+		await ready();
+		await page.getByRole('searchbox', { name: 'Cerca per tag' }).fill('erebo');
+		await page.getByRole('button', { name: 'Applica filtri' }).click();
+		await expect.poll(() => lastQuery()['tag']).toBe('erebo');
+
+		await page.getByRole('button', { name: 'Azzera', exact: true }).click();
+
+		await expect.poll(() => lastQuery()['tag']).toBeUndefined();
+		await expect.element(page.getByRole('searchbox', { name: 'Cerca per tag' })).toHaveValue('');
 	});
 
 	it('orders by title and clears the filter and the field', async () => {
@@ -323,17 +382,15 @@ describe('new diary dialog', () => {
 		expect(api.POST).not.toHaveBeenCalled();
 	});
 
-	it('rejects a malformed color', async () => {
+	it('offers the preset colors only, with no free HEX field', async () => {
 		await openDialog();
 
-		await page.getByRole('textbox', { name: 'Titolo *' }).fill('Cronache');
-		await page.getByRole('textbox', { name: 'Colore in formato HEX' }).fill('rosso');
-		await page.getByRole('button', { name: 'Rilega il diario' }).click();
-
 		await expect
-			.element(page.getByText('Usa il formato #RRGGBB, per esempio #3B2A6B.'))
-			.toBeVisible();
-		expect(api.POST).not.toHaveBeenCalled();
+			.element(page.getByRole('textbox', { name: 'Colore in formato HEX' }))
+			.not.toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: 'Viola #3B2A6B' }))
+			.toHaveAttribute('aria-pressed', 'true');
 	});
 
 	it('creates the diary, closes, tells it and reloads the list', async () => {

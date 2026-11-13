@@ -1,14 +1,10 @@
 import { auth } from '#lib/auth/auth.svelte.js';
+import { rememberNotice } from '#lib/ui/flash-error.js';
 
-const CLOSE_ACTION = 'delete_account';
+export const ACCOUNT_DELETED = 'Il tuo account è stato eliminato.';
 
-export const CLOSE_INCOMPLETE =
-	'I tuoi dati sono stati cancellati, ma l’accesso è ancora aperto. Dal profilo premi di nuovo “Elimina account” per chiuderlo.';
-
-export function closeAccount(): Promise<void> {
-	return auth.closeAccount(window.location.origin);
-}
-
-export async function closingWasInterrupted(): Promise<boolean> {
-	return (await auth.takeActionResult(CLOSE_ACTION)) !== undefined;
+export async function closeAccount(): Promise<void> {
+	await auth.forgetDeletedAccount();
+	rememberNotice(ACCOUNT_DELETED);
+	window.location.assign(window.location.origin);
 }

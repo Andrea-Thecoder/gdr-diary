@@ -11,7 +11,9 @@ import org.apache.commons.lang3.StringUtils;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Getter
@@ -26,6 +28,11 @@ public class BaseSearchRequest {
     @Setter(AccessLevel.NONE)
     @Schema(hidden = true)
     private final Map<String, String> sortFields = new HashMap<>();
+
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Schema(hidden = true)
+    private final Set<String> nullsLastProperties = new HashSet<>();
 
     @Min(1)
     @Schema(description = "Page number (1-based)", examples = {"1"})
@@ -46,6 +53,11 @@ public class BaseSearchRequest {
         sortFields.put(key, property);
     }
 
+    protected void allowSortNullsLast(String key, String property) {
+        sortFields.put(key, property);
+        nullsLastProperties.add(property);
+    }
+
     public void applySortAndPagination(ExpressionList<?> exl, String defaultSort) {
         applySort(exl, defaultSort);
         applyPagination(exl);
@@ -60,7 +72,8 @@ public class BaseSearchRequest {
         } else if ("id".equals(field)) {
             exl.orderBy(field + direction);
         } else {
-            exl.orderBy(field + direction + TIE_BREAKER);
+            String nulls = nullsLastProperties.contains(field) ? " nulls last" : "";
+            exl.orderBy(field + direction + nulls + TIE_BREAKER);
         }
     }
 

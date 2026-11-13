@@ -3,6 +3,7 @@ package it.gdr.diary.services;
 import io.ebean.Database;
 import io.ebean.DuplicateKeyException;
 import io.ebean.ExpressionList;
+import io.ebean.PagedList;
 import io.ebean.Transaction;
 import it.gdr.diary.config.DiaryPageConfig;
 import it.gdr.diary.dto.PagedResultDTO;
@@ -41,6 +42,7 @@ public class DiaryPageService {
     private final ObjectMapper objectMapper;
     private final DiaryPageConfig config;
     private final DiaryPageContentValidator contentValidator;
+    private final DiaryPageTagService tagService;
 
     public PagedResultDTO<BaseDiaryPageDTO> findAllDiaryPagesByDiary(UUID diaryId, int page) {
         if (page < 1) {
@@ -53,7 +55,9 @@ public class DiaryPageService {
                 .orderBy("pageNumber")
                 .setFirstRow((int) Math.min((page - 1L) * PAGES_PER_VIEW, Integer.MAX_VALUE))
                 .setMaxRows(PAGES_PER_VIEW);
-        return PagedResultDTO.of(query.findPagedList(), BaseDiaryPageDTO::from);
+        PagedList<DiaryPage> pages = query.findPagedList();
+        Map<UUID, String> tags = tagService.findTagByPages(pages.getList().stream().map(DiaryPage::getId).toList());
+        return PagedResultDTO.of(pages, found -> BaseDiaryPageDTO.from(found, tags.get(found.getId())));
     }
 
     public BaseDiaryPageDTO createDiaryPage(UUID diaryId, InsertDiaryPageDTO request) {
@@ -80,7 +84,7 @@ public class DiaryPageService {
             }
             throw e;
         }
-        return BaseDiaryPageDTO.from(page);
+        return BaseDiaryPageDTO.from(page, null);
     }
 
     public BaseDiaryPageDTO updateDiaryPage(UUID id, UpdateDiaryPageDTO request) {
@@ -91,7 +95,7 @@ public class DiaryPageService {
         validateContent(request.content());
         page.setContent(request.content());
         database.save(page);
-        return BaseDiaryPageDTO.from(page);
+        return BaseDiaryPageDTO.from(page, tagService.findTagByPages(List.of(page.getId())).get(page.getId()));
     }
 
     public void deleteDiaryPage(UUID id) {
@@ -99,6 +103,7 @@ public class DiaryPageService {
         try (Transaction transaction = database.beginTransaction()) {
             lockDiary(diaryId, "Page not found");
             DiaryPage page = getDiaryPageByIdAndOwner(id);
+            tagService.deleteDiaryPageTagsByPage(page.getId());
             database.delete(page);
             List<DiaryPage> following = database.find(DiaryPage.class)
                     .setLabel("deleteDiaryPage")

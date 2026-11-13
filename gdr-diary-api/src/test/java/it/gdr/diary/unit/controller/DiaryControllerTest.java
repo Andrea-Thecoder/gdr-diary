@@ -101,6 +101,37 @@ class DiaryControllerTest {
     }
 
     @Test
+    void findAllDiariesByCharacter_tagParameter_bindsTagToSearchRequest() {
+        when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
+        ArgumentCaptor<DiarySearchRequest> request = ArgumentCaptor.forClass(DiarySearchRequest.class);
+
+        mvc.get().uri("/characters/{characterId}/diaries?tag=combat", CHARACTER_ID).exchange();
+
+        verify(service).findAllDiariesByCharacter(eq(CHARACTER_ID), request.capture());
+        assertThat(request.getValue().getTag()).isEqualTo("combat");
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagOfThirtyCharacters_returnsOk() {
+        when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
+
+        assertThat(mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(30), CHARACTER_ID)).hasStatusOk();
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagTooLong_returnsBadRequest() {
+        assertThat(mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(31), CHARACTER_ID))
+                .hasStatus(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void findAllDiariesByCharacter_tagTooLong_doesNotCallService() {
+        mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(31), CHARACTER_ID).exchange();
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void findAllDiariesByCharacter_characterNotFound_returnsNotFound() {
         when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any()))
                 .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));

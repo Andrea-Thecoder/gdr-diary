@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { auth, ensureAppUser, run, remember, recall, interrupted, notice } = vi.hoisted(() => ({
+const { auth, ensureAppUser, run, remember, recall } = vi.hoisted(() => ({
 	auth: {
 		status: 'authenticated',
 		user: null as { roles: string[] } | null,
@@ -11,20 +11,13 @@ const { auth, ensureAppUser, run, remember, recall, interrupted, notice } = vi.h
 	ensureAppUser: vi.fn(() => Promise.resolve('id')),
 	run: vi.fn(() => Promise.resolve()),
 	remember: vi.fn<(message: string) => void>(),
-	recall: vi.fn<() => string | null>(() => null),
-	interrupted: vi.fn<() => Promise<boolean>>(() => Promise.resolve(false)),
-	notice: vi.fn<(message: string, error: boolean) => void>()
+	recall: vi.fn<() => string | null>(() => null)
 }));
 
 vi.mock('#lib/auth/auth.svelte.js', () => ({ auth }));
 vi.mock('#lib/api/me.js', () => ({ ensureAppUser }));
 vi.mock('#lib/settings/account.js', () => ({ accountSync: { run } }));
 vi.mock('#lib/ui/flash-error.js', () => ({ rememberError: remember, recallError: recall }));
-vi.mock('#lib/profile/account.js', () => ({
-	CLOSE_INCOMPLETE: 'chiusura interrotta',
-	closingWasInterrupted: interrupted
-}));
-vi.mock('#lib/ui/error-notice.svelte.js', () => ({ errorNotice: { show: notice } }));
 vi.mock('$app/paths', () => ({ resolve: (path: string) => path }));
 
 import { extractRoles } from '#lib/auth/roles.js';
@@ -57,9 +50,6 @@ describe('app layout load', () => {
 		run.mockClear();
 		remember.mockClear();
 		recall.mockClear();
-		interrupted.mockReset();
-		interrupted.mockResolvedValue(false);
-		notice.mockClear();
 	});
 
 	it('lets a registered user in', async () => {
@@ -67,20 +57,6 @@ describe('app layout load', () => {
 		expect(auth.logout).not.toHaveBeenCalled();
 		expect(remember).not.toHaveBeenCalled();
 		expect(run).toHaveBeenCalledOnce();
-	});
-
-	it('warns when the user comes back from Keycloak without closing the account', async () => {
-		interrupted.mockResolvedValue(true);
-
-		await expect(runLoad()).resolves.toEqual({});
-
-		expect(notice).toHaveBeenCalledWith('chiusura interrotta', true);
-	});
-
-	it('shows no warning when the account closing was not started', async () => {
-		await expect(runLoad()).resolves.toEqual({});
-
-		expect(notice).not.toHaveBeenCalled();
 	});
 
 	it('signs the user out with the message of the server when the server does not answer', async () => {

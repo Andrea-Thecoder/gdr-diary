@@ -6,6 +6,7 @@
 	import AccountHeader from '#lib/components/app/AccountHeader.svelte';
 	import DeleteAccountDialog from '#lib/components/app/DeleteAccountDialog.svelte';
 	import AvatarDialog from '#lib/components/app/AvatarDialog.svelte';
+	import PaymentsSection from '#lib/components/app/PaymentsSection.svelte';
 	import ProfileSummary from '#lib/components/app/ProfileSummary.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Container from '#lib/components/ui/Container.svelte';
@@ -278,13 +279,15 @@
 				</Button>
 			</FieldRow>
 		</SettingsSection>
+		<PaymentsSection />
 		<SettingsSection title="Elimina l’account" intro="Una scelta senza ritorno.">
 			{#snippet action()}
 				<Button variant="dangerOutline" size="sm" onclick={askToDelete}>Elimina account</Button>
 			{/snippet}
 			<p class="m-0 text-[17px] text-soft">
 				Cancella per sempre l’account, i personaggi, i diari, le pagine e le immagini. Non si può
-				annullare. Per sicurezza ti chiederemo di nuovo la password.
+				annullare. I dati dei pagamenti restano conservati per dieci anni, come chiede la legge. Per
+				sicurezza ti chiederemo di nuovo la password.
 			</p>
 		</SettingsSection>
 	</div>

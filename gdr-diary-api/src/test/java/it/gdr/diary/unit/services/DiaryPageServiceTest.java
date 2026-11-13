@@ -29,6 +29,7 @@ import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.DiaryPageContentValidator;
 import it.gdr.diary.services.DiaryPageService;
+import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.RollbackException;
@@ -64,6 +65,8 @@ class DiaryPageServiceTest {
     private DiaryPageContentValidator contentValidator;
     @Mock
     private Transaction transaction;
+    @Mock
+    private DiaryPageTagService tagService;
 
     private final DiaryPageConfig config = new DiaryPageConfig();
 
@@ -71,7 +74,7 @@ class DiaryPageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DiaryPageService(database, jwtInspector, JsonMapper.builder().build(), config, contentValidator);
+        service = new DiaryPageService(database, jwtInspector, JsonMapper.builder().build(), config, contentValidator, tagService);
     }
 
     private Diary diary() {
@@ -517,6 +520,40 @@ class DiaryPageServiceTest {
     }
 
     @Test
+    void deleteDiaryPage_ownedPage_deletesTagsOfPageBeforePage() {
+        DiaryPage page = page(2, 1L);
+        givenOwnedPage(page);
+        givenLockedDiary();
+
+        service.deleteDiaryPage(PAGE_ID);
+
+        InOrder order = inOrder(tagService, database);
+        order.verify(tagService).deleteDiaryPageTagsByPage(page.getId());
+        order.verify(database).delete(page);
+    }
+
+    @Test
+    void deleteDiaryPage_ownedPage_deletesTagsAfterLockingDiary() {
+        givenOwnedPage(page(2, 1L));
+        QueryStub<Diary> diaries = givenLockedDiary();
+
+        service.deleteDiaryPage(PAGE_ID);
+
+        InOrder order = inOrder(diaries.query(), tagService);
+        order.verify(diaries.query()).forUpdate();
+        order.verify(tagService).deleteDiaryPageTagsByPage(any());
+    }
+
+    @Test
+    void deleteDiaryPage_notOwnedOrMissing_deletesNoTags() {
+        givenOwnedPage(null);
+
+        catchThrowable(() -> service.deleteDiaryPage(PAGE_ID));
+
+        verifyNoInteractions(tagService);
+    }
+
+    @Test
     void deleteDiaryPage_ownedPage_renumbersOnlyFollowingPagesOfSameDiary() {
         QueryStub<DiaryPage> pages = givenOwnedPage(page(2, 1L));
         givenLockedDiary();
@@ -747,5 +784,61 @@ class DiaryPageServiceTest {
         service.deleteDiaryPage(PAGE_ID);
 
         verify(pages.where()).gt("pageNumber", (short) 2);
+    }
+
+    @Test
+    void findAllDiaryPagesByDiary_pagesFound_asksTagsOfThosePages() {
+        givenOwnedDiary(diary());
+        DiaryPage first = page(1, 3L);
+        DiaryPage second = page(2, 7L);
+        givenPageList(List.of(first, second));
+
+        service.findAllDiaryPagesByDiary(DIARY_ID, 1);
+
+        verify(tagService).findTagByPages(List.of(first.getId(), second.getId()));
+    }
+
+    @Test
+    void findAllDiaryPagesByDiary_pagesWithTags_returnsTagOfEachPage() {
+        givenOwnedDiary(diary());
+        DiaryPage first = page(1, 3L);
+        DiaryPage second = page(2, 7L);
+        givenPageList(List.of(first, second));
+        when(tagService.findTagByPages(any())).thenReturn(Map.of(first.getId(), "combat"));
+
+        PagedResultDTO<BaseDiaryPageDTO> result = service.findAllDiaryPagesByDiary(DIARY_ID, 1);
+
+        assertThat(result.getList()).extracting(BaseDiaryPageDTO::tag)
+                .containsExactly("combat", null);
+    }
+
+    @Test
+    void createDiaryPage_validRequest_returnsPageWithoutTag() {
+        givenOwnedDiary(diary());
+        givenPageCount(0);
+
+        BaseDiaryPageDTO result = service.createDiaryPage(DIARY_ID, new InsertDiaryPageDTO(CONTENT));
+
+        assertThat(result.tag()).isNull();
+    }
+
+    @Test
+    void updateDiaryPage_pageWithTag_returnsItsTag() {
+        DiaryPage page = page(1, 4L);
+        givenOwnedPage(page);
+        when(tagService.findTagByPages(List.of(page.getId()))).thenReturn(Map.of(page.getId(), "clues"));
+
+        BaseDiaryPageDTO result = service.updateDiaryPage(PAGE_ID, new UpdateDiaryPageDTO(CONTENT, 4L));
+
+        assertThat(result.tag()).isEqualTo("clues");
+    }
+
+    @Test
+    void updateDiaryPage_pageWithoutTag_returnsNullTag() {
+        givenOwnedPage(page(1, 4L));
+
+        BaseDiaryPageDTO result = service.updateDiaryPage(PAGE_ID, new UpdateDiaryPageDTO(CONTENT, 4L));
+
+        assertThat(result.tag()).isNull();
     }
 }

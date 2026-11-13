@@ -7,6 +7,7 @@ import io.minio.MinioClient;
 import io.minio.RemoveObjectArgs;
 import io.minio.Result;
 import io.minio.messages.Item;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -29,8 +30,13 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @AutoConfigureMockMvc
 public abstract class AbstractIntegrationTest {
 
+    protected static final String FEEDBACK_BUCKET = "feedback-documents";
+
     protected static final byte[] PNG = Base64.getDecoder().decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
+
+    protected static final byte[] PDF = "%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n"
+            .getBytes(StandardCharsets.US_ASCII);
 
     @Autowired
     protected MockMvcTester mvc;
@@ -54,19 +60,27 @@ public abstract class AbstractIntegrationTest {
         registry.add("app.storage.secret-key", () -> TestContainers.STORAGE_SECRET_KEY);
         registry.add("app.storage.bucket", () -> TestContainers.BUCKET);
         registry.add("spring.security.oauth2.resourceserver.jwt.issuer-uri", TestContainers::issuerUri);
+        registry.add("app.keycloak-admin.server-url", TestContainers.KEYCLOAK::getAuthServerUrl);
+        registry.add("app.keycloak-admin.realm", () -> TestContainers.REALM);
     }
 
     @AfterEach
     void cleanUp() throws Exception {
-        jdbc.execute("truncate table diary_page, diary, game_character, app_user, document cascade");
-        for (String key : storedObjectKeys()) {
-            minioClient.removeObject(RemoveObjectArgs.builder().bucket(TestContainers.BUCKET).object(key).build());
+        jdbc.execute("truncate table payment, feedback_document, feedback, character_sheet, diary_page_tag, diary_page, diary, game_character, app_user, document cascade");
+        for (String bucket : List.of(TestContainers.BUCKET, FEEDBACK_BUCKET)) {
+            for (String key : storedObjectKeys(bucket)) {
+                minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(key).build());
+            }
         }
     }
 
     protected List<String> storedObjectKeys() throws Exception {
+        return storedObjectKeys(TestContainers.BUCKET);
+    }
+
+    protected List<String> storedObjectKeys(String bucket) throws Exception {
         List<String> keys = new ArrayList<>();
-        for (Result<Item> item : minioClient.listObjects(ListObjectsArgs.builder().bucket(TestContainers.BUCKET).recursive(true).build())) {
+        for (Result<Item> item : minioClient.listObjects(ListObjectsArgs.builder().bucket(bucket).recursive(true).build())) {
             keys.add(item.get().objectName());
         }
         return keys;
@@ -90,6 +104,10 @@ public abstract class AbstractIntegrationTest {
 
     protected static MockMultipartFile pngFile(String name) {
         return new MockMultipartFile("file", name, MediaType.IMAGE_PNG_VALUE, PNG);
+    }
+
+    protected static MockMultipartFile pdfFile(String name) {
+        return new MockMultipartFile("file", name, MediaType.APPLICATION_PDF_VALUE, PDF);
     }
 
     protected static String pageContent(String text) {

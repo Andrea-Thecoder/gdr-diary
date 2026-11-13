@@ -18,9 +18,12 @@ public record BaseDiaryPageDTO(
         Map<String, Object> content,
 
         @Schema(description = "Version of the page: to be sent back when the page is updated, so that changes made elsewhere in the meantime are detected", examples = {"3"})
-        Long version) {
+        Long version,
 
-    public static BaseDiaryPageDTO from(DiaryPage page) {
-        return new BaseDiaryPageDTO(page.getId(), page.getPageNumber(), page.getContent(), page.getVersion());
+        @Schema(description = "Tag of the page, null if the page has no tag", nullable = true, examples = {"combat"})
+        String tag) {
+
+    public static BaseDiaryPageDTO from(DiaryPage page, String tag) {
+        return new BaseDiaryPageDTO(page.getId(), page.getPageNumber(), page.getContent(), page.getVersion(), tag);
     }
 }

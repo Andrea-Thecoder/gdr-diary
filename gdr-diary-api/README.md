@@ -61,6 +61,7 @@ Il realm `gdr-diary-dev` viene importato all'avvio di Keycloak dal file `docker-
 Il realm contiene:
 
 - **Client** `gdr-diary-api`: pubblico, Authorization Code con PKCE, usato dal frontend.
+- **Client** `gdr-diary-backend-admin`: confidenziale (secret `secret` in sviluppo), solo service account (`client_credentials`), con il ruolo `realm-management/manage-users`. Lo usa il backend (`app.keycloak-admin.*`) per cancellare l'utente su Keycloak in `DELETE /me`. Se il realm esiste già, il client si crea a mano: vedi [Runbook › Creare il client admin del backend](RUNBOOK.md#creare-il-client-admin-del-backend).
 - **Audience**: un mapper del client scrive `gdr-diary-backend` nell'access token. Lo stesso valore è in `spring.security.oauth2.resourceserver.jwt.audiences`: se viene cambiato, va cambiato in entrambi i posti.
 - **Ruoli**: `user`, assegnato in automatico alla registrazione tramite il gruppo `users`, e `admin`, assegnato a mano dalla console.
 
@@ -97,6 +98,21 @@ Le immagini sono salvate in uno storage compatibile S3. In locale viene utilizza
 | `app.storage.bucket` | `diary-documents` |
 | `app.storage.access-key` | `admin` |
 | `app.storage.secret-key` | `secret` |
+| `app.storage.create-buckets` | `true` (il backend crea i bucket all'avvio se mancano) |
+
+### Configurazione Feedback
+
+Il modulo pubblico del feedback (`POST /feedback`, senza token) salva gli screenshot in un bucket separato. La lettura e la gestione dei feedback sono solo per il ruolo `admin`.
+
+| Proprietà (`application.properties`) | Valore |
+|---|---|
+| `app.feedback.bucket` | `feedback-documents` |
+| `app.feedback.max-files` | `3` |
+| `app.feedback.max-total-file-size` | `5MB` (in totale, per tutti i file) |
+| `app.feedback.max-technical-info-size` | `2KB` |
+| `app.feedback.timezone` | `Europe/Rome` (fuso dei filtri per data della lista) |
+| `app.feedback.rate-limit-max-requests` | `5` (per indirizzo) |
+| `app.feedback.rate-limit-window` | `1h` |
 
 ### Configurazione SMTP
 

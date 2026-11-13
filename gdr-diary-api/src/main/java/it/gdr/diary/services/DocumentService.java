@@ -14,11 +14,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +35,7 @@ public class DocumentService {
     private static final int HEADER_SIZE = 16;
     private static final int MAX_NAME_LENGTH = 255;
     private static final Set<String> IMAGE_TYPES = Set.of("image/png", "image/jpeg", "image/webp");
+    private static final Set<String> PDF_TYPES = Set.of("application/pdf");
     private static final Map<String, List<String>> EXTENSIONS = Map.of(
             "image/png", List.of("png"),
             "image/jpeg", List.of("jpg", "jpeg"),
@@ -43,7 +47,15 @@ public class DocumentService {
     private final StorageConfig config;
 
     public Document createImageDocument(MultipartFile file) {
-        return createDocument(file, IMAGE_TYPES);
+        return createDocument(file, IMAGE_TYPES, config.getMaxFileSize(), config.getBucket());
+    }
+
+    public Document createImageDocument(MultipartFile file, String bucket) {
+        return createDocument(file, IMAGE_TYPES, config.getMaxFileSize(), bucket);
+    }
+
+    public Document createPdfDocument(MultipartFile file) {
+        return createDocument(file, PDF_TYPES, config.getMaxPdfFileSize(), config.getBucket());
     }
 
     public void deleteDocumentRecord(Document document) {
@@ -58,11 +70,11 @@ public class DocumentService {
         }
     }
 
-    private Document createDocument(MultipartFile file, Set<String> kindTypes) {
+    private Document createDocument(MultipartFile file, Set<String> kindTypes, DataSize maxSize, String bucket) {
         if (file.isEmpty()) {
             throw new ServiceException("Empty file");
         }
-        if (file.getSize() > config.getMaxFileSize().toBytes()) {
+        if (file.getSize() > maxSize.toBytes()) {
             throw new ServiceException("File too large");
         }
         String name = getFileName(file);
@@ -82,7 +94,7 @@ public class DocumentService {
         document.setName(truncateFileName(name));
         document.setSize(file.getSize());
         document.setMimeType(mimeType);
-        document.setBucket(config.getBucket());
+        document.setBucket(bucket);
         document.setObjectKey(UUID.randomUUID().toString());
         putObject(document, file);
         try {
@@ -95,6 +107,18 @@ public class DocumentService {
     }
 
     public String getDocumentUrl(Document document) {
+        return presignedUrl(document, Map.of());
+    }
+
+    public String getDocumentDownloadUrl(Document document) {
+        if (document == null) {
+            return null;
+        }
+        String encodedName = URLEncoder.encode(document.getName(), StandardCharsets.UTF_8).replace("+", "%20");
+        return presignedUrl(document, Map.of("response-content-disposition", "attachment; filename*=UTF-8''" + encodedName));
+    }
+
+    private String presignedUrl(Document document, Map<String, String> queryParams) {
         if (document == null) {
             return null;
         }
@@ -104,6 +128,7 @@ public class DocumentService {
                     .bucket(document.getBucket())
                     .object(document.getObjectKey())
                     .expiry((int) config.getUrlExpiry().toSeconds())
+                    .extraQueryParams(queryParams)
                     .build());
         } catch (Exception e) {
             log.error("Cannot generate the URL of document {}", document.getId(), e);

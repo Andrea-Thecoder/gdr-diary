@@ -11,6 +11,7 @@ import it.gdr.diary.dto.game_character.UpdateGameCharacterDTO;
 import it.gdr.diary.dto.search.GameCharacterSearchRequest;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
@@ -35,6 +36,7 @@ public class GameCharacterService {
     private final Database database;
     private final JwtInspector jwtInspector;
     private final DocumentService documentService;
+    private final DiaryPageTagService tagService;
 
     public PagedResultDTO<BaseGameCharacterDTO> findAllGameCharacters(GameCharacterSearchRequest request) {
         ExpressionList<GameCharacter> query = database.find(GameCharacter.class)
@@ -114,15 +116,26 @@ public class GameCharacterService {
             documents.add(character.getAvatarDocument());
         }
         try (Transaction transaction = database.beginTransaction()) {
+            List<CharacterSheet> sheets = database.find(CharacterSheet.class)
+                    .setLabel("deleteGameCharacterSheets")
+                    .fetch("document")
+                    .where().eq("character.id", character.getId())
+                    .findList();
+            if (!sheets.isEmpty()) {
+                sheets.stream().map(CharacterSheet::getDocument).forEach(documents::add);
+                database.deleteAll(sheets);
+            }
             List<Diary> diaries = database.find(Diary.class)
                     .setLabel("deleteGameCharacter")
                     .fetch("coverDocument")
                     .where().eq("character.id", character.getId())
                     .findList();
             if (!diaries.isEmpty()) {
+                List<UUID> diaryIds = diaries.stream().map(Diary::getId).toList();
+                tagService.deleteDiaryPageTagsByDiaries(diaryIds);
                 database.find(DiaryPage.class)
                         .setLabel("deleteGameCharacterPages")
-                        .where().in("diary.id", diaries.stream().map(Diary::getId).toList())
+                        .where().in("diary.id", diaryIds)
                         .delete();
                 diaries.stream().map(Diary::getCoverDocument).filter(Objects::nonNull).forEach(documents::add);
                 database.deleteAll(diaries);

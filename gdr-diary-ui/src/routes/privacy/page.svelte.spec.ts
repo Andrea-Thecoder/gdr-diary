@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import '../layout.css';
 
+vi.mock('#lib/auth/auth.svelte.js', () => ({
+	auth: { status: 'anonymous', init: () => Promise.resolve(), login: vi.fn() }
+}));
+vi.mock('$app/state', () => ({ page: { url: new URL('http://localhost/privacy') } }));
+
 import Page from './+page.svelte';
 
 function indexLinks(): HTMLAnchorElement[] {
@@ -22,7 +27,7 @@ describe('privacy page', () => {
 		await expect
 			.element(page.getByRole('heading', { level: 1 }))
 			.toHaveTextContent('Come tratto i tuoi dati');
-		await expect.element(page.getByText('30 ottobre 2026')).toBeVisible();
+		await expect.element(page.getByText('11 novembre 2026')).toBeVisible();
 	});
 
 	it('says that drafts are removed when the page is saved or on logout', async () => {
@@ -46,6 +51,20 @@ describe('privacy page', () => {
 					exact: false
 				})
 			)
+			.toBeVisible();
+	});
+
+	it('explains what the technical data attached to a feedback are', async () => {
+		render(Page);
+
+		await expect
+			.element(page.getByText('Dati tecnici allegati al feedback', { exact: true }))
+			.toBeVisible();
+		await expect
+			.element(page.getByText('il nome generico della schermata dell’app', { exact: false }))
+			.toBeVisible();
+		await expect
+			.element(page.getByText('l’indirizzo IP, invece, arriva comunque', { exact: false }))
 			.toBeVisible();
 	});
 

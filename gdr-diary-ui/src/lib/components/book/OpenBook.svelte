@@ -5,15 +5,20 @@
 		PAGE_WIDTH,
 		bookScale,
 		fontPixels,
-		lineHeightFor
+		lineHeightFor,
+		ribbonOffset
 	} from '#lib/book/layout.js';
 	import { thickness } from '#lib/book/spread.js';
+	import { checkTag } from '#lib/book/tags.js';
 	import { coverTints } from '#lib/diaries/appearance.js';
 	import type { LineSpacing } from '#lib/settings/preferences.js';
 	import ScaledPage from './ScaledPage.svelte';
 	import DogEar from './DogEar.svelte';
 	import PageBookmark from './PageBookmark.svelte';
+	import PageTagDialog from './PageTagDialog.svelte';
+	import PageTagNotes from './PageTagNotes.svelte';
 	import PageTrash from './PageTrash.svelte';
+	import PageSlide from './PageSlide.svelte';
 	import PageTurn from './PageTurn.svelte';
 
 	interface Props {
@@ -40,6 +45,7 @@
 	const STAGE_PADDING = 12;
 
 	let stageWidth = $state(0);
+	let editing = $state<number | null>(null);
 
 	const typography = $derived({
 		font,
@@ -63,14 +69,49 @@
 		}).join(', ');
 	}
 
+	const editingId = $derived(editing === null ? null : book.pageId(editing));
+	const editingTag = $derived(editingId === null ? null : book.tags.tagOf(editingId));
+	const showsTags = $derived(book.visible.some((page) => book.markable(page)));
+
+	function submitTag(text: string): string | null {
+		if (editingId === null) {
+			return null;
+		}
+		const problem = checkTag(text);
+		if (problem !== null) {
+			return problem;
+		}
+		book.tags.set(editingId, text);
+		return null;
+	}
+
+	function removeTag(): void {
+		if (editingId !== null) {
+			book.tags.clear(editingId);
+		}
+		closeTag();
+	}
+
+	function closeTag(): void {
+		editing = null;
+		book.tags.clearSuggestions();
+	}
+
 	function hintFor(page: number): string {
-		return book.last === 0 && page === 1 ? 'Comincia a scrivere la tua storia...' : '';
+		if (book.last === 0 && page === 1) {
+			return 'Comincia a scrivere la tua storia...';
+		}
+		return book.editable(page) ? '' : 'Questa pagina si apre quando la precedente è piena.';
 	}
 </script>
 
 <div
 	bind:clientWidth={stageWidth}
-	class={['rounded-[10px] border border-(--stage-border) p-3 surface-stage', className]}
+	class={[
+		'rounded-[10px] border border-(--stage-border) px-3 pt-3 surface-stage',
+		showsTags ? 'pb-[112px]' : 'pb-3',
+		className
+	]}
 >
 	<div
 		class="relative mx-auto w-fit rounded-[8px] shadow-(--book-shadow)"
@@ -121,8 +162,21 @@
 									{page}
 									marked={book.marked(page)}
 									disabled={book.marking}
+									offset={ribbonOffset(scale)}
 									onclick={() => {
 										void book.toggleBookmark(page);
+									}}
+								/>
+							{/if}
+							{#if book.markable(page)}
+								{@const id = book.pageId(page)}
+								<PageTagNotes
+									{page}
+									tag={id === null ? null : book.tags.tagOf(id)}
+									ready={id !== null}
+									gone={id !== null && book.tags.goneOf(id)}
+									onopen={() => {
+										editing = page;
 									}}
 								/>
 							{/if}
@@ -159,27 +213,22 @@
 							style:width={`${String(frameWidth)}px`}
 							style:height={`${String(frameHeight)}px`}
 						>
-							<ScaledPage
-								{book}
-								slot={forward ? fresh : old}
-								side="right"
-								{typography}
-								{scale}
-								live={false}
-							/>
-							<PageTurn
-								from={forward ? 0 : -180}
-								to={forward ? -180 : 0}
-								spread={false}
+							<PageSlide
+								{forward}
 								onfinish={() => {
 									book.completeTurn();
 								}}
 							>
-								{#snippet front()}
+								{#snippet away()}
+									<div class="absolute inset-0">
+										<ScaledPage {book} slot={old} side="right" {typography} {scale} live={false} />
+									</div>
+								{/snippet}
+								{#snippet arrive()}
 									<div class="absolute inset-0">
 										<ScaledPage
 											{book}
-											slot={forward ? old : fresh}
+											slot={fresh}
 											side="right"
 											{typography}
 											{scale}
@@ -187,10 +236,7 @@
 										/>
 									</div>
 								{/snippet}
-								{#snippet back()}
-									<div class="absolute inset-0 bg-(--page)"></div>
-								{/snippet}
-							</PageTurn>
+							</PageSlide>
 						</div>
 					{/if}
 				{:else}
@@ -266,3 +312,16 @@
 		</div>
 	</div>
 </div>
+
+<PageTagDialog
+	open={editing !== null}
+	page={editing ?? 0}
+	tag={editingTag}
+	suggestions={book.tags.suggestions}
+	onsubmit={submitTag}
+	onremove={removeTag}
+	ontype={(text: string) => {
+		book.tags.suggest(text, editingTag === null ? [] : [editingTag]);
+	}}
+	onclose={closeTag}
+/>

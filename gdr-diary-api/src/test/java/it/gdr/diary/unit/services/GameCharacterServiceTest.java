@@ -24,12 +24,14 @@ import it.gdr.diary.dto.game_character.InsertGameCharacterDTO;
 import it.gdr.diary.dto.game_character.UpdateGameCharacterDTO;
 import it.gdr.diary.dto.search.GameCharacterSearchRequest;
 import it.gdr.diary.model.AppUser;
+import it.gdr.diary.model.CharacterSheet;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.security.JwtInspector;
+import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.services.GameCharacterService;
 import it.gdr.diary.unit.support.QueryStub;
@@ -63,6 +65,8 @@ class GameCharacterServiceTest {
     private DocumentService documentService;
     @Mock
     private Transaction transaction;
+    @Mock
+    private DiaryPageTagService tagService;
 
     private final MultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1});
 
@@ -70,7 +74,7 @@ class GameCharacterServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GameCharacterService(database, jwtInspector, documentService);
+        service = new GameCharacterService(database, jwtInspector, documentService, tagService);
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 
@@ -106,6 +110,19 @@ class GameCharacterServiceTest {
         QueryStub<Diary> stub = stubFind(database, Diary.class);
         when(stub.where().findList()).thenReturn(diaries);
         return stub;
+    }
+
+    private QueryStub<CharacterSheet> givenSheets(List<CharacterSheet> sheets) {
+        QueryStub<CharacterSheet> stub = stubFind(database, CharacterSheet.class);
+        when(stub.where().findList()).thenReturn(sheets);
+        return stub;
+    }
+
+    private CharacterSheet sheet(Document document) {
+        CharacterSheet sheet = new CharacterSheet();
+        sheet.setId(UUID.randomUUID());
+        sheet.setDocument(document);
+        return sheet;
     }
 
     private static DataIntegrityException foreignKeyViolation() {
@@ -411,6 +428,7 @@ class GameCharacterServiceTest {
         givenOwnedCharacter(character("Aragorn"));
         Diary first = diary(null);
         Diary second = diary(null);
+        givenSheets(List.of());
         givenDiaries(List.of(first, second));
         QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -422,10 +440,49 @@ class GameCharacterServiceTest {
     }
 
     @Test
+    void deleteGameCharacter_withDiaries_deletesTagsOfAllDiariesBeforePages() {
+        givenOwnedCharacter(character("Aragorn"));
+        Diary first = diary(null);
+        Diary second = diary(null);
+        givenSheets(List.of());
+        givenDiaries(List.of(first, second));
+        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        InOrder order = inOrder(tagService, pages.where());
+        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(first.getId(), second.getId()));
+        order.verify(pages.where()).delete();
+    }
+
+    @Test
+    void deleteGameCharacter_withoutDiaries_deletesNoTags() {
+        givenOwnedCharacter(character("Aragorn"));
+        givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
+    }
+
+    @Test
+    void deleteGameCharacter_notOwnedOrMissing_deletesNoTags() {
+        givenOwnedCharacter(null);
+
+        catchThrowable(() -> service.deleteGameCharacter(CHARACTER_ID));
+
+        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
+    }
+
+    @Test
     void deleteGameCharacter_withDiaries_deletesDiariesBeforeCharacter() {
         GameCharacter character = character("Aragorn");
         givenOwnedCharacter(character);
         List<Diary> diaries = List.of(diary(null));
+        givenSheets(List.of());
         givenDiaries(diaries);
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -440,6 +497,7 @@ class GameCharacterServiceTest {
     @Test
     void deleteGameCharacter_withoutDiaries_doesNotTouchPagesOrDiaries() {
         givenOwnedCharacter(character("Aragorn"));
+        givenSheets(List.of());
         givenDiaries(List.of());
         when(database.beginTransaction()).thenReturn(transaction);
 
@@ -456,6 +514,7 @@ class GameCharacterServiceTest {
         Document cover = document("cover.png");
         character.setAvatarDocument(avatar);
         givenOwnedCharacter(character);
+        givenSheets(List.of());
         givenDiaries(List.of(diary(cover), diary(null)));
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -475,6 +534,7 @@ class GameCharacterServiceTest {
         Document cover = document("cover.png");
         character.setAvatarDocument(avatar);
         givenOwnedCharacter(character);
+        givenSheets(List.of());
         givenDiaries(List.of(diary(cover)));
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -492,6 +552,7 @@ class GameCharacterServiceTest {
         GameCharacter character = character("Aragorn");
         character.setAvatarDocument(document("avatar.png"));
         givenOwnedCharacter(character);
+        givenSheets(List.of());
         givenDiaries(List.of());
         when(database.beginTransaction()).thenReturn(transaction);
         doThrow(new IllegalStateException("db down")).when(database).delete(character);
@@ -583,6 +644,7 @@ class GameCharacterServiceTest {
     void deleteGameCharacter_diaryCreatedMeanwhile_throwsConflict() {
         GameCharacter character = character("Aragorn");
         givenOwnedCharacter(character);
+        givenSheets(List.of());
         givenDiaries(List.of());
         when(database.beginTransaction()).thenReturn(transaction);
         doThrow(foreignKeyViolation()).when(database).delete(character);
@@ -597,6 +659,7 @@ class GameCharacterServiceTest {
     void deleteGameCharacter_pageCreatedMeanwhile_throwsConflict() {
         givenOwnedCharacter(character("Aragorn"));
         List<Diary> diaries = List.of(diary(null));
+        givenSheets(List.of());
         givenDiaries(diaries);
         stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
@@ -612,6 +675,7 @@ class GameCharacterServiceTest {
         GameCharacter character = character("Aragorn");
         character.setAvatarDocument(document("avatar.png"));
         givenOwnedCharacter(character);
+        givenSheets(List.of());
         givenDiaries(List.of());
         when(database.beginTransaction()).thenReturn(transaction);
         doThrow(foreignKeyViolation()).when(database).delete(character);
@@ -619,5 +683,101 @@ class GameCharacterServiceTest {
         catchThrowable(() -> service.deleteGameCharacter(CHARACTER_ID));
 
         verify(documentService, never()).deleteDocumentFile(any());
+    }
+
+    @Test
+    void deleteGameCharacter_anyCharacter_selectsOnlySheetsOfCharacter() {
+        givenOwnedCharacter(character("Aragorn"));
+        QueryStub<CharacterSheet> sheets = givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        verify(sheets.where()).eq("character.id", CHARACTER_ID);
+    }
+
+    @Test
+    void deleteGameCharacter_withoutSheets_doesNotDeleteSheets() {
+        givenOwnedCharacter(character("Aragorn"));
+        givenSheets(List.of());
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        verify(database, never()).deleteAll(anyList());
+    }
+
+    @Test
+    void deleteGameCharacter_withSheets_deletesSheetsBeforeCharacter() {
+        GameCharacter character = character("Aragorn");
+        givenOwnedCharacter(character);
+        List<CharacterSheet> sheets = List.of(sheet(document("sheet.pdf")));
+        givenSheets(sheets);
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        InOrder order = inOrder(database);
+        order.verify(database).deleteAll(sheets);
+        order.verify(database).delete(character);
+    }
+
+    @Test
+    void deleteGameCharacter_withSheets_deletesSheetRecordsBeforeCommit() {
+        givenOwnedCharacter(character("Aragorn"));
+        Document pdf = document("sheet.pdf");
+        givenSheets(List.of(sheet(pdf)));
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        InOrder order = inOrder(documentService, transaction);
+        order.verify(documentService).deleteDocumentRecord(pdf);
+        order.verify(transaction).commit();
+    }
+
+    @Test
+    void deleteGameCharacter_withSheets_deletesSheetFilesAfterCommit() {
+        givenOwnedCharacter(character("Aragorn"));
+        Document pdf = document("sheet.pdf");
+        givenSheets(List.of(sheet(pdf)));
+        givenDiaries(List.of());
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteGameCharacter(CHARACTER_ID);
+
+        InOrder order = inOrder(transaction, documentService);
+        order.verify(transaction).commit();
+        order.verify(documentService).deleteDocumentFile(pdf);
+    }
+
+    @Test
+    void deleteGameCharacter_sheetsDeleteFails_deletesNoFile() {
+        givenOwnedCharacter(character("Aragorn"));
+        List<CharacterSheet> sheets = List.of(sheet(document("sheet.pdf")));
+        givenSheets(sheets);
+        when(database.beginTransaction()).thenReturn(transaction);
+        doThrow(new IllegalStateException("db down")).when(database).deleteAll(sheets);
+
+        catchThrowable(() -> service.deleteGameCharacter(CHARACTER_ID));
+
+        verify(documentService, never()).deleteDocumentFile(any());
+    }
+
+    @Test
+    void deleteGameCharacter_sheetCreatedMeanwhile_throwsConflict() {
+        givenOwnedCharacter(character("Aragorn"));
+        List<CharacterSheet> sheets = List.of(sheet(document("sheet.pdf")));
+        givenSheets(sheets);
+        when(database.beginTransaction()).thenReturn(transaction);
+        doThrow(foreignKeyViolation()).when(database).deleteAll(sheets);
+
+        assertThatThrownBy(() -> service.deleteGameCharacter(CHARACTER_ID))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
     }
 }

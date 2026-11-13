@@ -9,6 +9,8 @@
 	import { createDraftStore, type Draft } from '#lib/book/draft.js';
 	import type { SpreadData } from '#lib/book/pages.js';
 	import { SINGLE_BREAKPOINT } from '#lib/book/layout.js';
+	import { DiaryTagList } from '#lib/book/tags.svelte.js';
+	import { pageForTag, type DiaryTag } from '#lib/book/tags.js';
 	import {
 		counterLabel,
 		leftPageOf,
@@ -31,8 +33,10 @@
 	import BookMessage from './BookMessage.svelte';
 	import DiaryHeader from './DiaryHeader.svelte';
 	import EditorToolbar from './EditorToolbar.svelte';
+	import DiaryTagsPanel from './DiaryTagsPanel.svelte';
 	import OpenBook from './OpenBook.svelte';
 	import PageScrubber from './PageScrubber.svelte';
+	import PageTagsMessages from './PageTagsMessages.svelte';
 	import SaveStatus from './SaveStatus.svelte';
 
 	interface Props {
@@ -71,6 +75,8 @@
 		book.setSingle(!wide.matches);
 	});
 
+	const tagList = untrack(() => new DiaryTagList(getApi(), diary.id ?? ''));
+
 	let deleting = $state<number | null>(null);
 	let current = $state<DiaryDetail>(untrack(() => diary));
 	let editingDiary = $state(false);
@@ -108,6 +114,23 @@
 			);
 		}
 	}
+
+	function goToTag(tag: DiaryTag): void {
+		const target = pageForTag(tag.pageNumbers, book.visible);
+		if (target !== null) {
+			void book.goTo(target);
+		}
+	}
+
+	const tagsKey = $derived(`${String(book.tags.revision)}:${String(book.generation)}`);
+
+	$effect(() => {
+		if (tagsKey) {
+			untrack(() => {
+				void tagList.reload();
+			});
+		}
+	});
 
 	function viewAt(position: number): View {
 		return { single: book.single, focus: book.single ? position : leftPageOf(position) };
@@ -181,6 +204,7 @@
 			!event.ctrlKey &&
 			!event.metaKey &&
 			!event.altKey &&
+			!(event.target instanceof HTMLInputElement) &&
 			(event.key.length === 1 || event.key === 'Enter') &&
 			book.capture(event.key === 'Enter' ? '\n' : event.key)
 		) {
@@ -275,6 +299,7 @@
 				deleting = page;
 			}}
 		/>
+		<PageTagsMessages {book} />
 		{#if book.conflict !== null}
 			<BookMessage tone="error">
 				La pagina {book.conflict.page} è stata modificata altrove, forse da un altro dispositivo o da
@@ -383,6 +408,7 @@
 				{/if}
 			{/snippet}
 		</PageScrubber>
+		<DiaryTagsPanel list={tagList} ongo={goToTag} />
 	</div>
 </Container>
 

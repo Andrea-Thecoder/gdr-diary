@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/sheets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a sheet
+         * @description Returns a single sheet of a character owned by the logged-in user, with fresh temporary URLs (the ones returned by the list expire after a few minutes).
+         */
+        get: operations["getCharacterSheetById"];
+        /**
+         * Update a sheet
+         * @description Replaces title and game system of a sheet of a character owned by the logged-in user. Fields not sent are set to empty (the title cannot be empty). The PDF file is not changed.
+         */
+        put: operations["updateCharacterSheet"];
+        post?: never;
+        /**
+         * Delete a sheet
+         * @description Deletes a sheet of a character owned by the logged-in user, together with its PDF file. The operation cannot be undone.
+         */
+        delete: operations["deleteCharacterSheet"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sheets/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace the PDF of a sheet
+         * @description Uploads a PDF that replaces the file of a sheet of a character owned by the logged-in user. Title and game system are kept. The same checks as the upload of a new sheet apply. The previous file is replaced and deleted.
+         */
+        put: operations["updateCharacterSheetFile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/pages/{id}": {
         parameters: {
             query?: never;
@@ -14,7 +62,7 @@ export interface paths {
         get?: never;
         /**
          * Update a page
-         * @description Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size. The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next update.
+         * @description Replaces the content of a page. The page number cannot be changed directly and the page cannot be moved to another diary. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size. The request must carry the version of the page the client last read: if the page was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next update.
          */
         put: operations["updateDiaryPage"];
         post?: never;
@@ -23,6 +71,26 @@ export interface paths {
          * @description Deletes a page of a diary of a character owned by the logged-in user. The pages that follow are renumbered, so the numbers stay consecutive. The identifiers of the pages do not change.
          */
         delete: operations["deleteDiaryPage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pages/{id}/tag": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set the tag of a page
+         * @description Replaces the tag of a page of a diary of a character owned by the logged-in user. A page has at most one tag, 1 to 30 characters without control characters; a null tag removes it. A diary can have at most 10 different tags (ignoring case): if the diary already has the tag with another case, that spelling is kept. The tag is not part of the page content: saving it does not change the version of the page. The response gives the tag the page has now (null if none).
+         */
+        put: operations["updateDiaryPageTag"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -80,34 +148,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/diaries/{id}/bookmark": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the bookmark of a diary
-         * @description Returns the page marked with the bookmark of a diary of a character owned by the logged-in user. When the diary has no bookmark the response is an empty object.
-         */
-        get: operations["getDiaryBookmark"];
-        /**
-         * Set the bookmark of a diary
-         * @description Marks a page of the diary with the bookmark, replacing the previous one: a diary has at most one bookmark. The page must belong to the diary. The bookmark follows the page when other pages are deleted and goes away when the page is deleted.
-         */
-        put: operations["updateDiaryBookmark"];
-        post?: never;
-        /**
-         * Remove the bookmark of a diary
-         * @description Removes the bookmark of a diary of a character owned by the logged-in user. It does nothing when the diary has no bookmark.
-         */
-        delete: operations["deleteDiaryBookmark"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/diaries/{id}/cover": {
         parameters: {
             query?: never;
@@ -127,6 +167,34 @@ export interface paths {
          * @description Removes the cover of a diary of a character owned by the logged-in user and deletes its file.
          */
         delete: operations["deleteDiaryCover"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/diaries/{id}/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the bookmark of a diary
+         * @description Returns the page the reader left the bookmark on, in a diary of a character owned by the logged-in user. Both fields of the response are null when the diary has no bookmark.
+         */
+        get: operations["getDiaryBookmark"];
+        /**
+         * Set the bookmark of a diary
+         * @description Puts the bookmark of a diary of a character owned by the logged-in user on one of its pages. A diary has at most one bookmark: the previous one, if any, is replaced. When the bookmarked page is deleted the bookmark disappears.
+         */
+        put: operations["updateDiaryBookmark"];
+        post?: never;
+        /**
+         * Remove the bookmark of a diary
+         * @description Removes the bookmark of a diary of a character owned by the logged-in user. The operation succeeds also when the diary has no bookmark.
+         */
+        delete: operations["deleteDiaryBookmark"];
         options?: never;
         head?: never;
         patch?: never;
@@ -203,10 +271,34 @@ export interface paths {
          */
         post: operations["createAppUser"];
         /**
-         * Delete all the data of the logged-in user
-         * @description Permanently deletes everything the logged-in user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. Everything is deleted in a single transaction: if something fails nothing is deleted. The account on the authentication server is not touched: the client deletes it after this call. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.
+         * Delete the account and all the data of the logged-in user
+         * @description Permanently deletes the account of the logged-in user: first the user on the authentication server (Keycloak, retried three times with growing waits if it fails; an already deleted user counts as done), then everything the user has in the backend: all the characters with their diaries and pages, the profile image, the images of characters and diaries (files included) and the user itself. It cannot be undone. The payments of the user are not deleted: they are kept, detached from the account, because the law requires to retain them. Everything is deleted in a single transaction: if something fails nothing is deleted. If the authentication server cannot delete the user after the retries it answers 502 and deletes nothing in the backend. It requires a recent login with the password (the auth_time claim of the token, five minutes by default): otherwise it answers 401 and deletes nothing. It is idempotent: if the user has no data any more it still answers 200.
          */
         delete: operations["deleteAppUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the feedback
+         * @description Admin only. Returns a page of the received feedback, newest first by default, filtered and sorted according to the search parameters (type, status, text contained in the email, and the period of reception: createdFrom and createdTo are dates without time, both included, from 00:00:00 of the first day to 23:59:59 of the last day in the time zone app.feedback.timezone, each one can be used alone or together).
+         */
+        get: operations["findAllFeedbacks"];
+        put?: never;
+        /**
+         * Send a feedback
+         * @description Public endpoint, no token needed. Multipart request with the form fields and up to app.feedback.max-files images (default 3) in the repeated part 'files', for a total of at most app.feedback.max-total-file-size (default 5 MB). Images must be PNG, JPEG or WebP: the real content of each file is checked, not only the declared type, and the declared content type and the extension must match the content. Empty file parts are ignored. The privacy consent is mandatory. The field 'website' is a trap for bots: if it is filled, the request answers 201 but nothing is saved. Each client address can send a limited number of requests per period (app.feedback.rate-limit-max-requests per app.feedback.rate-limit-window).
+         */
+        post: operations["createFeedback"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -227,7 +319,7 @@ export interface paths {
         put?: never;
         /**
          * Create a page
-         * @description Adds a page at the end of a diary of a character owned by the logged-in user. The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline and title (level 1 or 2). Any other node, mark or property is rejected. The content must not exceed the configured maximum size.
+         * @description Adds a page at the end of a diary of a character owned by the logged-in user. The page number is assigned by the server (the next one after the last page) and a diary can have at most 100 pages. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size.
          */
         post: operations["createDiaryPage"];
         delete?: never;
@@ -260,6 +352,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/characters/{characterId}/sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the sheets of a character
+         * @description Returns a page of the PDF sheets of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: upload date). Each sheet has two temporary URLs: one to open the PDF in the browser and one that downloads it.
+         */
+        get: operations["findAllCharacterSheetsByCharacter"];
+        put?: never;
+        /**
+         * Upload a sheet for a character
+         * @description Uploads a PDF as a new sheet of a character owned by the logged-in user, in a single step: the multipart request has the file part and the title (required) and game system (optional) fields. The real content of the file is checked, not only the declared type: the file must start with the PDF signature, the declared content type must be present and, like the extension, must match the content and the size must not exceed the configured limit. A character can have a limited number of sheets (app.character-sheet.max-sheets-per-character, default 10).
+         */
+        post: operations["createCharacterSheet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/characters/{characterId}/diaries": {
         parameters: {
             query?: never;
@@ -269,7 +385,7 @@ export interface paths {
         };
         /**
          * List the diaries of a character
-         * @description Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: title).
+         * @description Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted according to the search parameters (default order: title). The tag filter keeps the diaries that have at least one page with a tag containing the given text.
          */
         get: operations["findAllDiariesByCharacter"];
         put?: never;
@@ -304,10 +420,249 @@ export interface paths {
         patch: operations["updateAppUserSettings"];
         trace?: never;
     };
+    "/feedback/{id}/unread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark a feedback as unread
+         * @description Admin only. Sets the status of a feedback back to NEW (to be read). Repeating the call changes nothing.
+         */
+        patch: operations["markFeedbackAsUnread"];
+        trace?: never;
+    };
+    "/feedback/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark a feedback as read
+         * @description Admin only. Sets the status of a feedback to READ. Repeating the call changes nothing.
+         */
+        patch: operations["markFeedbackAsRead"];
+        trace?: never;
+    };
+    "/feedback/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Archive a feedback
+         * @description Admin only. Sets the status of a feedback to ARCHIVED. Repeating the call changes nothing.
+         */
+        patch: operations["archiveFeedback"];
+        trace?: never;
+    };
+    "/feedback/{id}/answered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mark a feedback as answered
+         * @description Admin only. Sets the status of a feedback to ANSWERED. Repeating the call changes nothing.
+         */
+        patch: operations["markFeedbackAsAnswered"];
+        trace?: never;
+    };
+    "/me/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the payments of the logged-in user
+         * @description Returns a page of the payments of the logged-in user, optionally filtered by status. Default order: payment date, newest first, with the payments not yet paid last; it can be sorted by paidAt or amount. Payments are read only: they are recorded by the payment integration, not through the API.
+         */
+        get: operations["findAllPayments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a payment
+         * @description Returns a single payment of the logged-in user with the provider data and the customer data recorded at the time of the payment.
+         */
+        get: operations["getPaymentById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a feedback
+         * @description Admin only. Returns a feedback with its text, technical information and the attached images, each with a temporary URL.
+         */
+        get: operations["getFeedbackById"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a feedback
+         * @description Admin only. Deletes a feedback together with its attached images, for example when the sender asks to remove their data. The operation cannot be undone.
+         */
+        delete: operations["deleteFeedback"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/diaries/{diaryId}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the tags of a diary
+         * @description Returns a page of the tags used in the pages of a diary of a character owned by the logged-in user, each with the numbers of the pages that have it (a diary has at most 10 different tags). Tags that differ only by case are grouped. The tags are always sorted by the number of the first page that has them (the first tag of the diary comes first).
+         */
+        get: operations["findAllDiaryTagsByDiary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Data to update a sheet */
+        UpdateCharacterSheetDTO: {
+            /**
+             * @description Title of the sheet
+             * @example Alira, level 9
+             */
+            title: string;
+            /**
+             * @description Game system of the sheet, empty to remove it
+             * @example D&D 5e
+             */
+            system?: string | null;
+        };
+        ExceptionResponse: {
+            title?: string;
+            /** Format: int32 */
+            status?: number;
+            violations?: components["schemas"]["Violation"][];
+        };
+        Violation: {
+            field?: string;
+            message?: string;
+        };
+        /** @description A sheet of a character of the logged-in user */
+        DetailCharacterSheetDTO: {
+            /**
+             * Format: uuid
+             * @description Sheet identifier
+             * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description Identifier of the character the sheet belongs to
+             * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+             */
+            characterId?: string;
+            /**
+             * @description Title of the sheet
+             * @example Alira, level 8
+             */
+            title?: string;
+            /**
+             * @description Game system of the sheet, null if not indicated
+             * @example D&D 5e
+             */
+            system?: string | null;
+            /**
+             * @description Original name of the uploaded PDF file
+             * @example alira-lv8.pdf
+             */
+            fileName?: string;
+            /**
+             * Format: int64
+             * @description Size of the PDF file in bytes
+             * @example 1468006
+             */
+            sizeBytes?: number;
+            /**
+             * Format: date-time
+             * @description When the sheet was uploaded
+             * @example 2026-10-12T18:30:00Z
+             */
+            createdAt?: string;
+            /**
+             * @description Temporary URL to open the PDF in the browser
+             * @example http://localhost:8333/diary-documents/3f1c2a6e?X-Amz-Expires=300
+             */
+            url?: string;
+            /**
+             * @description Temporary URL that downloads the PDF as an attachment
+             * @example http://localhost:8333/diary-documents/3f1c2a6e?response-content-disposition=attachment&X-Amz-Expires=300
+             */
+            downloadUrl?: string;
+        };
         /** @description Data to update a page of a diary */
         UpdateDiaryPageDTO: {
             /**
@@ -336,16 +691,6 @@ export interface components {
              * @example 3
              */
             version: number;
-        };
-        ExceptionResponse: {
-            title?: string;
-            /** Format: int32 */
-            status?: number;
-            violations?: components["schemas"]["Violation"][];
-        };
-        Violation: {
-            field?: string;
-            message?: string;
         };
         /** @description A page of a diary, used in the list of the pages */
         BaseDiaryPageDTO: {
@@ -387,6 +732,27 @@ export interface components {
              * @example 3
              */
             version?: number;
+            /**
+             * @description Tag of the page, null if the page has no tag
+             * @example combat
+             */
+            tag?: string | null;
+        };
+        /** @description Tag of a page of a diary. It replaces the tag the page has now */
+        UpdateDiaryPageTagDTO: {
+            /**
+             * @description New tag of the page, 1 to 30 characters without control characters, or null to remove the tag. Surrounding spaces are removed. A diary can have at most 10 different tags (ignoring case): if the diary already has the tag with another case, that spelling is kept
+             * @example combat
+             */
+            tag?: string | null;
+        };
+        /** @description Tag of a page of a diary */
+        DetailDiaryPageTagDTO: {
+            /**
+             * @description Tag of the page, null if the page has no tag
+             * @example combat
+             */
+            tag?: string | null;
         };
         /** @description Generic single-item response envelope used by all non-paginated endpoints */
         SimpleResultDTOString: {
@@ -397,30 +763,6 @@ export interface components {
              * @example Ship successfully deleted
              */
             message?: string;
-        };
-        /** @description The page marked with the bookmark of a diary */
-        BookmarkDiaryDTO: {
-            /**
-             * Format: uuid
-             * @description Identifier of the bookmarked page
-             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
-             */
-            pageId?: string;
-            /**
-             * Format: int32
-             * @description Number of the bookmarked page, starting from 1
-             * @example 12
-             */
-            pageNumber?: number;
-        };
-        /** @description The page to mark with the bookmark */
-        UpdateBookmarkDiaryDTO: {
-            /**
-             * Format: uuid
-             * @description Identifier of a page of the diary
-             * @example 7c9e6679-7425-40de-944b-e07fc1f90ae7
-             */
-            pageId: string;
         };
         /** @description Data to fully replace a diary */
         UpdateDiaryDTO: {
@@ -502,6 +844,30 @@ export interface components {
              * @example http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=...
              */
             coverUrl?: string | null;
+        };
+        /** @description Page of a diary to put the bookmark on */
+        UpdateBookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of a page of the same diary
+             * @example 7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45
+             */
+            pageId: string;
+        };
+        /** @description Bookmark of a diary: the page the reader left a marker on. Both fields are null when the diary has no bookmark */
+        BookmarkDiaryDTO: {
+            /**
+             * Format: uuid
+             * @description Identifier of the bookmarked page
+             * @example 7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45
+             */
+            pageId?: string | null;
+            /**
+             * Format: int32
+             * @description Number of the bookmarked page inside the diary
+             * @example 12
+             */
+            pageNumber?: number | null;
         };
         /** @description Data to fully replace a character */
         UpdateGameCharacterDTO: {
@@ -585,6 +951,54 @@ export interface components {
              */
             message?: string;
         };
+        /** @description Data of a feedback, sent as form fields together with the optional image parts */
+        InsertFeedbackDTO: {
+            /**
+             * @description Type of feedback, compared ignoring case
+             * @example idea
+             * @enum {string}
+             */
+            type: "idea" | "bug" | "love";
+            /**
+             * @description Text of the feedback
+             * @example The page tags are great, could I choose their color?
+             */
+            message: string;
+            /**
+             * Format: email
+             * @description Email address of the sender, to answer to
+             * @example alira@example.com
+             */
+            email: string;
+            /**
+             * @description Technical information of the sender (browser, screen size, page), as the text of a JSON object
+             * @example {
+             *       "browser": "Firefox 130",
+             *       "screen": "1360x768"
+             *     }
+             */
+            technicalInfo?: string | null;
+            /**
+             * @description Acceptance of the privacy policy: it must be true
+             * @example true
+             */
+            consent: boolean;
+            /**
+             * @description Trap field for bots: it must be empty or missing, a real user never fills it
+             * @example
+             */
+            website?: string | null;
+        };
+        /** @description Generic single-item response envelope used by all non-paginated endpoints */
+        SimpleResultDTOVoid: {
+            /** @description The response payload; null when the operation returns no content (e.g. delete) */
+            payload?: unknown;
+            /**
+             * @description Optional human-readable message accompanying the response
+             * @example Ship successfully deleted
+             */
+            message?: string;
+        };
         /** @description Data to create a page of a diary. The page number is assigned by the server */
         InsertDiaryPageDTO: {
             /**
@@ -636,6 +1050,19 @@ export interface components {
              * @example #3B2F2F
              */
             backgroundColor?: string;
+        };
+        /** @description Data to create a sheet, sent as form fields together with the PDF file part */
+        InsertCharacterSheetDTO: {
+            /**
+             * @description Title of the sheet
+             * @example Alira, level 8
+             */
+            title: string;
+            /**
+             * @description Game system of the sheet
+             * @example D&D 5e
+             */
+            system?: string | null;
         };
         /** @description Data to create a diary */
         InsertDiaryDTO: {
@@ -692,6 +1119,78 @@ export interface components {
              */
             message?: string;
         };
+        /** @description An image attached to a feedback */
+        AttachmentFeedbackDTO: {
+            /**
+             * @description Original name of the uploaded file
+             * @example screenshot.png
+             */
+            fileName?: string;
+            /**
+             * @description Type of the file
+             * @example image/png
+             */
+            mimeType?: string;
+            /**
+             * Format: int64
+             * @description Size of the file in bytes
+             * @example 482113
+             */
+            sizeBytes?: number;
+            /**
+             * @description Temporary URL to open the image
+             * @example http://localhost:8333/feedback-documents/3f1c2a6e?X-Amz-Expires=300
+             */
+            url?: string;
+        };
+        /** @description A feedback with its text, technical information and attached images */
+        DetailFeedbackDTO: {
+            /**
+             * Format: uuid
+             * @description Feedback identifier
+             * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+             */
+            id?: string;
+            /**
+             * @description Type of feedback
+             * @example IDEA
+             * @enum {string}
+             */
+            type?: "IDEA" | "BUG" | "LOVE";
+            /**
+             * @description Processing status of the feedback
+             * @example NEW
+             * @enum {string}
+             */
+            status?: "NEW" | "READ" | "ANSWERED" | "ARCHIVED";
+            /**
+             * @description Email address left by the sender
+             * @example alira@example.com
+             */
+            email?: string;
+            /**
+             * @description Text of the feedback
+             * @example The page tags are great, could I choose their color?
+             */
+            message?: string;
+            /** @description Technical information sent with the feedback, null if not sent */
+            technicalInfo?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * @description Whether the sender accepted the privacy policy (always true)
+             * @example true
+             */
+            privacyAccepted?: boolean;
+            /**
+             * Format: date-time
+             * @description When the feedback was received
+             * @example 2026-11-11T18:30:00Z
+             */
+            createdAt?: string;
+            /** @description Images attached to the feedback (empty list if none) */
+            attachments?: components["schemas"]["AttachmentFeedbackDTO"][];
+        };
         /** @description The logged-in user */
         DetailAppUserDTO: {
             /**
@@ -713,6 +1212,265 @@ export interface components {
              * @example http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=...
              */
             avatarUrl?: string | null;
+        };
+        /** @description Summary of a payment of the logged-in user, used in lists */
+        BasePaymentDTO: {
+            /**
+             * Format: uuid
+             * @description Payment identifier
+             * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+             */
+            id?: string;
+            /**
+             * @description Status of the payment
+             * @example SUCCEEDED
+             * @enum {string}
+             */
+            status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+            /**
+             * Format: int64
+             * @description Amount in the smallest unit of the currency (cents)
+             * @example 2990
+             */
+            amountCents?: number;
+            /**
+             * @description Currency, ISO 4217 code
+             * @example EUR
+             */
+            currency?: string;
+            /**
+             * @description What the payment is for
+             * @example Premium annual
+             */
+            description?: string;
+            /**
+             * Format: date-time
+             * @description When the payment succeeded, null until it does
+             * @example 2026-11-10T09:15:00Z
+             */
+            paidAt?: string | null;
+            /**
+             * @description Invoice number, null if there is none
+             * @example 2026-0042
+             */
+            invoiceNumber?: string | null;
+            /**
+             * @description Address of the receipt or invoice hosted by the payment provider, null if there is none
+             * @example https://pay.example/receipts/rcpt_1Nx
+             */
+            receiptUrl?: string | null;
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBasePaymentDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BasePaymentDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             * @example 243
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             * @example 3
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             * @example 100
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             * @example 1
+             */
+            page?: number;
+        };
+        /** @description A payment of the logged-in user with the customer data recorded at the time of the payment */
+        DetailPaymentDTO: {
+            /**
+             * Format: uuid
+             * @description Payment identifier
+             * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+             */
+            id?: string;
+            /**
+             * @description Status of the payment
+             * @example SUCCEEDED
+             * @enum {string}
+             */
+            status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+            /**
+             * Format: int64
+             * @description Amount in the smallest unit of the currency (cents)
+             * @example 2990
+             */
+            amountCents?: number;
+            /**
+             * @description Currency, ISO 4217 code
+             * @example EUR
+             */
+            currency?: string;
+            /**
+             * @description What the payment is for
+             * @example Premium annual
+             */
+            description?: string;
+            /**
+             * Format: date-time
+             * @description When the payment succeeded, null until it does
+             * @example 2026-11-10T09:15:00Z
+             */
+            paidAt?: string | null;
+            /**
+             * @description Invoice number, null if there is none
+             * @example 2026-0042
+             */
+            invoiceNumber?: string | null;
+            /**
+             * @description Address of the receipt or invoice hosted by the payment provider, null if there is none
+             * @example https://pay.example/receipts/rcpt_1Nx
+             */
+            receiptUrl?: string | null;
+            /**
+             * @description Payment provider
+             * @example STRIPE
+             * @enum {string}
+             */
+            provider?: "STRIPE";
+            /**
+             * @description Identifier of the transaction at the payment provider
+             * @example pi_3Nx9Kd2eZvKYlo2C1abcDEFG
+             */
+            providerPaymentId?: string;
+            /**
+             * @description Email address of the customer at the time of the payment
+             * @example alira@example.com
+             */
+            customerEmail?: string;
+            /**
+             * @description Name of the customer at the time of the payment, null if not recorded
+             * @example Alira Stormwind
+             */
+            customerName?: string | null;
+            /**
+             * @description Tax code or VAT number of the customer, null if not recorded
+             * @example RSSMRA80A01H501U
+             */
+            customerTaxCode?: string | null;
+            /**
+             * @description Country of the customer, ISO 3166-1 alpha-2 code, null if not recorded
+             * @example IT
+             */
+            customerCountry?: string | null;
+        };
+        /** @description Summary of a feedback, as shown in the list */
+        BaseFeedbackDTO: {
+            /**
+             * Format: uuid
+             * @description Feedback identifier
+             * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+             */
+            id?: string;
+            /**
+             * @description Type of feedback
+             * @example IDEA
+             * @enum {string}
+             */
+            type?: "IDEA" | "BUG" | "LOVE";
+            /**
+             * @description Processing status of the feedback
+             * @example NEW
+             * @enum {string}
+             */
+            status?: "NEW" | "READ" | "ANSWERED" | "ARCHIVED";
+            /**
+             * @description Email address left by the sender
+             * @example alira@example.com
+             */
+            email?: string;
+            /**
+             * @description First characters of the text of the feedback
+             * @example The page tags are great, could I choose their color?
+             */
+            messagePreview?: string;
+            /**
+             * Format: date-time
+             * @description When the feedback was received
+             * @example 2026-11-11T18:30:00Z
+             */
+            createdAt?: string;
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBaseFeedbackDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BaseFeedbackDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             * @example 243
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             * @example 3
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             * @example 100
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             * @example 1
+             */
+            page?: number;
+        };
+        /** @description A tag of a diary with the pages that have it, used in the list of the tags of a diary */
+        BaseDiaryTagDTO: {
+            /**
+             * @description Tag as written on the first page that has it. Tags that differ only by case are grouped
+             * @example combat
+             */
+            name?: string;
+            /** @description Numbers of the pages of the diary that have the tag, in ascending order */
+            pageNumbers?: number[];
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBaseDiaryTagDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BaseDiaryTagDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             * @example 243
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             * @example 3
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             * @example 100
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             * @example 1
+             */
+            page?: number;
         };
         /** @description Generic paginated response envelope used by all list endpoints */
         PagedResultDTOBaseDiaryPageDTO: {
@@ -807,6 +1565,82 @@ export interface components {
              */
             page?: number;
         };
+        /** @description Summary of a sheet of a character of the logged-in user, used in lists */
+        BaseCharacterSheetDTO: {
+            /**
+             * Format: uuid
+             * @description Sheet identifier
+             * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description Identifier of the character the sheet belongs to
+             * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+             */
+            characterId?: string;
+            /**
+             * @description Title of the sheet
+             * @example Alira, level 8
+             */
+            title?: string;
+            /**
+             * @description Game system of the sheet, null if not indicated
+             * @example D&D 5e
+             */
+            system?: string | null;
+            /**
+             * Format: int64
+             * @description Size of the PDF file in bytes
+             * @example 1468006
+             */
+            sizeBytes?: number;
+            /**
+             * Format: date-time
+             * @description When the sheet was uploaded
+             * @example 2026-10-12T18:30:00Z
+             */
+            createdAt?: string;
+            /**
+             * @description Temporary URL to open the PDF in the browser
+             * @example http://localhost:8333/diary-documents/3f1c2a6e?X-Amz-Expires=300
+             */
+            url?: string;
+            /**
+             * @description Temporary URL that downloads the PDF as an attachment
+             * @example http://localhost:8333/diary-documents/3f1c2a6e?response-content-disposition=attachment&X-Amz-Expires=300
+             */
+            downloadUrl?: string;
+        };
+        /** @description Generic paginated response envelope used by all list endpoints */
+        PagedResultDTOBaseCharacterSheetDTO: {
+            /** @description Current page of items */
+            list?: components["schemas"]["BaseCharacterSheetDTO"][];
+            /**
+             * Format: int64
+             * @description Total number of rows matching the query across all pages
+             * @example 243
+             */
+            totalRows?: number;
+            /**
+             * Format: int32
+             * @description Total number of available pages based on pageSize
+             * @example 3
+             */
+            totalPages?: number;
+            /**
+             * Format: int32
+             * @description Maximum number of items returned per page
+             * @example 100
+             */
+            pageSize?: number;
+            /**
+             * Format: int32
+             * @description Current page number (1-based)
+             * @example 1
+             */
+            page?: number;
+        };
         /** @description Summary of a diary of a character, used in lists */
         BaseDiaryDTO: {
             /**
@@ -866,16 +1700,6 @@ export interface components {
              */
             page?: number;
         };
-        /** @description Generic single-item response envelope used by all non-paginated endpoints */
-        SimpleResultDTOVoid: {
-            /** @description The response payload; null when the operation returns no content (e.g. delete) */
-            payload?: unknown;
-            /**
-             * @description Optional human-readable message accompanying the response
-             * @example Ship successfully deleted
-             */
-            message?: string;
-        };
     };
     responses: never;
     parameters: never;
@@ -885,6 +1709,288 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getCharacterSheetById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested sheet */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCharacterSheetDTO"];
+            };
+        };
+        responses: {
+            /** @description Sheet updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Invalid request body (for example blank title), or sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The sheet was modified at the same time by another request: nothing is saved, read it again and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    deleteCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sheet deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateCharacterSheetFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Sheet identifier
+                 * @example 4d0f6c1a-2b7e-4c1d-8e55-9a3b7c1d2e10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The PDF file that replaces the current one
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description PDF replaced */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Missing file part, malformed multipart request, empty file, file that is not a PDF, missing or mismatching content type, extension not matching the content, file too large, or sheet identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sheet not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The sheet was modified at the same time by another request: the PDF is not changed, try again */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description File larger than the maximum request size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Storage not available */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
     updateDiaryPage: {
         parameters: {
             query?: never;
@@ -1014,6 +2120,68 @@ export interface operations {
             };
             /** @description A page of the diary was modified at the same time by another request: nothing is deleted, try again */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateDiaryPageTag: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Page identifier
+                 * @example 7e2b4d10-5a3c-4c8e-9f61-2a0b6d3e8c45
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDiaryPageTagDTO"];
+            };
+        };
+        responses: {
+            /** @description Tag replaced, with the tag the page has now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailDiaryPageTagDTO"];
+                };
+            };
+            /** @description Invalid request body (blank or too long tag, control characters, characters that cannot be stored), a new tag when the diary already has 10 different tags, or page identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Page not found, its character is owned by another user, or the page was deleted at the same time */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1441,6 +2609,73 @@ export interface operations {
             };
         };
     };
+    deleteDiaryCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cover removed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Diary identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The diary was modified at the same time by another request: the cover is not removed, try again */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
     getDiaryBookmark: {
         parameters: {
             query?: never;
@@ -1456,7 +2691,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Bookmark of the diary; empty object when there is none */
+            /** @description The bookmark of the diary (empty if there is none) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -1527,7 +2762,7 @@ export interface operations {
                     "application/json": components["schemas"]["BookmarkDiaryDTO"];
                 };
             };
-            /** @description Missing page identifier, or identifier that is not a UUID */
+            /** @description Invalid request body (for example missing or malformed page identifier), or diary identifier that is not a UUID */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -1550,8 +2785,17 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Diary or page not found, or the diary's character is owned by another user */
+            /** @description Diary not found or its character is owned by another user, or the page does not belong to the diary (or was deleted meanwhile) */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The diary was modified at the same time by another request: the bookmark is not changed, try again */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1617,65 +2861,7 @@ export interface operations {
                     "application/json": components["schemas"]["ExceptionResponse"];
                 };
             };
-        };
-    };
-    deleteDiaryCover: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /**
-                 * @description Diary identifier
-                 * @example 5d1e7c0a-2b43-4f6e-8a79-91c2d6f0b8a4
-                 */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Cover removed */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
-                };
-            };
-            /** @description Diary identifier that is not a UUID */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description Missing, expired or invalid token */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The user has neither the user nor the admin role */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Diary not found, or its character is owned by another user */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExceptionResponse"];
-                };
-            };
-            /** @description The diary was modified at the same time by another request: the cover is not removed, try again */
+            /** @description The diary was modified at the same time by another request: the bookmark is not removed, try again */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2134,7 +3320,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Data deleted */
+            /** @description Account and data deleted */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2152,8 +3338,139 @@ export interface operations {
                     "application/json": components["schemas"]["ExceptionResponse"];
                 };
             };
-            /** @description The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted, try again */
+            /** @description The account changed while it was being deleted (for example a character was created at the same time): nothing is deleted in the backend (the user on the authentication server is already gone, so calling again goes straight to the data), try again */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The user could not be deleted on the authentication server after the retries: nothing is deleted in the backend, try again later */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    findAllFeedbacks: {
+        parameters: {
+            query?: {
+                /** @description Type of feedback */
+                type?: "IDEA" | "BUG" | "LOVE";
+                /** @description Processing status */
+                status?: "NEW" | "READ" | "ANSWERED" | "ARCHIVED";
+                /** @description Case-insensitive text contained in the email address */
+                email?: string;
+                /** @description Only feedback received on this day or later (from 00:00:00 of that day), date without time */
+                createdFrom?: string;
+                /** @description Only feedback received on this day or earlier (until 23:59:59 of that day), date without time */
+                createdTo?: string;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+                /** @description Field name to sort by (see endpoint docs for allowed values) */
+                sort?: string;
+                /** @description Set to true to sort in descending order */
+                descending?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of feedback (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBaseFeedbackDTO"];
+                };
+            };
+            /** @description Invalid search parameters (for example page below 1, size above 100, unknown type or status, date that is not in the format yyyy-MM-dd, or createdFrom after createdTo) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["InsertFeedbackDTO"];
+            };
+        };
+        responses: {
+            /** @description Feedback received (also when it was discarded by the trap field) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Invalid fields (unknown type, blank or too long message, missing or invalid email, consent missing or false), technical information that is not a JSON object or too large, too many files, files too large in total, empty or unsupported file, declared content type or extension not matching the content, or malformed multipart request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Request larger than the maximum request size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Too many submissions from the same address, see the Retry-After header */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Storage not available */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2401,11 +3718,164 @@ export interface operations {
             };
         };
     };
+    findAllCharacterSheetsByCharacter: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive text contained in the title */
+                title?: string;
+                /** @description Game system, compared ignoring case */
+                system?: string;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+                /** @description Field name to sort by (see endpoint docs for allowed values) */
+                sort?: string;
+                /** @description Set to true to sort in descending order */
+                descending?: boolean;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of sheets of the character (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBaseCharacterSheetDTO"];
+                };
+            };
+            /** @description Invalid search parameters (for example page below 1 or size above 100), or character identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    createCharacterSheet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["InsertCharacterSheetDTO"];
+            };
+        };
+        responses: {
+            /** @description Sheet created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterSheetDTO"];
+                };
+            };
+            /** @description Missing file part, malformed multipart request, blank or too long title, empty file, file that is not a PDF, missing or mismatching content type, extension not matching the content, file too large, too many sheets for the character, or character identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, owned by another user, or deleted while the sheet was being uploaded */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description File larger than the maximum request size */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Storage not available */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
     findAllDiariesByCharacter: {
         parameters: {
             query?: {
                 /** @description Case-insensitive text contained in the diary title */
                 title?: string;
+                /** @description Case-insensitive text contained in a tag of at least one page of the diary */
+                tag?: string;
                 /** @description Page number (1-based) */
                 page?: number;
                 /** @description Number of results per page */
@@ -2581,6 +4051,567 @@ export interface operations {
             };
             /** @description The settings were modified at the same time by another request: nothing is saved, read them again and retry */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    markFeedbackAsUnread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback marked as unread */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailFeedbackDTO"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The feedback was modified at the same time by another request: nothing is saved, read it again and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    markFeedbackAsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback marked as read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailFeedbackDTO"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The feedback was modified at the same time by another request: nothing is saved, read it again and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    archiveFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback archived */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailFeedbackDTO"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The feedback was modified at the same time by another request: nothing is saved, read it again and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    markFeedbackAsAnswered: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback marked as answered */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailFeedbackDTO"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The feedback was modified at the same time by another request: nothing is saved, read it again and retry */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    findAllPayments: {
+        parameters: {
+            query?: {
+                /** @description Status of the payment */
+                status?: "PENDING" | "SUCCEEDED" | "FAILED" | "REFUNDED";
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+                /** @description Field name to sort by (see endpoint docs for allowed values) */
+                sort?: string;
+                /** @description Set to true to sort in descending order */
+                descending?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of payments of the logged-in user (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBasePaymentDTO"];
+                };
+            };
+            /** @description Invalid search parameters (for example page below 1, size above 100 or unknown status) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPaymentById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Payment identifier
+                 * @example 9a3c5e71-4d2b-4f68-8b0e-6c1d7a2f3e45
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested payment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailPaymentDTO"];
+                };
+            };
+            /** @description Payment identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Payment not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    getFeedbackById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The requested feedback */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailFeedbackDTO"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    deleteFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Feedback identifier
+                 * @example 7c1e0a52-3b6d-4f0e-9a41-2d8b5e6f7a10
+                 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Feedback deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimpleResultDTOVoid"];
+                };
+            };
+            /** @description Feedback identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user does not have the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Feedback not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    findAllDiaryTagsByDiary: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive text contained in the tag */
+                name?: string;
+                /** @description Page number (1-based) */
+                page?: number;
+                /** @description Number of results per page */
+                size?: number;
+            };
+            header?: never;
+            path: {
+                /**
+                 * @description Diary identifier
+                 * @example 5c1e8a42-93d7-4f0b-8a16-0d6b7e2f9a31
+                 */
+                diaryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Page of tags of the diary (empty list if none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PagedResultDTOBaseDiaryTagDTO"];
+                };
+            };
+            /** @description Invalid search parameters (for example page below 1, size above 100 or name longer than 30 characters), or diary identifier that is not a UUID */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Diary not found, or its character is owned by another user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

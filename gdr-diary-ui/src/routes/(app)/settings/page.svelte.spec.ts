@@ -184,6 +184,16 @@ describe('settings page', () => {
 		expect(api.PATCH).not.toHaveBeenCalled();
 	});
 
+	it('puts the saved theme back when the page is reloaded without saving', async () => {
+		document.cookie = 'gdr-theme=pergamena; Path=/';
+		render(Page);
+		await page.getByText('scuro', { exact: true }).click();
+
+		window.dispatchEvent(new Event('pagehide'));
+
+		expect(storedTheme()).toBe('pergamena');
+	});
+
 	it('keeps the choice and says why when saving the theme fails', async () => {
 		api.PATCH.mockResolvedValue({ error: { title: 'Settings too large', status: 400 } });
 		render(Page);
@@ -210,6 +220,25 @@ describe('settings page', () => {
 		await expect
 			.element(page.getByRole('switch', { name: 'Animazioni ridotte' }))
 			.not.toBeChecked();
+	});
+
+	it('keeps the autosave settings in a General section above all the others', async () => {
+		render(Page);
+
+		const sections = [...document.querySelectorAll('form h2')].map((heading) =>
+			heading.textContent.trim()
+		);
+		expect(sections).toEqual(['Generale', 'Scrittura', 'Aspetto']);
+		const general = required(document.querySelector('#generale'), 'Sezione Generale');
+		expect(general.querySelector('[role="switch"]')?.getAttribute('aria-labelledby')).toBeTruthy();
+		await expect
+			.element(page.getByRole('switch', { name: 'Salvataggio automatico' }))
+			.toBeVisible();
+		expect(
+			general.contains(
+				required(document.querySelector('[aria-labelledby$="-auto"]'), 'Salvataggio automatico')
+			)
+		).toBe(true);
 	});
 
 	it('shows the autosave wait in seconds, five by default', async () => {

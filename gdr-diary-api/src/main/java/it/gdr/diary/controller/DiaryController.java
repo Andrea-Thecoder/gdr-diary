@@ -40,7 +40,8 @@ public class DiaryController {
     @Operation(
             summary = "List the diaries of a character",
             description = "Returns a page of the diaries of a character owned by the logged-in user, filtered and sorted "
-                    + "according to the search parameters (default order: title).")
+                    + "according to the search parameters (default order: title). The tag filter keeps the diaries that have "
+                    + "at least one page with a tag containing the given text.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Page of diaries of the character (empty list if none)"),
             @ApiResponse(responseCode = "400", description = "Invalid search parameters (for example page below 1 or size above 100), or character identifier that is not a UUID",

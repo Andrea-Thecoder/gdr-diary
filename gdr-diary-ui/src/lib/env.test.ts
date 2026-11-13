@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { parseEnv, parsePrivacyContact, parseThemeCookieDomain } from '#lib/env.js';
+import {
+	DEFAULT_MAX_SHEETS,
+	parseEnv,
+	parseMaxSheets,
+	parsePrivacyContact,
+	parseThemeCookieDomain
+} from '#lib/env.js';
 
 const valid = {
 	VITE_KEYCLOAK_URL: 'http://localhost:8180',
@@ -64,5 +70,20 @@ describe('parsePrivacyContact', () => {
 				VITE_PRIVACY_CONTACT_EMAIL: 'not-an-email'
 			})
 		).toBeUndefined();
+	});
+});
+
+describe('parseMaxSheets', () => {
+	it('reads the limit from the variable, as text or as a number', () => {
+		expect(parseMaxSheets('25')).toBe(25);
+		expect(parseMaxSheets(7)).toBe(7);
+	});
+
+	it('falls back to the default when it is missing or not usable', () => {
+		expect(parseMaxSheets(undefined)).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('molte')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('0')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('2.5')).toBe(DEFAULT_MAX_SHEETS);
 	});
 });

@@ -14,6 +14,10 @@ export const BODY_HEIGHT = 540;
 export const SINGLE_BREAKPOINT = 760;
 export const MIN_SCALE = 0.5;
 
+const RIBBON_OFFSET = 12;
+const RIBBON_INNER_EDGE = 32;
+const RIBBON_GAP = 4;
+
 const LINE_HEIGHTS: Record<LineSpacing, number> = { compact: 30, normal: 36, wide: 45 };
 
 const FONT_SCALES: Record<string, number> = { Caveat: 1.25 };
@@ -36,4 +40,8 @@ export function bookScale(available: number, single: boolean): number {
 		return 1;
 	}
 	return Math.max(MIN_SCALE, Math.floor(Math.min(1, available / wanted) * 1000) / 1000);
+}
+
+export function ribbonOffset(scale: number): number {
+	return Math.min(RIBBON_OFFSET, PAGE_SIDE * scale - RIBBON_GAP - RIBBON_INNER_EDGE);
 }

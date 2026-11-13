@@ -164,4 +164,32 @@ class BaseSearchRequestTest {
         verify(query).setFirstRow(firstRow.capture());
         assertThat(firstRow.getValue()).isNotNegative();
     }
+
+    @Test
+    void applySortAndPagination_nullsLastKey_appendsNullsLastBeforeTieBreaker() {
+        BaseSearchRequest request = new BaseSearchRequest() {
+            {
+                allowSortNullsLast("paidAt", "paidAt");
+            }
+        };
+        request.setSort("paidAt");
+        request.setDescending(true);
+
+        request.applySortAndPagination(query, "id");
+
+        verify(query).orderBy("paidAt desc nulls last, id asc");
+    }
+
+    @Test
+    void applySortAndPagination_nullsLastDefaultSort_appendsNullsLast() {
+        BaseSearchRequest request = new BaseSearchRequest() {
+            {
+                allowSortNullsLast("paidAt", "paidAt");
+            }
+        };
+
+        request.applySortAndPagination(query, "paidAt");
+
+        verify(query).orderBy("paidAt asc nulls last, id asc");
+    }
 }

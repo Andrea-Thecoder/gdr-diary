@@ -11,6 +11,7 @@ const NOT_FOUND = 404;
 
 export interface DiaryQuery {
 	title: string;
+	tag: string;
 	descending: boolean;
 	page: number;
 }
@@ -54,6 +55,7 @@ export async function fetchDiaries(
 	query: DiaryQuery
 ): Promise<DiaryPage> {
 	const title = query.title.trim();
+	const tag = query.tag.trim();
 	const { data, error } = await api.GET('/characters/{characterId}/diaries', {
 		params: {
 			path: { characterId },
@@ -62,7 +64,8 @@ export async function fetchDiaries(
 				size: PAGE_SIZE,
 				sort: 'title',
 				descending: query.descending,
-				...(title === '' ? {} : { title })
+				...(title === '' ? {} : { title }),
+				...(tag === '' ? {} : { tag })
 			}
 		}
 	});

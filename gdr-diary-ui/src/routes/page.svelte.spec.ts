@@ -40,10 +40,40 @@ async function clickAll(name: string): Promise<number> {
 }
 
 describe('landing page', () => {
-	beforeEach(() => {
+	beforeEach(async () => {
+		await page.viewport(1280, 900);
 		login.mockClear();
 		register.mockClear();
 		auth.status = 'anonymous';
+	});
+
+	it('puts the six footer links on two rows of three on a phone', async () => {
+		await page.viewport(390, 900);
+		render(Page);
+
+		const tops = Array.from(document.querySelectorAll('footer a, footer button')).map((item) =>
+			Math.round(item.getBoundingClientRect().top)
+		);
+		const rows = new Set(tops);
+
+		expect(tops).toHaveLength(6);
+		expect(rows.size).toBe(2);
+	});
+
+	it('links the information pages from the footer', async () => {
+		render(Page);
+		const footer = page.getByRole('contentinfo');
+
+		await expect
+			.element(footer.getByRole('link', { name: 'Piani' }))
+			.toHaveAttribute('href', '/piani');
+		await expect.element(footer.getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/faq');
+		await expect
+			.element(footer.getByRole('link', { name: 'Contatti' }))
+			.toHaveAttribute('href', '/contatti');
+		await expect
+			.element(footer.getByRole('link', { name: 'Privacy' }))
+			.toHaveAttribute('href', '/privacy');
 	});
 
 	it('shows the hero title', async () => {

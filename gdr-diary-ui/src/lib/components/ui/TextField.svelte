@@ -4,6 +4,7 @@
 		value?: string;
 		required?: boolean;
 		multiline?: boolean;
+		rows?: number;
 		type?: 'text' | 'email';
 		autocomplete?: 'off' | 'email';
 		placeholder?: string;
@@ -17,6 +18,7 @@
 		value = $bindable(''),
 		required = false,
 		multiline = false,
+		rows = 3,
 		type = 'text',
 		autocomplete,
 		placeholder = '',
@@ -44,7 +46,7 @@
 			bind:value
 			{placeholder}
 			{maxlength}
-			rows="3"
+			{rows}
 			aria-invalid={error === null ? undefined : true}
 			aria-describedby={error === null ? undefined : errorId}
 			class={[fieldClass, 'resize-y py-3']}></textarea>

@@ -23,6 +23,11 @@ public class DiarySearchRequest extends BaseSearchRequest {
     @Schema(description = "Case-insensitive text contained in the diary title", examples = {"Chapter"})
     private String title;
 
+    @Size(max = 30)
+    @ValidText
+    @Schema(description = "Case-insensitive text contained in a tag of at least one page of the diary", examples = {"combat"})
+    private String tag;
+
     public void applyFilter(ExpressionList<Diary> exl) {
         if (StringUtils.isNotBlank(title)) {
             exl.icontains("title", title.trim());
