@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	DEFAULT_MAX_BACKGROUND_CHARS,
 	DEFAULT_MAX_SHEETS,
 	parseEnv,
+	parseMaxBackgroundChars,
 	parseMaxSheets,
 	parsePrivacyContact,
 	parseThemeCookieDomain
@@ -86,4 +88,18 @@ describe('parseMaxSheets', () => {
 		expect(parseMaxSheets('0')).toBe(DEFAULT_MAX_SHEETS);
 		expect(parseMaxSheets('2.5')).toBe(DEFAULT_MAX_SHEETS);
 	});
+});
+
+describe('parseMaxBackgroundChars', () => {
+	it('reads the limit from the variable, as text or as a number', () => {
+		expect(parseMaxBackgroundChars('20000')).toBe(20000);
+		expect(parseMaxBackgroundChars(8000)).toBe(8000);
+	});
+
+	it.each([undefined, '', 'tanti', '0', '2.5', '-4'])(
+		'falls back to the default when the value is %s',
+		(value) => {
+			expect(parseMaxBackgroundChars(value)).toBe(DEFAULT_MAX_BACKGROUND_CHARS);
+		}
+	);
 });

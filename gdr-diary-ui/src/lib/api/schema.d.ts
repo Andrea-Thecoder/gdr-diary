@@ -252,6 +252,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/characters/{characterId}/background": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the background of a character
+         * @description Returns the background story of a character owned by the logged-in user, as a rich text document. A character that has no background yet answers 200 with an empty document and version 0.
+         */
+        get: operations["getCharacterBackground"];
+        /**
+         * Write the background of a character
+         * @description Replaces the background story of a character owned by the logged-in user; the first write creates it. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size, and its text must not exceed the configured maximum number of characters. The request must carry the version the client last read (0 if the character has no background yet): if the background was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next write.
+         */
+        put: operations["updateCharacterBackground"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -576,6 +600,26 @@ export interface paths {
          * @description Returns a page of the tags used in the pages of a diary of a character owned by the logged-in user, each with the numbers of the pages that have it (a diary has at most 10 different tags). Tags that differ only by case are grouped. The tags are always sorted by the number of the first page that has them (the first tag of the diary comes first).
          */
         get: operations["findAllDiaryTagsByDiary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/characters/{characterId}/background/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the background of a character as a PDF
+         * @description Returns the background story of a character owned by the logged-in user as a PDF file (A4, with the formatting of the editor: titles, bold, italic, underline, colors, alignment, lists, quotes and rules), with the name of the character and the campaign at the top and the page numbers at the bottom. The response has Content-Disposition attachment with a file name built from the name of the character (background-<name>.pdf). Characters that the font cannot draw (for example emoji) are replaced by a question mark.
+         */
+        get: operations["getCharacterBackgroundPdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -937,6 +981,75 @@ export interface components {
              * @example http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=...
              */
             avatarUrl?: string | null;
+            /**
+             * @description First words of the background story of the character, to show in a box. Null if the character has no background
+             * @example Born in the halls of Erebor, Thorin grew up listening to the songs of the lost kingdom.
+             */
+            backgroundPreview?: string | null;
+        };
+        /** @description Data to write the background story of a character */
+        UpdateCharacterBackgroundDTO: {
+            /**
+             * @description New content of the background as a rich text document (JSON). Only the nodes and marks of the diary editor are accepted: doc, paragraph (with textAlign), blockquote, bulletList, orderedList (with start and type), listItem, horizontalRule, hardBreak and text, with the marks bold, italic, underline, title (with level 1 or 2) and textColor
+             * @example {
+             *       "type": "doc",
+             *       "content": [
+             *         {
+             *           "type": "paragraph",
+             *           "content": [
+             *             {
+             *               "type": "text",
+             *               "text": "Born in the halls of Erebor."
+             *             }
+             *           ]
+             *         }
+             *       ]
+             *     }
+             */
+            content: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: int64
+             * @description Version of the background the client last read, as returned by the server (0 if the character has no background yet). The update is rejected with 409 if the background has been modified since
+             * @example 3
+             */
+            version: number;
+        };
+        /** @description The background story of a character of the logged-in user */
+        DetailCharacterBackgroundDTO: {
+            /**
+             * @description Content of the background as a rich text document (JSON). For a character without a background it is an empty document
+             * @example {
+             *       "type": "doc",
+             *       "content": [
+             *         {
+             *           "type": "paragraph",
+             *           "content": [
+             *             {
+             *               "type": "text",
+             *               "text": "Born in the halls of Erebor."
+             *             }
+             *           ]
+             *         }
+             *       ]
+             *     }
+             */
+            content?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: int64
+             * @description Version of the background: to be sent back when it is updated, so that changes made elsewhere in the meantime are detected. It is 0 for a character that has no background yet
+             * @example 3
+             */
+            version?: number;
+            /**
+             * Format: int32
+             * @description Number of characters of the text of the background, spaces included
+             * @example 1250
+             */
+            textLength?: number;
         };
         /** @description Generic single-item response envelope used by all non-paginated endpoints */
         SimpleResultDTOUUID: {
@@ -3230,6 +3343,135 @@ export interface operations {
             };
         };
     };
+    getCharacterBackground: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The background, or an empty document with version 0 if the character has none */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterBackgroundDTO"];
+                };
+            };
+            /** @description Character identifier that is not a UUID, or a game master (game masters have no background) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    updateCharacterBackground: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCharacterBackgroundDTO"];
+            };
+        };
+        responses: {
+            /** @description Background saved, with its new version */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DetailCharacterBackgroundDTO"];
+                };
+            };
+            /** @description Invalid request body (for example empty content or missing version), content that is not a valid diary document, content too large, text too long, character identifier that is not a UUID, or a game master (game masters have no background) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, owned by another user, or deleted while the background was being saved */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The background was modified in the meantime (another tab or device): nothing is saved and it must be read again */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
     getAppUserBySubject: {
         parameters: {
             query?: never;
@@ -4611,6 +4853,64 @@ export interface operations {
                 content?: never;
             };
             /** @description Diary not found, or its character is owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    getCharacterBackgroundPdf: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /**
+                 * @description Character identifier
+                 * @example 0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10
+                 */
+                characterId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF of the background */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Character identifier that is not a UUID, or a game master (game masters have no background) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description Missing, expired or invalid token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user has neither the user nor the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Character not found, owned by another user, or without a background yet */
             404: {
                 headers: {
                     [name: string]: unknown;

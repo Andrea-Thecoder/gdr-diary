@@ -64,6 +64,19 @@ export function getMaxSheets(): number {
 	return parseMaxSheets(import.meta.env['VITE_MAX_SHEETS_PER_CHARACTER']);
 }
 
+export const DEFAULT_MAX_BACKGROUND_CHARS = 50000;
+
+const maxBackgroundCharsSchema = z.coerce.number().int().min(1).max(1000000);
+
+export function parseMaxBackgroundChars(value: unknown): number {
+	const result = maxBackgroundCharsSchema.safeParse(value);
+	return result.success ? result.data : DEFAULT_MAX_BACKGROUND_CHARS;
+}
+
+export function getMaxBackgroundChars(): number {
+	return parseMaxBackgroundChars(import.meta.env['VITE_MAX_BACKGROUND_CHARS']);
+}
+
 let cached: AppEnv | undefined;
 
 export function getEnv(): AppEnv {

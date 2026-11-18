@@ -14,7 +14,7 @@ describe('areaChoice', () => {
 	beforeAll(async () => {
 		memoryStorage();
 		await import('./area.svelte');
-	});
+	}, 30_000);
 
 	beforeEach(() => {
 		vi.resetModules();

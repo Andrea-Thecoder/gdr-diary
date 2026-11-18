@@ -97,7 +97,7 @@ L'app si usa soprattutto dal telefono: ogni schermata nasce per il telefono e po
 - Le liste sono `PagedResultDTO` (`list`, `totalRows`, `totalPages`, `pageSize`, `page`). Le pagine di un diario arrivano due alla volta (`GET /diaries/{id}/pages?page=N`), senza `size`.
 - I campi di audit non esistono nei DTO. `avatarUrl` e `coverUrl` sono presigned URL a scadenza breve: non vanno salvati.
 - Il contratto è `openapi/swagger.json` (copia di quello dell'API). Quando l'API cambia: aggiorna il file e lancia `npm run api:generate`.
-- Configurazione in variabili `VITE_*` validate in `src/lib/env.ts` (esempio in `.env.example`). Il file `.env` non va nel repository. Opzionali: `VITE_PRIVACY_CONTROLLER_NAME` e `VITE_PRIVACY_CONTACT_EMAIL` (titolare e recapito mostrati in `/privacy`; se mancano la pagina lo dice).
+- Configurazione in variabili `VITE_*` validate in `src/lib/env.ts` (esempio in `.env.example`). Il file `.env` non va nel repository. Opzionali: `VITE_PRIVACY_CONTROLLER_NAME` e `VITE_PRIVACY_CONTACT_EMAIL` (titolare e recapito mostrati in `/privacy`; se mancano la pagina lo dice). `VITE_MAX_BACKGROUND_CHARS` (lunghezza massima della storia del personaggio, predefinita 50000, uguale al limite del backend) e `VITE_MAX_SHEETS_PER_CHARACTER`.
 
 ## Qualità e test
 
@@ -137,9 +137,11 @@ src/
       characters/         schermata dei personaggi (card, barra, dialog)
       diaries/            diari del personaggio (card, dialog, `ClosedBook`)
       sheets/             schede del personaggio in PDF (card, dialog, campo PDF, schermata)
+      background/         storia del personaggio: riquadro nell'intestazione, schermata, editor, rotolo (`BackgroundBox`, `BackgroundScreen`, `BackgroundEditor`, `ScrollRoll`, `ScrollIcon`); il master non ha la storia
       book/               il diario aperto: libro, pagine Tiptap, angoli, barra, salvataggio
     characters/           colori e silhouette, `kind` (personaggio o master), chiamate API, stato della lista
                           e le schede della pagina del personaggio (`tabs.ts`, `load.ts`)
+    background/           storia del personaggio: chiamate API, conteggio caratteri, misure dei rotoli, stato e salvataggio (`CharacterBackground`)
     sheets/               schede in PDF: chiamate API, formati (peso, data, controllo del file), stato della lista
     pdf/                  editor dei PDF compilabili (pdf.js, `PdfEditor`): caricamento lazy, apertura, salvataggio; `test-support.ts` ha due PDF di prova
     book/                 diario aperto: `DiaryBook` (stato, salvataggio, sfoglio), pagine API, impaginazione automatica, misure

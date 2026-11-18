@@ -26,6 +26,7 @@
 	import IconButton from '#lib/components/ui/IconButton.svelte';
 	import TrashIcon from '#lib/components/ui/TrashIcon.svelte';
 	import NoticePopup from '#lib/components/ui/NoticePopup.svelte';
+	import ShortcutHint from '#lib/components/ui/ShortcutHint.svelte';
 	import { buttonClasses } from '#lib/components/ui/button.js';
 	import DiaryDialog from '#lib/components/diaries/DiaryDialog.svelte';
 	import { deleteDiary, fetchDiary, type DiaryDetail, type SavedDiary } from '#lib/diaries/api.js';
@@ -409,6 +410,7 @@
 			{/snippet}
 		</PageScrubber>
 		<DiaryTagsPanel list={tagList} ongo={goToTag} />
+		<ShortcutHint class="text-center text-soft" />
 	</div>
 </Container>
 

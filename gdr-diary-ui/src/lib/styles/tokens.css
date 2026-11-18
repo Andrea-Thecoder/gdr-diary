@@ -48,6 +48,28 @@
 	--page-rule: #cdb98a;
 	--page-shadow: 0 22px 30px -20px rgba(42, 31, 22, 0.55);
 	--track: #e2d3ac;
+	--roll-bg:
+		linear-gradient(
+			90deg,
+			rgba(70, 46, 10, 0.42),
+			rgba(70, 46, 10, 0) 2.2%,
+			rgba(70, 46, 10, 0) 97.8%,
+			rgba(70, 46, 10, 0.42)
+		),
+		linear-gradient(
+			180deg,
+			#8a6f3f 0%,
+			#cdb47c 9%,
+			#f1e3bc 26%,
+			#fbf3da 44%,
+			#ead9ab 62%,
+			#c2a76f 82%,
+			#7d6234 100%
+		);
+	--roll-shine: rgba(255, 255, 255, 0.35);
+	--roll-shade: rgba(55, 34, 6, 0.46);
+	--roll-drop: rgba(40, 25, 5, 0.6);
+	--stage-flat: #e3d3aa;
 	--fill: var(--accent);
 
 	--cover: #2f4b43;
@@ -178,6 +200,28 @@
 	--page-rule: #cdb98a;
 	--page-shadow: 0 26px 36px -22px rgba(0, 0, 0, 0.8), 0 0 50px -14px rgba(139, 70, 210, 0.45);
 	--track: #dccba0;
+	--roll-bg:
+		linear-gradient(
+			90deg,
+			rgba(70, 46, 10, 0.42),
+			rgba(70, 46, 10, 0) 2.2%,
+			rgba(70, 46, 10, 0) 97.8%,
+			rgba(70, 46, 10, 0.42)
+		),
+		linear-gradient(
+			180deg,
+			#8a6f3f 0%,
+			#cdb47c 9%,
+			#f1e3bc 26%,
+			#fbf3da 44%,
+			#ead9ab 62%,
+			#c2a76f 82%,
+			#7d6234 100%
+		);
+	--roll-shine: rgba(255, 255, 255, 0.35);
+	--roll-shade: rgba(55, 34, 6, 0.46);
+	--roll-drop: rgba(40, 25, 5, 0.6);
+	--stage-flat: #0e071c;
 	--fill: var(--accent);
 
 	--cover: linear-gradient(135deg, #5b1a99 0%, #3c0366 60%, #26023f 100%);

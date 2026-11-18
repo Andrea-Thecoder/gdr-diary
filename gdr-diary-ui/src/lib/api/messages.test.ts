@@ -53,8 +53,19 @@ describe('translateMessage sentences', () => {
 		['Unsupported file type', 'Tipo di file non supportato'],
 		['Empty file', 'Il file è vuoto'],
 		['Page content too large', 'Il testo della pagina è troppo lungo'],
+		['Background content too large', 'La storia è troppo lunga'],
+		['A game master has no background', 'Il master non ha una storia'],
+		[
+			'The background was modified elsewhere, reload it',
+			'La storia è stata modificata altrove: ricaricala'
+		],
+		[
+			'The background is too long (maximum 50000 characters)',
+			'La storia è troppo lunga: al massimo 50000 caratteri'
+		],
 		['Settings too large', 'Le impostazioni sono troppo grandi'],
 		['Sheet not found', 'Scheda non trovata'],
+		['Background not found', 'Questa storia non è ancora stata scritta'],
 		[
 			'The account could not be deleted on the authentication server, try again later',
 			'Non riesco a chiudere il tuo accesso in questo momento e non ho cancellato niente: riprova tra poco.'

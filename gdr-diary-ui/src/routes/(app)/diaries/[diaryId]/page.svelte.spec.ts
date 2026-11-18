@@ -149,6 +149,13 @@ describe('open diary', () => {
 		await expect.element(page.getByText('23 pagine scritte')).toBeVisible();
 	});
 
+	it('reminds that Ctrl+S saves at once', async () => {
+		mockServer(4);
+		renderPage(4);
+
+		await expect.element(page.getByText('per salvare subito')).toBeVisible();
+	});
+
 	it('links back to the diaries of the character', async () => {
 		mockServer(4);
 		renderPage(4);

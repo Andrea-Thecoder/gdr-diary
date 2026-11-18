@@ -41,6 +41,10 @@ const SENTENCES: Readonly<Record<string, string>> = {
 	'Cannot read the file': 'Non riesco a leggere il file',
 	'Storage not available': 'L’archivio dei file non è disponibile al momento: riprova più tardi',
 	'Page content too large': 'Il testo della pagina è troppo lungo',
+	'Background content too large': 'La storia è troppo lunga',
+	'A game master has no background': 'Il master non ha una storia',
+	'The background was modified elsewhere, reload it':
+		'La storia è stata modificata altrove: ricaricala',
 	'Settings too large': 'Le impostazioni sono troppo grandi',
 	'Settings contain characters that cannot be stored':
 		'Le impostazioni contengono caratteri che non si possono salvare',
@@ -71,6 +75,7 @@ const SENTENCES: Readonly<Record<string, string>> = {
 	'Character not found': 'Personaggio non trovato',
 	'Page not found': 'Pagina non trovata',
 	'Sheet not found': 'Scheda non trovata',
+	'Background not found': 'Questa storia non è ancora stata scritta',
 	'Feedback not found': 'Messaggio non trovato',
 	'Not Found': 'Questa pagina non esiste.',
 	'A diary can have at most 10 different tags':
@@ -110,6 +115,10 @@ function sentenceFor(message: string): string | undefined {
 	const sheets = /^The character has too many sheets \((\d+)\)$/.exec(message);
 	if (sheets?.[1] !== undefined) {
 		return `Questo personaggio ha già ${sheets[1]} schede, il massimo: elimina quella che non ti serve più per caricarne un’altra`;
+	}
+	const story = /^The background is too long \(maximum (\d+) characters\)$/.exec(message);
+	if (story?.[1] !== undefined) {
+		return `La storia è troppo lunga: al massimo ${story[1]} caratteri`;
 	}
 	const files = /^Too many files \(maximum (\d+)\)$/.exec(message);
 	if (files?.[1] !== undefined) {

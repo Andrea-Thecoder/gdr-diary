@@ -37,6 +37,10 @@
       "description": "Manage the PDF sheets of the characters of the logged-in user"
     },
     {
+      "name": "Character backgrounds",
+      "description": "Read and write the background story of the characters of the logged-in user (one story per character)"
+    },
+    {
       "name": "Payments",
       "description": "The payments of the logged-in user (read only)"
     },
@@ -1792,6 +1796,156 @@
           },
           "409": {
             "description": "The character was modified at the same time by another request: the avatar is not removed, try again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/characters/{characterId}/background": {
+      "get": {
+        "tags": [
+          "Character backgrounds"
+        ],
+        "summary": "Read the background of a character",
+        "description": "Returns the background story of a character owned by the logged-in user, as a rich text document. A character that has no background yet answers 200 with an empty document and version 0.",
+        "operationId": "getCharacterBackground",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The background, or an empty document with version 0 if the character has none",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterBackgroundDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Character identifier that is not a UUID, or a game master (game masters have no background)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, or owned by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Character backgrounds"
+        ],
+        "summary": "Write the background of a character",
+        "description": "Replaces the background story of a character owned by the logged-in user; the first write creates it. The content must be a document of the diary editor: a doc node with paragraphs (optionally aligned left, center, right or justify), blockquotes, bullet and ordered lists and horizontal rules, where the text and the hard breaks can carry the marks bold, italic, underline, title (level 1 or 2) and textColor (a color of the palette: red, orange, green, teal, blue, purple, magenta or brown). Any other node, mark or property is rejected. The content must not exceed the configured maximum size, and its text must not exceed the configured maximum number of characters. The request must carry the version the client last read (0 if the character has no background yet): if the background was modified in the meantime nothing is saved and the response is 409. The response carries the new version, to be used for the next write.",
+        "operationId": "updateCharacterBackground",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCharacterBackgroundDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Background saved, with its new version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DetailCharacterBackgroundDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (for example empty content or missing version), content that is not a valid diary document, content too large, text too long, character identifier that is not a UUID, or a game master (game masters have no background)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, owned by another user, or deleted while the background was being saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The background was modified in the meantime (another tab or device): nothing is saved and it must be read again",
             "content": {
               "application/json": {
                 "schema": {
@@ -3822,6 +3976,73 @@
           }
         ]
       }
+    },
+    "/characters/{characterId}/background/pdf": {
+      "get": {
+        "tags": [
+          "Character backgrounds"
+        ],
+        "summary": "Download the background of a character as a PDF",
+        "description": "Returns the background story of a character owned by the logged-in user as a PDF file (A4, with the formatting of the editor: titles, bold, italic, underline, colors, alignment, lists, quotes and rules), with the name of the character and the campaign at the top and the page numbers at the bottom. The response has Content-Disposition attachment with a file name built from the name of the character (background-<name>.pdf). Characters that the font cannot draw (for example emoji) are replaced by a question mark.",
+        "operationId": "getCharacterBackgroundPdf",
+        "parameters": [
+          {
+            "name": "characterId",
+            "in": "path",
+            "description": "Character identifier",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The PDF of the background",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Character identifier that is not a UUID, or a game master (game masters have no background)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token"
+          },
+          "403": {
+            "description": "The user has neither the user nor the admin role"
+          },
+          "404": {
+            "description": "Character not found, owned by another user, or without a background yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -4420,6 +4641,99 @@
             "description": "Temporary URL of the avatar image, valid for a few minutes. Null if the character has no avatar",
             "examples": [
               "http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."
+            ]
+          },
+          "backgroundPreview": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "First words of the background story of the character, to show in a box. Null if the character has no background",
+            "examples": [
+              "Born in the halls of Erebor, Thorin grew up listening to the songs of the lost kingdom."
+            ]
+          }
+        }
+      },
+      "UpdateCharacterBackgroundDTO": {
+        "type": "object",
+        "description": "Data to write the background story of a character",
+        "properties": {
+          "content": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "New content of the background as a rich text document (JSON). Only the nodes and marks of the diary editor are accepted: doc, paragraph (with textAlign), blockquote, bulletList, orderedList (with start and type), listItem, horizontalRule, hardBreak and text, with the marks bold, italic, underline, title (with level 1 or 2) and textColor",
+            "examples": [
+              {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Born in the halls of Erebor."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "minProperties": 1
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Version of the background the client last read, as returned by the server (0 if the character has no background yet). The update is rejected with 409 if the background has been modified since",
+            "examples": [
+              3
+            ]
+          }
+        },
+        "required": [
+          "content",
+          "version"
+        ]
+      },
+      "DetailCharacterBackgroundDTO": {
+        "type": "object",
+        "description": "The background story of a character of the logged-in user",
+        "properties": {
+          "content": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Content of the background as a rich text document (JSON). For a character without a background it is an empty document",
+            "examples": [
+              {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Born in the halls of Erebor."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Version of the background: to be sent back when it is updated, so that changes made elsewhere in the meantime are detected. It is 0 for a character that has no background yet",
+            "examples": [
+              3
+            ]
+          },
+          "textLength": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of characters of the text of the background, spaces included",
+            "examples": [
+              1250
             ]
           }
         }

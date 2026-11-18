@@ -47,4 +47,12 @@ describe('app layout', () => {
 		await expect.element(page.getByRole('main')).toHaveTextContent('Contenuto');
 		expect(page.getByRole('contentinfo').elements()).toHaveLength(0);
 	});
+
+	it('leaves the story of a character without a footer, to give the room to the page', async () => {
+		state.page.route.id = '/(app)/characters/[characterId]/background';
+		render(Layout, { children } as never);
+
+		await expect.element(page.getByRole('main')).toHaveTextContent('Contenuto');
+		expect(page.getByRole('contentinfo').elements()).toHaveLength(0);
+	});
 });

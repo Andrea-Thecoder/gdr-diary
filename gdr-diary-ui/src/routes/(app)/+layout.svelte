@@ -10,7 +10,11 @@
 
 	let { children }: LayoutProps = $props();
 
-	const openDiary = $derived(page.route.id === '/(app)/diaries/[diaryId]');
+	const bareRoutes: readonly (string | null)[] = [
+		'/(app)/diaries/[diaryId]',
+		'/(app)/characters/[characterId]/background'
+	];
+	const openDiary = $derived(bareRoutes.includes(page.route.id));
 
 	afterNavigate(({ to }) => {
 		if (to !== null) {
@@ -35,10 +39,12 @@
 <div class="relative flex min-h-dvh flex-col overflow-x-clip surface-page">
 	<div
 		aria-hidden="true"
-		class="pointer-events-none absolute inset-x-0 top-0 h-[36rem] surface-hero"
+		class="pointer-events-none absolute inset-x-0 top-0 h-[36rem] surface-hero print:hidden"
 	></div>
 	<div class="relative flex-1">
-		<AppHeader />
+		<div class="print:hidden">
+			<AppHeader />
+		</div>
 		<main>
 			{@render children()}
 		</main>

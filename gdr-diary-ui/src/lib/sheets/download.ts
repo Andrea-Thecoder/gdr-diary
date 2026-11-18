@@ -1,7 +1,7 @@
-export function startDownload(url: string): void {
+export function startDownload(url: string, fileName = ''): void {
 	const link = document.createElement('a');
 	link.href = url;
-	link.download = '';
+	link.download = fileName;
 	link.rel = 'noopener';
 	document.body.append(link);
 	link.click();

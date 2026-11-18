@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import BackgroundBox from '#lib/components/background/BackgroundBox.svelte';
 	import CampaignLine from '#lib/components/characters/CampaignLine.svelte';
 	import CharacterPortrait from '#lib/components/characters/CharacterPortrait.svelte';
 	import CharacterTabs from '#lib/components/characters/CharacterTabs.svelte';
@@ -75,6 +76,14 @@
 		</p>
 	{:else}
 		<p class="mx-0 mt-6 mb-0 max-w-[36em] text-[clamp(17px,1.8vw,20px)] text-soft">{subtitle}</p>
+	{/if}
+	{#if !isMaster(character.kind)}
+		<BackgroundBox
+			characterId={character.id ?? ''}
+			{name}
+			preview={character.backgroundPreview}
+			class="mt-6"
+		/>
 	{/if}
 	<CharacterTabs characterId={character.id ?? ''} {tab} {count} class="mt-[clamp(28px,4vw,44px)]" />
 </Container>

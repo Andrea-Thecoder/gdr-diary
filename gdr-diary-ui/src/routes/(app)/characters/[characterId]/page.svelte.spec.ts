@@ -130,6 +130,31 @@ describe('diaries page', () => {
 		await expect.element(page.getByText(/Ogni diario ha le sue pagine/)).toBeVisible();
 	});
 
+	it('shows the first words of the story of the character with a link to the whole story', async () => {
+		renderPage({ ...character, backgroundPreview: 'Nata tra i salici del Nord.' });
+
+		await expect.element(page.getByText('Nata tra i salici del Nord.')).toBeVisible();
+		await expect
+			.element(page.getByRole('link', { name: 'Leggi tutto' }))
+			.toHaveAttribute('href', '/characters/id-alira/background');
+	});
+
+	it('invites to write the story when the character has none', async () => {
+		renderPage({ ...character, backgroundPreview: null });
+
+		await expect
+			.element(page.getByRole('link', { name: 'Scrivi la storia di Alira dei Salici' }))
+			.toHaveAttribute('href', '/characters/id-alira/background');
+	});
+
+	it('shows no story box for a game master, who has no story', async () => {
+		renderPage({ ...character, kind: 'GAME_MASTER', backgroundPreview: null });
+		await expect.element(page.getByText('Il master', { exact: true })).toBeVisible();
+
+		expect(document.querySelector('[data-background-invite]')).toBeNull();
+		expect(document.querySelector('[data-background-box]')).toBeNull();
+	});
+
 	it('asks for the diaries of this character sorted by title', async () => {
 		await ready();
 
