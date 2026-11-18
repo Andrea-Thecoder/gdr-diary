@@ -26,7 +26,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpMethod;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.assertj.MockMvcTester.MockMultipartMvcRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.multipart.MultipartFile;
@@ -89,30 +92,17 @@ class FeedbackControllerTest {
     // ---- POST /feedback ----
 
     @Test
-    void createFeedback_validFields_returnsCreated() {
-        assertThat(validFeedback()).hasStatus(HttpStatus.CREATED);
-    }
-
-    @Test
-    void createFeedback_validFields_returnsReceivedMessage() {
-        assertThat(validFeedback()).bodyJson().extractingPath("$.message").isEqualTo("Feedback received");
-    }
-
-    @Test
-    void createFeedback_allFields_passesThemToService() {
-        validFeedback().param("technicalInfo", "{\"browser\":\"Firefox\"}").exchange();
-
-        assertThat(sentRequest()).extracting(InsertFeedbackDTO::type, InsertFeedbackDTO::message, InsertFeedbackDTO::email,
-                        InsertFeedbackDTO::technicalInfo, InsertFeedbackDTO::consent)
-                .containsExactly("idea", "Great tags", "alira@example.com", "{\"browser\":\"Firefox\"}", true);
-    }
-
-    @Test
-    void createFeedback_twoFiles_passesBothToService() {
-        validFeedback().file(png("one.png")).file(png("two.png")).exchange();
+    void createFeedback_allFieldsAndTwoFiles_returnsCreatedAndPassesThemToService() {
+        MvcTestResult result = validFeedback().param("technicalInfo", "{\"browser\":\"Firefox\"}")
+                .file(png("one.png")).file(png("two.png")).exchange();
 
         ArgumentCaptor<List<MultipartFile>> files = ArgumentCaptor.captor();
-        verify(service).createFeedback(any(), files.capture());
+        ArgumentCaptor<InsertFeedbackDTO> request = ArgumentCaptor.forClass(InsertFeedbackDTO.class);
+        verify(service).createFeedback(request.capture(), files.capture());
+        assertThat(result).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.message").isEqualTo("Feedback received");
+        assertThat(request.getValue()).extracting(InsertFeedbackDTO::type, InsertFeedbackDTO::message, InsertFeedbackDTO::email,
+                        InsertFeedbackDTO::technicalInfo, InsertFeedbackDTO::consent)
+                .containsExactly("idea", "Great tags", "alira@example.com", "{\"browser\":\"Firefox\"}", true);
         assertThat(files.getValue()).extracting(MultipartFile::getOriginalFilename).containsExactly("one.png", "two.png");
     }
 
@@ -136,15 +126,10 @@ class FeedbackControllerTest {
     }
 
     @Test
-    void createFeedback_consentFalse_returnsPrivacyMessage() {
-        assertThat(feedbackForm("idea", "Hi", "alira@example.com").param("consent", "false"))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("the privacy policy must be accepted");
-    }
+    void createFeedback_consentFalse_returnsPrivacyMessageAndDoesNotCallService() {
+        MvcTestResult result = feedbackForm("idea", "Hi", "alira@example.com").param("consent", "false").exchange();
 
-    @Test
-    void createFeedback_consentFalse_doesNotCallService() {
-        feedbackForm("idea", "Hi", "alira@example.com").param("consent", "false").exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.violations[0].message").isEqualTo("the privacy policy must be accepted");
         verifyNoInteractions(service);
     }
 
@@ -175,15 +160,10 @@ class FeedbackControllerTest {
     }
 
     @Test
-    void createFeedback_missingEmail_reportsEmailAsViolationField() {
-        assertThat(mvc.post().uri("/feedback").multipart().param("type", "idea").param("message", "Hi").param("consent", "true"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("email");
-    }
+    void createFeedback_missingEmail_reportsEmailAsViolationFieldAndDoesNotCallService() {
+        MvcTestResult result = mvc.post().uri("/feedback").multipart().param("type", "idea").param("message", "Hi").param("consent", "true").exchange();
 
-    @Test
-    void createFeedback_missingEmail_doesNotCallService() {
-        mvc.post().uri("/feedback").multipart().param("type", "idea").param("message", "Hi").param("consent", "true").exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("email");
         verifyNoInteractions(service);
     }
 
@@ -242,19 +222,14 @@ class FeedbackControllerTest {
     }
 
     @Test
-    void findAllFeedbacks_createdFromAfterCreatedTo_returnsRangeMessage() {
-        assertThat(mvc.get().uri("/feedback?createdFrom=2026-11-02&createdTo=2026-11-01"))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("createdFrom must not be after createdTo");
-    }
+    void findAllFeedbacks_createdFromAfterCreatedTo_returnsRangeMessageAndDoesNotCallService() {
+        MvcTestResult result = mvc.get().uri("/feedback?createdFrom=2026-11-02&createdTo=2026-11-01").exchange();
 
-    @Test
-    void findAllFeedbacks_createdFromAfterCreatedTo_doesNotCallService() {
-        mvc.get().uri("/feedback?createdFrom=2026-11-02&createdTo=2026-11-01").exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.violations[0].message").isEqualTo("createdFrom must not be after createdTo");
         verifyNoInteractions(service);
     }
 
-    // ---- GET /feedback/{id} ----
+    // ---- /feedback/{id} ----
 
     @Test
     void getFeedbackById_existingFeedback_returnsDetail() {
@@ -263,9 +238,13 @@ class FeedbackControllerTest {
         assertThat(mvc.get().uri("/feedback/{id}", FEEDBACK_ID)).bodyJson().extractingPath("$.message").isEqualTo("Great tags");
     }
 
-    @Test
-    void getFeedbackById_notUuid_returnsBadRequest() {
-        assertThat(mvc.get().uri("/feedback/not-a-uuid")).hasStatus(HttpStatus.BAD_REQUEST);
+    @ParameterizedTest
+    @CsvSource({"GET,/feedback/not-a-uuid", "PATCH,/feedback/not-a-uuid/read", "DELETE,/feedback/not-a-uuid"})
+    void adminRoute_idNotUuid_returnsBadRequestWithoutCallingService(String method, String path) {
+        MvcTestResult result = mvc.method(HttpMethod.valueOf(method)).uri(path).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -275,61 +254,29 @@ class FeedbackControllerTest {
         assertThat(mvc.get().uri("/feedback/{id}", FEEDBACK_ID)).hasStatus(HttpStatus.NOT_FOUND);
     }
 
-    // ---- PATCH /feedback/{id}/... ----
-
     @Test
-    void markFeedbackAsRead_existingFeedback_returnsReadStatus() {
+    void changeFeedbackStatus_everyAction_returnsDetailWithNewStatus() {
         when(service.markFeedbackAsRead(FEEDBACK_ID)).thenReturn(detail(FeedbackStatus.READ));
-
-        assertThat(mvc.patch().uri("/feedback/{id}/read", FEEDBACK_ID)).bodyJson().extractingPath("$.status").isEqualTo("READ");
-    }
-
-    @Test
-    void markFeedbackAsUnread_existingFeedback_returnsNewStatus() {
         when(service.markFeedbackAsUnread(FEEDBACK_ID)).thenReturn(detail(FeedbackStatus.NEW));
-
-        assertThat(mvc.patch().uri("/feedback/{id}/unread", FEEDBACK_ID)).bodyJson().extractingPath("$.status").isEqualTo("NEW");
-    }
-
-    @Test
-    void markFeedbackAsAnswered_existingFeedback_returnsAnsweredStatus() {
         when(service.markFeedbackAsAnswered(FEEDBACK_ID)).thenReturn(detail(FeedbackStatus.ANSWERED));
-
-        assertThat(mvc.patch().uri("/feedback/{id}/answered", FEEDBACK_ID)).bodyJson().extractingPath("$.status").isEqualTo("ANSWERED");
-    }
-
-    @Test
-    void archiveFeedback_existingFeedback_returnsArchivedStatus() {
         when(service.archiveFeedback(FEEDBACK_ID)).thenReturn(detail(FeedbackStatus.ARCHIVED));
 
-        assertThat(mvc.patch().uri("/feedback/{id}/archive", FEEDBACK_ID)).bodyJson().extractingPath("$.status").isEqualTo("ARCHIVED");
+        MvcTestResult read = mvc.patch().uri("/feedback/{id}/read", FEEDBACK_ID).exchange();
+        MvcTestResult unread = mvc.patch().uri("/feedback/{id}/unread", FEEDBACK_ID).exchange();
+        MvcTestResult answered = mvc.patch().uri("/feedback/{id}/answered", FEEDBACK_ID).exchange();
+        MvcTestResult archived = mvc.patch().uri("/feedback/{id}/archive", FEEDBACK_ID).exchange();
+
+        assertThat(read).bodyJson().extractingPath("$.status").isEqualTo("READ");
+        assertThat(unread).bodyJson().extractingPath("$.status").isEqualTo("NEW");
+        assertThat(answered).bodyJson().extractingPath("$.status").isEqualTo("ANSWERED");
+        assertThat(archived).bodyJson().extractingPath("$.status").isEqualTo("ARCHIVED");
     }
 
     @Test
-    void archiveFeedback_missingFeedback_returnsNotFound() {
-        when(service.archiveFeedback(FEEDBACK_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback not found"));
+    void deleteFeedback_existingFeedback_returnsDeletedMessageAndDeletesThroughService() {
+        MvcTestResult result = mvc.delete().uri("/feedback/{id}", FEEDBACK_ID).exchange();
 
-        assertThat(mvc.patch().uri("/feedback/{id}/archive", FEEDBACK_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    // ---- DELETE /feedback/{id} ----
-
-    @Test
-    void deleteFeedback_existingFeedback_returnsDeletedMessage() {
-        assertThat(mvc.delete().uri("/feedback/{id}", FEEDBACK_ID)).bodyJson().extractingPath("$.message").isEqualTo("Feedback deleted");
-    }
-
-    @Test
-    void deleteFeedback_existingFeedback_deletesThroughService() {
-        mvc.delete().uri("/feedback/{id}", FEEDBACK_ID).exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Feedback deleted");
         verify(service).deleteFeedback(FEEDBACK_ID);
-    }
-
-    @Test
-    void deleteFeedback_missingFeedback_returnsNotFound() {
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Feedback not found")).when(service).deleteFeedback(FEEDBACK_ID);
-
-        assertThat(mvc.delete().uri("/feedback/{id}", FEEDBACK_ID)).hasStatus(HttpStatus.NOT_FOUND);
     }
 }

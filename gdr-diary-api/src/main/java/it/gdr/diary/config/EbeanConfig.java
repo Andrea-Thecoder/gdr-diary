@@ -16,14 +16,24 @@ import javax.sql.DataSource;
 @Configuration
 public class EbeanConfig {
 
+    static final String JSON_MAX_STRING_PROPERTY = "jsonb.parserMaxStringBuffer";
+    static final int JSON_MAX_STRING_CHARS = 1_048_576;
+
     @Bean
     public Database database(DataSource dataSource, CurrentUserProvider currentUserProvider) {
+        allowLongJsonStrings();
         DatabaseConfig dbConfig = new DatabaseConfig();
         dbConfig.setDataSource(dataSource);
         dbConfig.setCurrentUserProvider(currentUserProvider);
         dbConfig.setIdGeneratorAutomatic(false);
         dbConfig.setDefaultServer(true);
         return dbConfig.build();
+    }
+
+    static void allowLongJsonStrings() {
+        if (System.getProperty(JSON_MAX_STRING_PROPERTY) == null) {
+            System.setProperty(JSON_MAX_STRING_PROPERTY, String.valueOf(JSON_MAX_STRING_CHARS));
+        }
     }
 
     @Bean

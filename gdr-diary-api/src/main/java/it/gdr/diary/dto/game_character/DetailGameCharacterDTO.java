@@ -30,9 +30,16 @@ public record DetailGameCharacterDTO(
         UUID avatarDocumentId,
 
         @Schema(description = "Temporary URL of the avatar image, valid for a few minutes. Null if the character has no avatar", examples = {"http://localhost:8333/diary-documents/5f1c...?X-Amz-Signature=..."}, nullable = true)
-        String avatarUrl) {
+        String avatarUrl,
+
+        @Schema(description = "First words of the background story of the character, to show in a box. Null if the character has no background", examples = {"Born in the halls of Erebor, Thorin grew up listening to the songs of the lost kingdom."}, nullable = true)
+        String backgroundPreview) {
 
     public static DetailGameCharacterDTO from(GameCharacter character, String avatarUrl) {
+        return from(character, avatarUrl, null);
+    }
+
+    public static DetailGameCharacterDTO from(GameCharacter character, String avatarUrl, String backgroundPreview) {
         return new DetailGameCharacterDTO(
                 character.getId(),
                 character.getName(),
@@ -41,6 +48,7 @@ public record DetailGameCharacterDTO(
                 character.getCampaignName(),
                 character.getBackgroundColor(),
                 character.getAvatarDocument() == null ? null : character.getAvatarDocument().getId(),
-                avatarUrl);
+                avatarUrl,
+                backgroundPreview);
     }
 }

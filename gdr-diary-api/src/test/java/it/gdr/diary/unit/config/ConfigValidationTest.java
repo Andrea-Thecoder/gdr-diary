@@ -3,6 +3,7 @@ package it.gdr.diary.unit.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import it.gdr.diary.config.AppUserConfig;
+import it.gdr.diary.config.CharacterBackgroundConfig;
 import it.gdr.diary.config.CharacterSheetConfig;
 import it.gdr.diary.config.DiaryPageConfig;
 import it.gdr.diary.config.FeedbackConfig;
@@ -46,6 +47,11 @@ class ConfigValidationTest {
     }
 
     @Configuration
+    @EnableConfigurationProperties(CharacterBackgroundConfig.class)
+    static class CharacterBackgroundProperties {
+    }
+
+    @Configuration
     @EnableConfigurationProperties(FeedbackConfig.class)
     static class FeedbackProperties {
     }
@@ -81,6 +87,10 @@ class ConfigValidationTest {
 
     private ApplicationContextRunner diaryRunner(String... values) {
         return new ApplicationContextRunner().withUserConfiguration(DiaryProperties.class).withPropertyValues(values);
+    }
+
+    private ApplicationContextRunner characterBackgroundRunner(String... values) {
+        return new ApplicationContextRunner().withUserConfiguration(CharacterBackgroundProperties.class).withPropertyValues(values);
     }
 
     private ApplicationContextRunner characterSheetRunner(String... values) {
@@ -164,6 +174,28 @@ class ConfigValidationTest {
     @Test
     void startup_zeroMaxPageContentSize_fails() {
         diaryRunner("app.diary.max-page-content-size=0B").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_validCharacterBackgroundConfig_succeeds() {
+        characterBackgroundRunner("app.character-background.max-text-length=50000", "app.character-background.max-content-size=300KB")
+                .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    @Test
+    void startup_noCharacterBackgroundConfig_usesDefaults() {
+        characterBackgroundRunner().run(context -> assertThat(context.getBean(CharacterBackgroundConfig.class))
+                .extracting(CharacterBackgroundConfig::getMaxTextLength).isEqualTo(50_000));
+    }
+
+    @Test
+    void startup_zeroMaxBackgroundTextLength_fails() {
+        characterBackgroundRunner("app.character-background.max-text-length=0").run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void startup_zeroMaxBackgroundContentSize_fails() {
+        characterBackgroundRunner("app.character-background.max-content-size=0B").run(context -> assertThat(context).hasFailed());
     }
 
     @Test

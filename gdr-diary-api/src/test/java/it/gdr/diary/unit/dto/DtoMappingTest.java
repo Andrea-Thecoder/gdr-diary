@@ -123,7 +123,7 @@ class DtoMappingTest {
     void detailGameCharacterFrom_character_copiesAllFields() {
         DetailGameCharacterDTO dto = DetailGameCharacterDTO.from(character(), URL);
 
-        assertThat(dto).isEqualTo(new DetailGameCharacterDTO(CHARACTER_ID, "Aragorn", GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, URL));
+        assertThat(dto).isEqualTo(new DetailGameCharacterDTO(CHARACTER_ID, "Aragorn", GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, URL, null));
     }
 
     @Test

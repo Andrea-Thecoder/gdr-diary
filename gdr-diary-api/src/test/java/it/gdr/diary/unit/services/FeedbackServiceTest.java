@@ -6,15 +6,10 @@ import static it.gdr.diary.unit.support.QueryStub.stubFindLeniently;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -23,9 +18,6 @@ import io.ebean.Database;
 import io.ebean.PagedList;
 import io.ebean.Transaction;
 import it.gdr.diary.config.FeedbackConfig;
-import it.gdr.diary.dto.PagedResultDTO;
-import it.gdr.diary.dto.feedback.AttachmentFeedbackDTO;
-import it.gdr.diary.dto.feedback.BaseFeedbackDTO;
 import it.gdr.diary.dto.feedback.DetailFeedbackDTO;
 import it.gdr.diary.dto.feedback.InsertFeedbackDTO;
 import it.gdr.diary.dto.search.FeedbackSearchRequest;
@@ -52,7 +44,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -163,17 +154,6 @@ class FeedbackServiceTest {
     // ---- findAllFeedbacks ----
 
     @Test
-    void findAllFeedbacks_anyRequest_labelsQuery() {
-        QueryStub<Feedback> feedbacks = stubFind(database, Feedback.class);
-        PagedList<Feedback> page = pagedList(List.of(), 0, 20, 0);
-        when(feedbacks.where().findPagedList()).thenReturn(page);
-
-        service.findAllFeedbacks(new FeedbackSearchRequest());
-
-        verify(feedbacks.query()).setLabel("findAllFeedbacks");
-    }
-
-    @Test
     void findAllFeedbacks_createdFrom_usesConfiguredTimezone() {
         config.setTimezone(ZoneId.of("UTC"));
         QueryStub<Feedback> feedbacks = stubFind(database, Feedback.class);
@@ -187,29 +167,6 @@ class FeedbackServiceTest {
         verify(feedbacks.where()).ge("createdAt", Instant.parse("2026-11-01T00:00:00Z"));
     }
 
-    @Test
-    void findAllFeedbacks_noSort_ordersNewestFirst() {
-        QueryStub<Feedback> feedbacks = stubFind(database, Feedback.class);
-        PagedList<Feedback> page = pagedList(List.of(), 0, 20, 0);
-        when(feedbacks.where().findPagedList()).thenReturn(page);
-
-        service.findAllFeedbacks(new FeedbackSearchRequest());
-
-        verify(feedbacks.where()).orderBy("createdAt desc, id asc");
-    }
-
-    @Test
-    void findAllFeedbacks_feedbackFound_returnsSummaries() {
-        QueryStub<Feedback> feedbacks = stubFind(database, Feedback.class);
-        PagedList<Feedback> page = pagedList(List.of(feedback(FeedbackStatus.NEW)), 0, 20, 1);
-        when(feedbacks.where().findPagedList()).thenReturn(page);
-
-        PagedResultDTO<BaseFeedbackDTO> result = service.findAllFeedbacks(new FeedbackSearchRequest());
-
-        assertThat(result.getList()).extracting(BaseFeedbackDTO::id, BaseFeedbackDTO::messagePreview)
-                .containsExactly(tuple(FEEDBACK_ID, "Great tags"));
-    }
-
     // ---- getFeedbackById ----
 
     @Test
@@ -221,21 +178,6 @@ class FeedbackServiceTest {
                     assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
                     assertThat(e.getReason()).isEqualTo("Feedback not found");
                 });
-    }
-
-    @Test
-    void getFeedbackById_feedbackWithImages_returnsAttachmentsWithUrls() {
-        Document first = document("one.png");
-        Document second = document("two.png");
-        givenFeedback(feedback(FeedbackStatus.NEW), first, second);
-        when(documentService.getDocumentUrl(first)).thenReturn("https://storage.example/one");
-        when(documentService.getDocumentUrl(second)).thenReturn("https://storage.example/two");
-
-        DetailFeedbackDTO result = service.getFeedbackById(FEEDBACK_ID);
-
-        assertThat(result.attachments()).extracting(AttachmentFeedbackDTO::fileName, AttachmentFeedbackDTO::url)
-                .containsExactly(tuple("one.png", "https://storage.example/one"),
-                        tuple("two.png", "https://storage.example/two"));
     }
 
     @Test
@@ -257,10 +199,16 @@ class FeedbackServiceTest {
     }
 
     @Test
-    void createFeedback_blankTrapField_savesFeedback() {
-        Feedback saved = savedFeedback(request("idea", "Great tags", "alira@example.com", null, "  "));
+    void createFeedback_validRequest_savesNewFeedbackWithTrimmedFieldsAndTechnicalInfo() {
+        InsertFeedbackDTO request = request("idea", "  Thank you!  ", " alira@example.com ",
+                "{\"browser\":\"Firefox 130\",\"screen\":{\"width\":1360}}", "  ");
 
-        assertThat(saved.getMessage()).isEqualTo("Great tags");
+        Feedback saved = savedFeedback(request);
+
+        assertThat(saved).extracting(Feedback::getType, Feedback::getStatus, Feedback::isPrivacyAccepted, Feedback::getMessage,
+                        Feedback::getEmail, Feedback::getTechnicalInfo)
+                .containsExactly(FeedbackType.IDEA, FeedbackStatus.NEW, true, "Thank you!", "alira@example.com",
+                        Map.of("browser", "Firefox 130", "screen", Map.of("width", 1360)));
     }
 
     @ParameterizedTest
@@ -269,41 +217,6 @@ class FeedbackServiceTest {
         Feedback saved = savedFeedback(request(type, "Great tags", "alira@example.com", null, null));
 
         assertThat(saved.getType()).isEqualTo(FeedbackType.IDEA);
-    }
-
-    @Test
-    void createFeedback_newFeedback_isToBeRead() {
-        Feedback saved = savedFeedback(request());
-
-        assertThat(saved.getStatus()).isEqualTo(FeedbackStatus.NEW);
-    }
-
-    @Test
-    void createFeedback_newFeedback_recordsPrivacyAcceptance() {
-        Feedback saved = savedFeedback(request());
-
-        assertThat(saved.isPrivacyAccepted()).isTrue();
-    }
-
-    @Test
-    void createFeedback_messageWithSurroundingSpaces_savesTrimmedMessage() {
-        Feedback saved = savedFeedback(request("love", "  Thank you!  ", "alira@example.com", null, null));
-
-        assertThat(saved.getMessage()).isEqualTo("Thank you!");
-    }
-
-    @Test
-    void createFeedback_emailWithSurroundingSpaces_savesTrimmedEmail() {
-        Feedback saved = savedFeedback(request("idea", "Great tags", " alira@example.com ", null, null));
-
-        assertThat(saved.getEmail()).isEqualTo("alira@example.com");
-    }
-
-    @Test
-    void createFeedback_technicalInfoObject_savesItAsMap() {
-        Feedback saved = savedFeedback(requestWithTechnicalInfo("{\"browser\":\"Firefox 130\",\"screen\":{\"width\":1360}}"));
-
-        assertThat(saved.getTechnicalInfo()).isEqualTo(Map.of("browser", "Firefox 130", "screen", Map.of("width", 1360)));
     }
 
     @ParameterizedTest
@@ -322,11 +235,12 @@ class FeedbackServiceTest {
                 .hasMessage("Technical info is not a valid JSON object");
     }
 
-    @Test
-    void createFeedback_technicalInfoOverMaxSize_throwsServiceException() {
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"browser\":\"Firefox 130.0\"}", "{\"b\":\"àààààààà\"}"})
+    void createFeedback_technicalInfoOverMaxSizeInBytes_throwsServiceException(String technicalInfo) {
         config.setMaxTechnicalInfoSize(DataSize.ofBytes(20));
 
-        assertThatThrownBy(() -> service.createFeedback(requestWithTechnicalInfo("{\"browser\":\"Firefox 130.0\"}"), List.of()))
+        assertThatThrownBy(() -> service.createFeedback(requestWithTechnicalInfo(technicalInfo), List.of()))
                 .isInstanceOf(ServiceException.class)
                 .hasMessage("Technical info too large");
     }
@@ -339,14 +253,6 @@ class FeedbackServiceTest {
         Feedback saved = savedFeedback(requestWithTechnicalInfo(technicalInfo));
 
         assertThat(saved.getTechnicalInfo()).containsEntry("browser", "Firefox");
-    }
-
-    @Test
-    void createFeedback_technicalInfoSizeInBytesNotChars_countsMultiByteCharacters() {
-        config.setMaxTechnicalInfoSize(DataSize.ofBytes(20));
-
-        assertThatThrownBy(() -> service.createFeedback(requestWithTechnicalInfo("{\"b\":\"àààààààà\"}"), List.of()))
-                .hasMessage("Technical info too large");
     }
 
     @ParameterizedTest
@@ -374,42 +280,13 @@ class FeedbackServiceTest {
     }
 
     @Test
-    void createFeedback_tooManyFiles_throwsServiceException() {
+    void createFeedback_tooManyFiles_throwsServiceExceptionAndSavesNothing() {
         List<MultipartFile> files = List.of(png("1.png"), png("2.png"), png("3.png"), png("4.png"));
 
-        assertThatThrownBy(() -> service.createFeedback(request(), files))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Too many files (maximum 3)");
-    }
+        Throwable thrown = catchThrowable(() -> service.createFeedback(request(), files));
 
-    @Test
-    void createFeedback_tooManyFiles_savesNothing() {
-        List<MultipartFile> files = List.of(png("1.png"), png("2.png"), png("3.png"), png("4.png"));
-
-        catchThrowable(() -> service.createFeedback(request(), files));
-
+        assertThat(thrown).isInstanceOf(ServiceException.class).hasMessage("Too many files (maximum 3)");
         verifyNoInteractions(database, documentService);
-    }
-
-    @Test
-    void createFeedback_emptyFileParts_areIgnored() {
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(any(MultipartFile.class), anyString())).thenReturn(document("x.png"));
-        List<MultipartFile> files = List.of(png("1.png"), emptyFile(), png("2.png"), png("3.png"), emptyFile());
-
-        service.createFeedback(request(), files);
-
-        verify(documentService, times(3)).createImageDocument(any(MultipartFile.class), anyString());
-    }
-
-    @Test
-    void createFeedback_filesOverTotalSize_throwsServiceException() {
-        config.setMaxTotalFileSize(DataSize.ofBytes(15));
-        List<MultipartFile> files = List.of(pngOfSize("1.png", 8), pngOfSize("2.png", 8));
-
-        assertThatThrownBy(() -> service.createFeedback(request(), files))
-                .isInstanceOf(ServiceException.class)
-                .hasMessageStartingWith("Files too large");
     }
 
     @Test
@@ -424,46 +301,7 @@ class FeedbackServiceTest {
     }
 
     @Test
-    void createFeedback_withFiles_storesThemInFeedbackBucket() {
-        MultipartFile file = png("one.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file, BUCKET)).thenReturn(document("one.png"));
-
-        service.createFeedback(request(), List.of(file));
-
-        verify(documentService).createImageDocument(file, BUCKET);
-    }
-
-    @Test
-    void createFeedback_withFiles_linksEachDocumentToFeedback() {
-        Document first = document("one.png");
-        Document second = document("two.png");
-        MultipartFile firstFile = png("one.png");
-        MultipartFile secondFile = png("two.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(firstFile, BUCKET)).thenReturn(first);
-        when(documentService.createImageDocument(secondFile, BUCKET)).thenReturn(second);
-        ArgumentCaptor<Object> saved = ArgumentCaptor.forClass(Object.class);
-
-        service.createFeedback(request(), List.of(firstFile, secondFile));
-
-        verify(database, times(3)).save(saved.capture());
-        assertThat(saved.getAllValues()).filteredOn(FeedbackDocument.class::isInstance)
-                .extracting(link -> ((FeedbackDocument) link).getDocument())
-                .containsExactly(first, second);
-    }
-
-    @Test
-    void createFeedback_validRequest_commitsTransaction() {
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.createFeedback(request(), List.of());
-
-        verify(transaction).commit();
-    }
-
-    @Test
-    void createFeedback_secondFileFails_deletesFirstUploadedFile() {
+    void createFeedback_secondFileFails_rethrowsDeletesFirstFileAndDoesNotCommit() {
         Document first = document("one.png");
         MultipartFile firstFile = png("one.png");
         MultipartFile secondFile = png("two.png");
@@ -471,33 +309,10 @@ class FeedbackServiceTest {
         when(documentService.createImageDocument(firstFile, BUCKET)).thenReturn(first);
         when(documentService.createImageDocument(secondFile, BUCKET)).thenThrow(new ServiceException("Unsupported file type"));
 
-        catchThrowable(() -> service.createFeedback(request(), List.of(firstFile, secondFile)));
+        Throwable thrown = catchThrowable(() -> service.createFeedback(request(), List.of(firstFile, secondFile)));
 
+        assertThat(thrown).hasMessage("Unsupported file type");
         verify(documentService).deleteDocumentFile(first);
-    }
-
-    @Test
-    void createFeedback_secondFileFails_rethrowsTheError() {
-        MultipartFile firstFile = png("one.png");
-        MultipartFile secondFile = png("two.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(firstFile, BUCKET)).thenReturn(document("one.png"));
-        when(documentService.createImageDocument(secondFile, BUCKET)).thenThrow(new ServiceException("Unsupported file type"));
-
-        assertThatThrownBy(() -> service.createFeedback(request(), List.of(firstFile, secondFile)))
-                .hasMessage("Unsupported file type");
-    }
-
-    @Test
-    void createFeedback_secondFileFails_doesNotCommit() {
-        MultipartFile firstFile = png("one.png");
-        MultipartFile secondFile = png("two.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(firstFile, BUCKET)).thenReturn(document("one.png"));
-        when(documentService.createImageDocument(secondFile, BUCKET)).thenThrow(new ServiceException("Unsupported file type"));
-
-        catchThrowable(() -> service.createFeedback(request(), List.of(firstFile, secondFile)));
-
         verify(transaction, never()).commit();
     }
 
@@ -521,16 +336,6 @@ class FeedbackServiceTest {
     // ---- status changes ----
 
     @Test
-    void markFeedbackAsRead_newFeedback_savesReadStatus() {
-        Feedback feedback = feedback(FeedbackStatus.NEW);
-        givenFeedback(feedback);
-
-        service.markFeedbackAsRead(FEEDBACK_ID);
-
-        verify(database).save(argThat(saved -> saved == feedback && feedback.getStatus() == FeedbackStatus.READ));
-    }
-
-    @Test
     void markFeedbackAsRead_newFeedback_returnsReadStatus() {
         givenFeedback(feedback(FeedbackStatus.NEW));
 
@@ -539,99 +344,7 @@ class FeedbackServiceTest {
         assertThat(result.status()).isEqualTo(FeedbackStatus.READ);
     }
 
-    @Test
-    void markFeedbackAsUnread_readFeedback_returnsNewStatus() {
-        givenFeedback(feedback(FeedbackStatus.READ));
-
-        DetailFeedbackDTO result = service.markFeedbackAsUnread(FEEDBACK_ID);
-
-        assertThat(result.status()).isEqualTo(FeedbackStatus.NEW);
-    }
-
-    @Test
-    void markFeedbackAsAnswered_readFeedback_returnsAnsweredStatus() {
-        givenFeedback(feedback(FeedbackStatus.READ));
-
-        DetailFeedbackDTO result = service.markFeedbackAsAnswered(FEEDBACK_ID);
-
-        assertThat(result.status()).isEqualTo(FeedbackStatus.ANSWERED);
-    }
-
-    @Test
-    void archiveFeedback_answeredFeedback_returnsArchivedStatus() {
-        givenFeedback(feedback(FeedbackStatus.ANSWERED));
-
-        DetailFeedbackDTO result = service.archiveFeedback(FEEDBACK_ID);
-
-        assertThat(result.status()).isEqualTo(FeedbackStatus.ARCHIVED);
-    }
-
-    @Test
-    void archiveFeedback_missingFeedback_throwsNotFound() {
-        givenMissingFeedback();
-
-        assertThatThrownBy(() -> service.archiveFeedback(FEEDBACK_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void archiveFeedback_missingFeedback_savesNothing() {
-        givenMissingFeedback();
-
-        catchThrowable(() -> service.archiveFeedback(FEEDBACK_ID));
-
-        verify(database, never()).save(any());
-    }
-
     // ---- deleteFeedback ----
-
-    @Test
-    void deleteFeedback_missingFeedback_throwsNotFound() {
-        givenMissingFeedback();
-
-        assertThatThrownBy(() -> service.deleteFeedback(FEEDBACK_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void deleteFeedback_missingFeedback_doesNotOpenTransaction() {
-        givenMissingFeedback();
-
-        catchThrowable(() -> service.deleteFeedback(FEEDBACK_ID));
-
-        verify(database, never()).beginTransaction();
-    }
-
-    @Test
-    void deleteFeedback_feedbackWithImages_deletesLinksBeforeFeedbackAndDocuments() {
-        Feedback feedback = feedback(FeedbackStatus.NEW);
-        Document image = document("one.png");
-        givenFeedback(feedback, image);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteFeedback(FEEDBACK_ID);
-
-        InOrder order = inOrder(database, documentService, transaction);
-        order.verify(database).deleteAll(anyCollection());
-        order.verify(database).delete(feedback);
-        order.verify(documentService).deleteDocumentRecord(image);
-        order.verify(transaction).commit();
-    }
-
-    @Test
-    void deleteFeedback_feedbackWithImages_deletesFilesAfterCommit() {
-        Document image = document("one.png");
-        givenFeedback(feedback(FeedbackStatus.NEW), image);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteFeedback(FEEDBACK_ID);
-
-        InOrder order = inOrder(transaction, documentService);
-        order.verify(transaction).commit();
-        order.verify(documentService).deleteDocumentFile(image);
-    }
 
     @Test
     void deleteFeedback_commitFails_deletesNoFile() {

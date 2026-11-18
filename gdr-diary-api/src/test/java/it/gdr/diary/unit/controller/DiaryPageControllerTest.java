@@ -2,9 +2,7 @@ package it.gdr.diary.unit.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -15,24 +13,24 @@ import it.gdr.diary.dto.diary_page.BaseDiaryPageDTO;
 import it.gdr.diary.dto.diary_page.InsertDiaryPageDTO;
 import it.gdr.diary.dto.diary_page.UpdateDiaryPageDTO;
 import it.gdr.diary.exception.ExceptionMapper;
-import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.services.DiaryPageService;
-import jakarta.persistence.OptimisticLockException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class DiaryPageControllerTest {
@@ -59,12 +57,12 @@ class DiaryPageControllerTest {
     }
 
     @Test
-    void findAllDiaryPagesByDiary_noPageParameter_requestsFirstSpread() {
-        when(service.findAllDiaryPagesByDiary(DIARY_ID, 1)).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 2));
+    void findAllDiaryPagesByDiary_noPageParameter_returnsFirstSpreadWithContentAndVersion() {
+        when(service.findAllDiaryPagesByDiary(DIARY_ID, 1)).thenReturn(PagedResultDTO.of(List.of(page(1, 7L)), 1, 1, 2));
 
-        mvc.get().uri("/diaries/{diaryId}/pages", DIARY_ID).exchange();
-
-        verify(service).findAllDiaryPagesByDiary(DIARY_ID, 1);
+        assertThat(mvc.get().uri("/diaries/{diaryId}/pages", DIARY_ID)).bodyJson()
+                .extractingPath("$.list[0]['pageNumber','version','content']")
+                .isEqualTo(Map.of("pageNumber", 1, "version", 7, "content", CONTENT));
     }
 
     @Test
@@ -77,162 +75,63 @@ class DiaryPageControllerTest {
     }
 
     @Test
-    void findAllDiaryPagesByDiary_pagesFound_returnsContentAndVersion() {
-        when(service.findAllDiaryPagesByDiary(DIARY_ID, 1)).thenReturn(PagedResultDTO.of(List.of(page(1, 7L)), 1, 1, 2));
+    void createDiaryPage_validContent_returnsCreatedPageAndPassesContentToService() {
+        when(service.createDiaryPage(eq(DIARY_ID), any())).thenReturn(page(5, 1L));
 
-        assertThat(mvc.get().uri("/diaries/{diaryId}/pages", DIARY_ID)).bodyJson()
-                .extractingPath("$.list[0].version").isEqualTo(7);
-    }
-
-    @Test
-    void findAllDiaryPagesByDiary_pageBelowOne_returnsBadRequest() {
-        when(service.findAllDiaryPagesByDiary(DIARY_ID, 0)).thenThrow(new ServiceException("The page must be 1 or greater"));
-
-        assertThat(mvc.get().uri("/diaries/{diaryId}/pages?page=0", DIARY_ID)).hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createDiaryPage_validContent_returnsCreated() {
-        when(service.createDiaryPage(eq(DIARY_ID), any())).thenReturn(page(1, 1L));
-
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}"))
-                .hasStatus(HttpStatus.CREATED);
-    }
-
-    @Test
-    void createDiaryPage_validContent_passesContentToService() {
-        when(service.createDiaryPage(eq(DIARY_ID), any())).thenReturn(page(1, 1L));
-
-        mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
+        MvcTestResult result = mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}").exchange();
 
+        assertThat(result).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.pageNumber").isEqualTo(5);
         verify(service).createDiaryPage(DIARY_ID, new InsertDiaryPageDTO(CONTENT));
     }
 
-    @Test
-    void createDiaryPage_validContent_returnsAssignedPageNumber() {
-        when(service.createDiaryPage(eq(DIARY_ID), any())).thenReturn(page(5, 1L));
-
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}"))
-                .bodyJson().extractingPath("$.pageNumber").isEqualTo(5);
-    }
-
     @ParameterizedTest
-    @ValueSource(strings = {"{}", "{\"content\":{}}", "{\"content\":null}"})
-    void createDiaryPage_missingContent_returnsBadRequest(String body) {
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    @MethodSource("invalidCreateBodies")
+    void createDiaryPage_missingContent_returnsBadRequestOnContentFieldWithoutCallingService(String body) {
+        MvcTestResult result = mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 
-    @Test
-    void createDiaryPage_missingContent_doesNotCallService() {
-        mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo("content");
         verifyNoInteractions(service);
     }
 
-    @Test
-    void createDiaryPage_diaryFull_returnsReasonAsViolation() {
-        when(service.createDiaryPage(eq(DIARY_ID), any())).thenThrow(new ServiceException("The diary is full (100 pages)"));
-
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}"))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("The diary is full (100 pages)");
+    static Stream<String> invalidCreateBodies() {
+        return Stream.of("{}", "{\"content\":{}}", "{\"content\":null}");
     }
 
     @Test
-    void updateDiaryPage_validBody_returnsNewVersion() {
+    void updateDiaryPage_validBody_returnsNewVersionAndPassesContentAndVersionToService() {
         when(service.updateDiaryPage(eq(PAGE_ID), any())).thenReturn(page(1, 5L));
 
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + ",\"version\":4}"))
-                .bodyJson().extractingPath("$.version").isEqualTo(5);
-    }
-
-    @Test
-    void updateDiaryPage_validBody_passesContentAndVersionToService() {
-        when(service.updateDiaryPage(eq(PAGE_ID), any())).thenReturn(page(1, 5L));
-
-        mvc.put().uri("/pages/{id}", PAGE_ID)
+        MvcTestResult result = mvc.put().uri("/pages/{id}", PAGE_ID)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + ",\"version\":4}").exchange();
 
+        assertThat(result).bodyJson().extractingPath("$.version").isEqualTo(5);
         verify(service).updateDiaryPage(PAGE_ID, new UpdateDiaryPageDTO(CONTENT, 4L));
     }
 
-    @Test
-    void updateDiaryPage_missingVersion_returnsBadRequest() {
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    @ParameterizedTest
+    @MethodSource("invalidUpdateBodies")
+    void updateDiaryPage_invalidBody_returnsBadRequestOnFieldWithoutCallingService(String body, String field) {
+        MvcTestResult result = mvc.put().uri("/pages/{id}", PAGE_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 
-    @Test
-    void updateDiaryPage_staleVersion_returnsConflict() {
-        when(service.updateDiaryPage(eq(PAGE_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "The page was modified elsewhere, reload it"));
-
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + ",\"version\":4}"))
-                .hasStatus(HttpStatus.CONFLICT);
-    }
-
-    @Test
-    void updateDiaryPage_concurrentSave_returnsConflict() {
-        when(service.updateDiaryPage(eq(PAGE_ID), any())).thenThrow(new OptimisticLockException("version changed"));
-
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + ",\"version\":4}"))
-                .hasStatus(HttpStatus.CONFLICT);
-    }
-
-    @Test
-    void deleteDiaryPage_ownedPage_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/pages/{id}", PAGE_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Page deleted");
-    }
-
-    @Test
-    void deleteDiaryPage_ownedPage_deletesThroughService() {
-        mvc.delete().uri("/pages/{id}", PAGE_ID).exchange();
-
-        verify(service).deleteDiaryPage(PAGE_ID);
-    }
-
-    @Test
-    void deleteDiaryPage_notFound_returnsNotFound() {
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found")).when(service).deleteDiaryPage(PAGE_ID);
-
-        assertThat(mvc.delete().uri("/pages/{id}", PAGE_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void findAllDiaryPagesByDiary_unexpectedError_returnsInternalServerError() {
-        when(service.findAllDiaryPagesByDiary(eq(DIARY_ID), anyInt())).thenThrow(new IllegalStateException("boom"));
-
-        assertThat(mvc.get().uri("/diaries/{diaryId}/pages", DIARY_ID)).hasStatus(HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @Test
-    void updateDiaryPage_emptyContent_returnsBadRequest() {
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":{},\"version\":4}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiaryPage_emptyContent_doesNotCallService() {
-        mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":{},\"version\":4}").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
         verifyNoInteractions(service);
     }
 
+    static Stream<Arguments> invalidUpdateBodies() {
+        return Stream.of(
+                Arguments.of("{\"content\":" + CONTENT_JSON + "}", "version"),
+                Arguments.of("{\"content\":{},\"version\":4}", "content"),
+                Arguments.of("{\"version\":4}", "content"));
+    }
+
     @Test
-    void updateDiaryPage_missingVersion_returnsViolationOnVersionField() {
-        assertThat(mvc.put().uri("/pages/{id}", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"content\":" + CONTENT_JSON + "}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("version");
+    void deleteDiaryPage_ownedPage_deletesThroughServiceAndReturnsConfirmationMessage() {
+        MvcTestResult result = mvc.delete().uri("/pages/{id}", PAGE_ID).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Page deleted");
+        verify(service).deleteDiaryPage(PAGE_ID);
     }
 }

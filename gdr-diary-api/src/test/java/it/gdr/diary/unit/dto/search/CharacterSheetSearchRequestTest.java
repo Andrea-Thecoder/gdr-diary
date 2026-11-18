@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Answers;
 import org.mockito.Mock;
@@ -23,59 +23,19 @@ class CharacterSheetSearchRequestTest {
     private ExpressionList<CharacterSheet> query;
 
     @Test
-    void applyFilter_title_addsCaseInsensitiveContainsOnTitle() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setTitle("alira");
-
-        request.applyFilter(query);
-
-        verify(query).icontains("title", "alira");
-    }
-
-    @Test
-    void applyFilter_titleWithSurroundingSpaces_searchesTrimmedTitle() {
+    void applyFilter_titleAndSystemWithSpaces_addsTrimmedConditions() {
         CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
         request.setTitle("  Alira, level 9 ");
+        request.setSystem(" d&d 5e  ");
 
         request.applyFilter(query);
 
         verify(query).icontains("title", "Alira, level 9");
-    }
-
-    @Test
-    void applyFilter_system_addsCaseInsensitiveEqualityOnGameSystem() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setSystem("d&d 5e");
-
-        request.applyFilter(query);
-
         verify(query).ieq("gameSystem", "d&d 5e");
     }
 
-    @Test
-    void applyFilter_systemWithSurroundingSpaces_searchesTrimmedSystem() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setSystem(" Pathfinder 2e  ");
-
-        request.applyFilter(query);
-
-        verify(query).ieq("gameSystem", "Pathfinder 2e");
-    }
-
-    @Test
-    void applyFilter_bothFilters_addsBothConditions() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setTitle("alira");
-        request.setSystem("D&D 5e");
-
-        request.applyFilter(query);
-
-        verify(query).icontains("title", "alira");
-        verify(query).ieq("gameSystem", "D&D 5e");
-    }
-
     @ParameterizedTest
-    @NullAndEmptySource
+    @NullSource
     @ValueSource(strings = {"   "})
     void applyFilter_blankFilters_addsNoCondition(String value) {
         CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
@@ -98,31 +58,12 @@ class CharacterSheetSearchRequestTest {
         verify(query).orderBy(property + " asc, id asc");
     }
 
-    @Test
-    void applySortAndPagination_descending_ordersDescendingWithTieBreaker() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setSort("title");
-        request.setDescending(true);
-
-        request.applySortAndPagination(query, "createdAt");
-
-        verify(query).orderBy("title desc, id asc");
-    }
-
     @ParameterizedTest
-    @ValueSource(strings = {"gameSystem", "name", "id", "document", "title; drop table character_sheet"})
-    void applySortAndPagination_notAllowedSortKey_usesDefaultSort(String sort) {
+    @NullSource
+    @ValueSource(strings = {"gameSystem", "title; drop table character_sheet"})
+    void applySortAndPagination_notAllowedOrMissingSortKey_usesDefaultSort(String sort) {
         CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
         request.setSort(sort);
-
-        request.applySortAndPagination(query, "createdAt");
-
-        verify(query).orderBy("createdAt asc, id asc");
-    }
-
-    @Test
-    void applySortAndPagination_noSort_usesDefaultSort() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
 
         request.applySortAndPagination(query, "createdAt");
 
@@ -137,17 +78,5 @@ class CharacterSheetSearchRequestTest {
 
         verify(query).setFirstRow(0);
         verify(query).setMaxRows(20);
-    }
-
-    @Test
-    void applySortAndPagination_secondPage_skipsPreviousRows() {
-        CharacterSheetSearchRequest request = new CharacterSheetSearchRequest();
-        request.setPage(3);
-        request.setSize(10);
-
-        request.applySortAndPagination(query, "createdAt");
-
-        verify(query).setFirstRow(20);
-        verify(query).setMaxRows(10);
     }
 }

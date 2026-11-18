@@ -5,11 +5,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import it.gdr.diary.integration.support.AbstractIntegrationTest;
 import it.gdr.diary.integration.support.TestJwt;
 import it.gdr.diary.integration.support.WithMockJwt;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 @WithMockJwt
 class InputEdgeIT extends AbstractIntegrationTest {
@@ -64,73 +66,36 @@ class InputEdgeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createDiary_fontSizeOutOfShortRange_returnsBadRequest() {
+    void createDiary_fontSizeOutOfShortRange_returnsBadRequestWithoutClassNames() {
         UUID characterId = createCharacterId();
 
-        assertThat(mvc.post().uri("/characters/{id}/diaries", characterId).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Chapter one\",\"fontSize\":40000}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+        MvcTestResult result = mvc.post().uri("/characters/{id}/diaries", characterId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"Chapter one\",\"fontSize\":40000}").exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+                .extractingPath("$.violations[0].message").asString().doesNotContain("it.gdr");
     }
 
     @Test
-    void createDiary_fontSizeOutOfShortRange_messageDoesNotLeakClassNames() {
-        UUID characterId = createCharacterId();
-
-        assertThat(mvc.post().uri("/characters/{id}/diaries", characterId).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Chapter one\",\"fontSize\":40000}"))
-                .bodyJson().extractingPath("$.violations[0].message").asString().doesNotContain("it.gdr");
-    }
-
-    @Test
-    void createGameCharacter_unknownKind_returnsBadRequest() {
+    void createGameCharacter_unknownKind_returnsBadRequestNamingTheFieldWithoutClassNames() {
         createAppUser();
 
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"kind\":\"X\"}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+        MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Aragorn\",\"kind\":\"X\"}").exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+                .satisfies(body -> assertThat(body).extractingPath("$.violations[0].field").isEqualTo("kind"),
+                        body -> assertThat(body).extractingPath("$.violations[0].message").asString().doesNotContain("it.gdr"));
     }
 
     @Test
-    void createGameCharacter_unknownKind_namesTheField() {
-        createAppUser();
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"kind\":\"X\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("kind");
-    }
-
-    @Test
-    void createGameCharacter_unknownKind_messageDoesNotLeakClassNames() {
-        createAppUser();
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"kind\":\"X\"}"))
-                .bodyJson().extractingPath("$.violations[0].message").asString().doesNotContain("it.gdr");
-    }
-
-
-    @Test
-    void getDiaryById_diaryOfOtherUser_returnsExceptionResponseWithStatus404() {
+    void getDiaryById_diaryOfOtherUser_returnsNotFoundExceptionResponse() {
         UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
 
-        assertThat(mvc.get().uri("/diaries/{id}", othersDiary))
-                .bodyJson().extractingPath("$.status").isEqualTo(404);
-    }
+        MvcTestResult result = mvc.get().uri("/diaries/{id}", othersDiary).exchange();
 
-    @Test
-    void getDiaryById_diaryOfOtherUser_returnsExceptionResponseWithNotFoundTitle() {
-        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
-
-        assertThat(mvc.get().uri("/diaries/{id}", othersDiary))
-                .bodyJson().extractingPath("$.title").isEqualTo("NOT_FOUND");
-    }
-
-    @Test
-    void getDiaryById_diaryOfOtherUser_returnsDiaryNotFoundMessage() {
-        UUID othersDiary = createDiaryWithOwner(TestJwt.otherUser());
-
-        assertThat(mvc.get().uri("/diaries/{id}", othersDiary))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("Diary not found");
+        assertThat(List.of(json(result, "$.status"), json(result, "$.title"), json(result, "$.violations[0].message")))
+                .containsExactly("404", "NOT_FOUND", "Diary not found");
     }
 
     @Test
@@ -196,21 +161,14 @@ class InputEdgeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createDiaryPage_nestedBeyondMaxDepth_returnsBadRequest() {
+    void createDiaryPage_nestedBeyondMaxDepth_returnsBadRequestReportingNestingTooDeep() {
         UUID diaryId = createDiaryWithOwner();
 
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", diaryId).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"content\":" + nestedBlockquotes(49) + "}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+        MvcTestResult result = mvc.post().uri("/diaries/{diaryId}/pages", diaryId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":" + nestedBlockquotes(49) + "}").exchange();
 
-    @Test
-    void createDiaryPage_nestedBeyondMaxDepth_reportsNestingTooDeep() {
-        UUID diaryId = createDiaryWithOwner();
-
-        assertThat(mvc.post().uri("/diaries/{diaryId}/pages", diaryId).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"content\":" + nestedBlockquotes(49) + "}"))
-                .bodyJson().extractingPath("$.violations[0].message").asString().contains("nesting too deep");
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson()
+                .extractingPath("$.violations[0].message").asString().contains("nesting too deep");
     }
 
     @Test

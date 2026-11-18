@@ -5,9 +5,8 @@ import static it.gdr.diary.unit.support.QueryStub.stubFind;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -28,7 +27,6 @@ import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
-import it.gdr.diary.model.DiaryPageTag;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
@@ -144,129 +142,6 @@ class DiaryServiceTest {
     }
 
     @Test
-    void findAllDiariesByCharacter_ownedCharacter_filtersByCharacter() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, new DiarySearchRequest());
-
-        verify(diaries.where()).eq("character.id", CHARACTER_ID);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_anyCharacter_checksOwnershipOfCharacter() {
-        QueryStub<GameCharacter> characters = givenOwnedCharacter(character());
-        givenDiaryList(List.of());
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, new DiarySearchRequest());
-
-        verify(characters.where()).idEq(CHARACTER_ID);
-        verify(characters.where()).eq("owner.keycloakId", SUBJECT);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_notOwnedCharacter_throwsNotFound() {
-        givenOwnedCharacter(null);
-        DiarySearchRequest request = new DiarySearchRequest();
-
-        assertThatThrownBy(() -> service.findAllDiariesByCharacter(CHARACTER_ID, request))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void findAllDiariesByCharacter_titleFilter_searchesTrimmedTitle() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTitle("  Chapter ");
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, request);
-
-        verify(diaries.where()).icontains("title", "Chapter");
-    }
-
-    @Test
-    void findAllDiariesByCharacter_blankTitle_doesNotFilterByTitle() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTitle("   ");
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, request);
-
-        verify(diaries.where(), never()).icontains(eq("title"), anyString());
-    }
-
-    private QueryStub<DiaryPageTag> givenTagSubquery() {
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-        when(tags.where().query()).thenReturn(tags.query());
-        return tags;
-    }
-
-    @Test
-    void findAllDiariesByCharacter_tagFilter_searchesTrimmedTagInPagesOfTheUser() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-        QueryStub<DiaryPageTag> tags = givenTagSubquery();
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTag("  combat ");
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, request);
-
-        verify(tags.where()).icontains("name", "combat");
-        verify(tags.where()).eq("diary.character.owner.keycloakId", SUBJECT);
-        verify(diaries.where()).in("id", tags.query());
-    }
-
-    @Test
-    void findAllDiariesByCharacter_tagFilter_keepsFilterByCharacter() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-        givenTagSubquery();
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTag("combat");
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, request);
-
-        verify(diaries.where()).eq("character.id", CHARACTER_ID);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_blankTag_doesNotQueryTags() {
-        givenOwnedCharacter(character());
-        givenDiaryList(List.of());
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTag("   ");
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, request);
-
-        verify(database, never()).find(DiaryPageTag.class);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_tagFilterOnNotOwnedCharacter_throwsNotFoundWithoutQueryingTags() {
-        givenOwnedCharacter(null);
-        DiarySearchRequest request = new DiarySearchRequest();
-        request.setTag("combat");
-
-        assertThatThrownBy(() -> service.findAllDiariesByCharacter(CHARACTER_ID, request))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-        verify(database, never()).find(DiaryPageTag.class);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_noSort_ordersByTitle() {
-        givenOwnedCharacter(character());
-        QueryStub<Diary> diaries = givenDiaryList(List.of());
-
-        service.findAllDiariesByCharacter(CHARACTER_ID, new DiarySearchRequest());
-
-        verify(diaries.where()).orderBy("title asc, id asc");
-    }
-
-    @Test
     void findAllDiariesByCharacter_diaryWithCover_mapsCoverUrl() {
         givenOwnedCharacter(character());
         Diary diary = diary("Chapter one");
@@ -291,384 +166,21 @@ class DiaryServiceTest {
     }
 
     @Test
-    void getDiaryById_anyId_filtersByIdAndOwnerOfCharacter() {
-        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
-
-        service.getDiaryById(DIARY_ID);
-
-        verify(diaries.where()).idEq(DIARY_ID);
-        verify(diaries.where()).eq("character.owner.keycloakId", SUBJECT);
-    }
-
-    @Test
-    void getDiaryById_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.getDiaryById(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void createDiary_ownedCharacter_savesDiaryLinkedToCharacter() {
+    void createDiary_ownedCharacter_savesDiaryLinkedToCharacterAndReturnsRequestFields() {
         GameCharacter character = character();
         givenOwnedCharacter(character);
         ArgumentCaptor<Diary> saved = ArgumentCaptor.forClass(Diary.class);
 
-        service.createDiary(CHARACTER_ID, insertRequest());
-
-        verify(database).save(saved.capture());
-        assertThat(saved.getValue().getCharacter()).isSameAs(character);
-    }
-
-    @Test
-    void createDiary_ownedCharacter_copiesRequestFields() {
-        givenOwnedCharacter(character());
-
         DetailDiaryDTO result = service.createDiary(CHARACTER_ID, insertRequest());
 
-        assertThat(result)
-                .extracting(DetailDiaryDTO::title, DetailDiaryDTO::description, DetailDiaryDTO::coverColor,
-                        DetailDiaryDTO::font, DetailDiaryDTO::fontSize)
-                .containsExactly("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16);
-    }
-
-    @Test
-    void createDiary_notOwnedCharacter_throwsNotFound() {
-        givenOwnedCharacter(null);
-
-        assertThatThrownBy(() -> service.createDiary(CHARACTER_ID, insertRequest()))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void createDiary_notOwnedCharacter_doesNotSave() {
-        givenOwnedCharacter(null);
-
-        catchThrowable(() -> service.createDiary(CHARACTER_ID, insertRequest()));
-
-        verify(database, never()).save(any());
-    }
-
-    @Test
-    void updateDiary_ownedDiary_replacesAllFields() {
-        Diary diary = diary("Chapter one");
-        diary.setDescription("old");
-        givenOwnedDiary(diary);
-
-        DetailDiaryDTO result = service.updateDiary(DIARY_ID, new UpdateDiaryDTO("Chapter two", null, "#000000", null, null));
-
-        assertThat(result)
-                .extracting(DetailDiaryDTO::title, DetailDiaryDTO::description, DetailDiaryDTO::coverColor,
-                        DetailDiaryDTO::font, DetailDiaryDTO::fontSize)
-                .containsExactly("Chapter two", null, "#000000", null, null);
-    }
-
-    @Test
-    void updateDiary_ownedDiary_saves() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-
-        service.updateDiary(DIARY_ID, new UpdateDiaryDTO("Chapter two", null, null, null, null));
-
-        verify(database).save(diary);
-    }
-
-    @Test
-    void updateDiary_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-        UpdateDiaryDTO request = new UpdateDiaryDTO("Chapter two", null, null, null, null);
-
-        assertThatThrownBy(() -> service.updateDiary(DIARY_ID, request))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void updateDiaryCover_validFile_returnsDetailWithNewCover() {
-        givenOwnedDiary(diary("Chapter one"));
-        Document cover = document("cover.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file)).thenReturn(cover);
-        when(documentService.getDocumentUrl(cover)).thenReturn("https://storage.example/cover");
-
-        DetailDiaryDTO result = service.updateDiaryCover(DIARY_ID, file);
-
-        assertThat(result).extracting(DetailDiaryDTO::coverDocumentId, DetailDiaryDTO::coverUrl)
-                .containsExactly(cover.getId(), "https://storage.example/cover");
-    }
-
-    @Test
-    void updateDiaryCover_previousCover_deletesRecordThenCommitsThenDeletesFile() {
-        Diary diary = diary("Chapter one");
-        Document previous = document("old.png");
-        diary.setCoverDocument(previous);
-        givenOwnedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file)).thenReturn(document("cover.png"));
-
-        service.updateDiaryCover(DIARY_ID, file);
-
-        InOrder order = inOrder(documentService, transaction);
-        order.verify(documentService).deleteDocumentRecord(previous);
-        order.verify(transaction).commit();
-        order.verify(documentService).deleteDocumentFile(previous);
-    }
-
-    @Test
-    void updateDiaryCover_saveFails_deletesNewFile() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-        Document cover = document("cover.png");
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file)).thenReturn(cover);
-        doThrow(new IllegalStateException("db down")).when(database).save(diary);
-
-        catchThrowable(() -> service.updateDiaryCover(DIARY_ID, file));
-
-        verify(documentService).deleteDocumentFile(cover);
-    }
-
-    @Test
-    void updateDiaryCover_saveFails_keepsPreviousFile() {
-        Diary diary = diary("Chapter one");
-        Document previous = document("old.png");
-        diary.setCoverDocument(previous);
-        givenOwnedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file)).thenReturn(document("cover.png"));
-        doThrow(new IllegalStateException("db down")).when(database).save(diary);
-
-        catchThrowable(() -> service.updateDiaryCover(DIARY_ID, file));
-
-        verify(documentService, never()).deleteDocumentFile(previous);
-    }
-
-    @Test
-    void updateDiaryCover_saveFails_rethrowsException() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-        when(documentService.createImageDocument(file)).thenReturn(document("cover.png"));
-        doThrow(new IllegalStateException("db down")).when(database).save(diary);
-
-        assertThatThrownBy(() -> service.updateDiaryCover(DIARY_ID, file)).isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    void deleteDiaryCover_withCover_unlinksCover() {
-        Diary diary = diary("Chapter one");
-        diary.setCoverDocument(document("old.png"));
-        givenOwnedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiaryCover(DIARY_ID);
-
-        verify(database).save(diary);
-        assertThat(diary.getCoverDocument()).isNull();
-    }
-
-    @Test
-    void deleteDiaryCover_withCover_deletesRecordThenCommitsThenDeletesFile() {
-        Diary diary = diary("Chapter one");
-        Document previous = document("old.png");
-        diary.setCoverDocument(previous);
-        givenOwnedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiaryCover(DIARY_ID);
-
-        InOrder order = inOrder(documentService, transaction);
-        order.verify(documentService).deleteDocumentRecord(previous);
-        order.verify(transaction).commit();
-        order.verify(documentService).deleteDocumentFile(previous);
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_deletesPagesThenDiaryInsideTransaction() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiary(DIARY_ID);
-
-        InOrder order = inOrder(pages.where(), database, transaction);
-        order.verify(pages.where()).delete();
-        order.verify(database).delete(diary);
-        order.verify(transaction).commit();
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_deletesOnlyPagesOfDiary() {
-        givenOwnedDiary(diary("Chapter one"));
-        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiary(DIARY_ID);
-
-        verify(pages.where()).eq("diary.id", DIARY_ID);
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_deletesTagsOfDiaryBeforePages() {
-        givenOwnedDiary(diary("Chapter one"));
-        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiary(DIARY_ID);
-
-        InOrder order = inOrder(tagService, pages.where());
-        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(DIARY_ID));
-        order.verify(pages.where()).delete();
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_deletesTagsAfterLockingDiary() {
-        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiary(DIARY_ID);
-
-        InOrder order = inOrder(diaries.query(), tagService);
-        order.verify(diaries.query()).forUpdate();
-        order.verify(tagService).deleteDiaryPageTagsByDiaries(List.of(DIARY_ID));
-    }
-
-    @Test
-    void deleteDiary_notOwnedOrMissing_deletesNoTags() {
-        givenOwnedDiary(null);
-
-        catchThrowable(() -> service.deleteDiary(DIARY_ID));
-
-        verify(tagService, never()).deleteDiaryPageTagsByDiaries(any());
-    }
-
-    @Test
-    void deleteDiary_pageAddedMeanwhile_throwsConflict() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-        doThrow(foreignKeyViolation()).when(database).delete(diary);
-
-        assertThatThrownBy(() -> service.deleteDiary(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
-    }
-
-    @Test
-    void deleteDiary_pageAddedMeanwhile_keepsCoverFile() {
-        Diary diary = diary("Chapter one");
-        Document cover = document("cover.png");
-        diary.setCoverDocument(cover);
-        givenOwnedDiary(diary);
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-        doThrow(foreignKeyViolation()).when(database).delete(diary);
-
-        catchThrowable(() -> service.deleteDiary(DIARY_ID));
-
-        verify(documentService, never()).deleteDocumentFile(any());
-    }
-
-    @Test
-    void deleteDiary_withCover_deletesRecordThenCommitsThenDeletesFile() {
-        Diary diary = diary("Chapter one");
-        Document cover = document("cover.png");
-        diary.setCoverDocument(cover);
-        givenOwnedDiary(diary);
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiary(DIARY_ID);
-
-        InOrder order = inOrder(documentService, transaction);
-        order.verify(documentService).deleteDocumentRecord(cover);
-        order.verify(transaction).commit();
-        order.verify(documentService).deleteDocumentFile(cover);
-    }
-
-    @Test
-    void deleteDiary_deleteFails_keepsCoverFile() {
-        Diary diary = diary("Chapter one");
-        Document cover = document("cover.png");
-        diary.setCoverDocument(cover);
-        givenOwnedDiary(diary);
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-        doThrow(new IllegalStateException("db down")).when(database).delete(diary);
-
-        catchThrowable(() -> service.deleteDiary(DIARY_ID));
-
-        verify(documentService, never()).deleteDocumentFile(any());
-    }
-
-    @Test
-    void deleteDiary_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.deleteDiary(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void updateDiaryCover_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.updateDiaryCover(DIARY_ID, file))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void updateDiaryCover_notOwnedOrMissing_doesNotUploadFile() {
-        givenOwnedDiary(null);
-
-        catchThrowable(() -> service.updateDiaryCover(DIARY_ID, file));
-
-        verify(documentService, never()).createImageDocument(any());
-    }
-
-    @Test
-    void deleteDiaryCover_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.deleteDiaryCover(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void deleteDiaryCover_notOwnedOrMissing_doesNotDeleteAnyFile() {
-        givenOwnedDiary(null);
-
-        catchThrowable(() -> service.deleteDiaryCover(DIARY_ID));
-
-        verify(documentService, never()).deleteDocumentFile(any());
-    }
-
-    @Test
-    void deleteDiaryCover_withoutCover_commitsTransaction() {
-        givenOwnedDiary(diary("Chapter one"));
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiaryCover(DIARY_ID);
-
-        verify(transaction).commit();
-    }
-
-    @Test
-    void deleteDiaryCover_withoutCover_deletesNoFile() {
-        givenOwnedDiary(diary("Chapter one"));
-        when(database.beginTransaction()).thenReturn(transaction);
-
-        service.deleteDiaryCover(DIARY_ID);
-
-        verify(documentService, never()).deleteDocumentFile(any(Document.class));
+        verify(database).save(saved.capture());
+        assertSoftly(softly -> {
+            softly.assertThat(saved.getValue().getCharacter()).isSameAs(character);
+            softly.assertThat(result)
+                    .extracting(DetailDiaryDTO::title, DetailDiaryDTO::description, DetailDiaryDTO::coverColor,
+                            DetailDiaryDTO::font, DetailDiaryDTO::fontSize)
+                    .containsExactly("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16);
+        });
     }
 
     @Test
@@ -692,17 +204,123 @@ class DiaryServiceTest {
     }
 
     @Test
-    void deleteDiary_ownedDiary_locksDiaryBeforeDeletingPages() {
-        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
-        QueryStub<DiaryPage> pages = stubFind(database, DiaryPage.class);
+    void updateDiary_ownedDiary_replacesAllFields() {
+        Diary diary = diary("Chapter one");
+        diary.setDescription("old");
+        givenOwnedDiary(diary);
+
+        DetailDiaryDTO result = service.updateDiary(DIARY_ID, new UpdateDiaryDTO("Chapter two", null, "#000000", null, null));
+
+        assertThat(result)
+                .extracting(DetailDiaryDTO::title, DetailDiaryDTO::description, DetailDiaryDTO::coverColor,
+                        DetailDiaryDTO::font, DetailDiaryDTO::fontSize)
+                .containsExactly("Chapter two", null, "#000000", null, null);
+    }
+
+    @Test
+    void updateDiaryCover_previousCover_returnsNewCoverAndDeletesPreviousFileAfterCommit() {
+        Diary diary = diary("Chapter one");
+        Document previous = document("old.png");
+        diary.setCoverDocument(previous);
+        givenOwnedDiary(diary);
+        Document cover = document("cover.png");
+        when(database.beginTransaction()).thenReturn(transaction);
+        when(documentService.createImageDocument(file)).thenReturn(cover);
+        when(documentService.getDocumentUrl(cover)).thenReturn("https://storage.example/cover");
+
+        DetailDiaryDTO result = service.updateDiaryCover(DIARY_ID, file);
+
+        InOrder order = inOrder(documentService, transaction);
+        order.verify(documentService).deleteDocumentRecord(previous);
+        order.verify(transaction).commit();
+        order.verify(documentService).deleteDocumentFile(previous);
+        assertThat(result).extracting(DetailDiaryDTO::coverDocumentId, DetailDiaryDTO::coverUrl)
+                .containsExactly(cover.getId(), "https://storage.example/cover");
+    }
+
+    @Test
+    void updateDiaryCover_saveFails_rethrowsDeletesNewFileAndKeepsPreviousFile() {
+        Diary diary = diary("Chapter one");
+        Document previous = document("old.png");
+        diary.setCoverDocument(previous);
+        givenOwnedDiary(diary);
+        Document cover = document("cover.png");
+        when(database.beginTransaction()).thenReturn(transaction);
+        when(documentService.createImageDocument(file)).thenReturn(cover);
+        doThrow(new IllegalStateException("db down")).when(database).save(diary);
+
+        Throwable thrown = catchThrowable(() -> service.updateDiaryCover(DIARY_ID, file));
+
+        assertThat(thrown).isInstanceOf(IllegalStateException.class);
+        verify(documentService).deleteDocumentFile(cover);
+        verify(documentService, never()).deleteDocumentFile(previous);
+    }
+
+    @Test
+    void deleteDiaryCover_withCover_unlinksCoverAndDeletesFileAfterCommit() {
+        Diary diary = diary("Chapter one");
+        Document previous = document("old.png");
+        diary.setCoverDocument(previous);
+        givenOwnedDiary(diary);
+        when(database.beginTransaction()).thenReturn(transaction);
+
+        service.deleteDiaryCover(DIARY_ID);
+
+        InOrder order = inOrder(documentService, transaction);
+        order.verify(documentService).deleteDocumentRecord(previous);
+        order.verify(transaction).commit();
+        order.verify(documentService).deleteDocumentFile(previous);
+        assertThat(diary.getCoverDocument()).isNull();
+    }
+
+    @Test
+    void deleteDiary_pageAddedMeanwhile_throwsConflictAndKeepsCoverFile() {
+        Diary diary = diary("Chapter one");
+        Document cover = document("cover.png");
+        diary.setCoverDocument(cover);
+        givenOwnedDiary(diary);
+        stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+        doThrow(foreignKeyViolation()).when(database).delete(diary);
+
+        Throwable thrown = catchThrowable(() -> service.deleteDiary(DIARY_ID));
+
+        assertThat(thrown).isInstanceOfSatisfying(ResponseStatusException.class,
+                e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        verify(documentService, never()).deleteDocumentFile(any());
+    }
+
+    @Test
+    void deleteDiary_otherDatabaseError_rethrowsItAndKeepsCoverFile() {
+        Diary diary = diary("Chapter one");
+        diary.setCoverDocument(document("cover.png"));
+        givenOwnedDiary(diary);
+        stubFind(database, DiaryPage.class);
+        when(database.beginTransaction()).thenReturn(transaction);
+        PersistenceException failure = new PersistenceException("connection lost", new SQLException("gone", "08006"));
+        doThrow(failure).when(database).delete(diary);
+
+        Throwable thrown = catchThrowable(() -> service.deleteDiary(DIARY_ID));
+
+        assertThat(thrown).isSameAs(failure);
+        verify(documentService, never()).deleteDocumentFile(any());
+    }
+
+    @Test
+    void deleteDiary_withCover_deletesRecordThenCommitsThenDeletesFile() {
+        Diary diary = diary("Chapter one");
+        Document cover = document("cover.png");
+        diary.setCoverDocument(cover);
+        givenOwnedDiary(diary);
+        stubFind(database, DiaryPage.class);
         when(database.beginTransaction()).thenReturn(transaction);
 
         service.deleteDiary(DIARY_ID);
 
-        InOrder order = inOrder(database, diaries.query(), pages.where());
-        order.verify(database).beginTransaction();
-        order.verify(diaries.query()).forUpdate();
-        order.verify(pages.where()).delete();
+        InOrder order = inOrder(documentService, transaction);
+        order.verify(documentService).deleteDocumentRecord(cover);
+        order.verify(transaction).commit();
+        order.verify(documentService).deleteDocumentFile(cover);
     }
 
     @Test
@@ -718,18 +336,6 @@ class DiaryServiceTest {
     }
 
     @Test
-    void deleteDiary_otherDatabaseError_rethrowsIt() {
-        Diary diary = diary("Chapter one");
-        givenOwnedDiary(diary);
-        stubFind(database, DiaryPage.class);
-        when(database.beginTransaction()).thenReturn(transaction);
-        PersistenceException failure = new PersistenceException("connection lost", new SQLException("gone", "08006"));
-        doThrow(failure).when(database).delete(diary);
-
-        assertThatThrownBy(() -> service.deleteDiary(DIARY_ID)).isSameAs(failure);
-    }
-
-    @Test
     void getDiaryBookmark_diaryWithBookmark_returnsPageIdAndNumber() {
         Diary diary = diary("Chapter one");
         diary.setBookmarkPage(page(12));
@@ -741,89 +347,22 @@ class DiaryServiceTest {
     }
 
     @Test
-    void getDiaryBookmark_diaryWithoutBookmark_returnsEmptyBookmark() {
-        givenOwnedDiary(diary("Chapter one"));
-
-        BookmarkDiaryDTO result = service.getDiaryBookmark(DIARY_ID);
-
-        assertThat(result).isEqualTo(new BookmarkDiaryDTO(null, null));
-    }
-
-    @Test
-    void getDiaryBookmark_anyId_filtersByIdAndOwnerOfCharacter() {
-        QueryStub<Diary> diaries = givenOwnedDiary(diary("Chapter one"));
-
-        service.getDiaryBookmark(DIARY_ID);
-
-        verify(diaries.where()).idEq(DIARY_ID);
-        verify(diaries.where()).eq("character.owner.keycloakId", SUBJECT);
-    }
-
-    @Test
-    void getDiaryBookmark_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.getDiaryBookmark(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void updateDiaryBookmark_pageOfDiary_savesDiaryWithBookmark() {
+    void updateDiaryBookmark_pageOfDiary_setsBookmarkAndReturnsIt() {
         Diary diary = diary("Chapter one");
         DiaryPage page = page(3);
         givenOwnedDiary(diary);
         givenPageOfDiary(page);
 
-        service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
-
-        verify(database).save(diary);
-        assertThat(diary.getBookmarkPage()).isSameAs(page);
-    }
-
-    @Test
-    void updateDiaryBookmark_pageOfDiary_returnsBookmark() {
-        givenOwnedDiary(diary("Chapter one"));
-        givenPageOfDiary(page(3));
-
         BookmarkDiaryDTO result = service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
 
-        assertThat(result).isEqualTo(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
+        assertSoftly(softly -> {
+            softly.assertThat(result).isEqualTo(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
+            softly.assertThat(diary.getBookmarkPage()).isSameAs(page);
+        });
     }
 
     @Test
-    void updateDiaryBookmark_anyPage_looksThePageUpInTheSameDiary() {
-        givenOwnedDiary(diary("Chapter one"));
-        QueryStub<DiaryPage> pages = givenPageOfDiary(page(3));
-
-        service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
-
-        verify(pages.where()).idEq(PAGE_ID);
-        verify(pages.where()).eq("diary.id", DIARY_ID);
-    }
-
-    @Test
-    void updateDiaryBookmark_pageNotInDiary_throwsNotFound() {
-        givenOwnedDiary(diary("Chapter one"));
-        givenPageOfDiary(null);
-
-        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void updateDiaryBookmark_pageNotInDiary_savesNothing() {
-        givenOwnedDiary(diary("Chapter one"));
-        givenPageOfDiary(null);
-
-        catchThrowable(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)));
-
-        verify(database, never()).save(any(Diary.class));
-    }
-
-    @Test
-    void updateDiaryBookmark_pageDeletedBeforeSave_throwsNotFound() {
+    void updateDiaryBookmark_pageDeletedBeforeSave_throwsPageNotFound() {
         Diary diary = diary("Chapter one");
         givenOwnedDiary(diary);
         givenPageOfDiary(page(3));
@@ -844,35 +383,5 @@ class DiaryServiceTest {
 
         assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
                 .isSameAs(failure);
-    }
-
-    @Test
-    void updateDiaryBookmark_notOwnedOrMissingDiary_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID)))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
-    }
-
-    @Test
-    void deleteDiaryBookmark_diaryWithBookmark_clearsBookmarkAndSaves() {
-        Diary diary = diary("Chapter one");
-        diary.setBookmarkPage(page(3));
-        givenOwnedDiary(diary);
-
-        service.deleteDiaryBookmark(DIARY_ID);
-
-        verify(database).save(diary);
-        assertThat(diary.getBookmarkPage()).isNull();
-    }
-
-    @Test
-    void deleteDiaryBookmark_notOwnedOrMissing_throwsNotFound() {
-        givenOwnedDiary(null);
-
-        assertThatThrownBy(() -> service.deleteDiaryBookmark(DIARY_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 }

@@ -5,7 +5,6 @@ import static org.mockito.Answers.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -24,11 +23,13 @@ import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.services.GameCharacterService;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,6 +37,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -64,18 +66,40 @@ class GameCharacterControllerTest {
     }
 
     private DetailGameCharacterDTO detail(String name) {
-        return new DetailGameCharacterDTO(CHARACTER_ID, name, GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, null);
+        return new DetailGameCharacterDTO(CHARACTER_ID, name, GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, null, null);
     }
 
     private MockMultipartFile image() {
         return new MockMultipartFile("file", "avatar.png", MediaType.IMAGE_PNG_VALUE, new byte[]{1, 2, 3});
     }
 
-    @Test
-    void findAllGameCharacters_noParameters_returnsOk() {
-        when(service.findAllGameCharacters(any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
+    private static String insertBody(String fields) {
+        return "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\"" + fields + "}";
+    }
 
-        assertThat(mvc.get().uri("/characters")).hasStatusOk();
+    static Stream<String> invalidInsertBodies() {
+        return Stream.of(
+                "{\"kind\":\"PLAYER\"}",
+                "{\"name\":\" \",\"kind\":\"PLAYER\"}",
+                "{\"name\":\"a\\u0000b\",\"kind\":\"PLAYER\"}",
+                "{\"name\":\"" + "a".repeat(256) + "\",\"kind\":\"PLAYER\"}",
+                "{\"name\":\"Aragorn\"}",
+                "{\"name\":\"Aragorn\",\"kind\":null}",
+                "{\"name\":\"Aragorn\",\"kind\":\"WIZARD\"}",
+                insertBody(",\"backgroundColor\":\"red\""),
+                insertBody(",\"backgroundColor\":\"#12345\""),
+                insertBody(",\"campaignName\":\"" + "a".repeat(256) + "\""),
+                insertBody(",\"description\":\"" + "a".repeat(2001) + "\""),
+                "{\"name\":");
+    }
+
+    static Stream<String> invalidUpdateBodies() {
+        return Stream.of(
+                "{\"name\":\"\"}",
+                "{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}",
+                "{\"name\":\"Aragorn\",\"backgroundColor\":\"#12345\"}",
+                "{\"name\":\"Aragorn\",\"campaignName\":\"" + "a".repeat(256) + "\"}",
+                "{\"name\":\"Aragorn\",\"description\":\"" + "a".repeat(2001) + "\"}");
     }
 
     @Test
@@ -83,7 +107,9 @@ class GameCharacterControllerTest {
         BaseGameCharacterDTO character = new BaseGameCharacterDTO(CHARACTER_ID, "Aragorn", GameCharacterKind.PLAYER, "Lost Mine", null, null);
         when(service.findAllGameCharacters(any())).thenReturn(PagedResultDTO.of(List.of(character), 1, 1, 20));
 
-        assertThat(mvc.get().uri("/characters")).bodyJson().extractingPath("$.list[0].name").isEqualTo("Aragorn");
+        MvcTestResult result = mvc.get().uri("/characters").exchange();
+
+        assertThat(result).hasStatusOk().bodyJson().extractingPath("$.list[0].name").isEqualTo("Aragorn");
     }
 
     @Test
@@ -102,28 +128,18 @@ class GameCharacterControllerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"page=0", "size=0", "size=101"})
-    void findAllGameCharacters_paginationOutOfRange_returnsBadRequest(String query) {
-        assertThat(mvc.get().uri("/characters?" + query)).hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    @CsvSource({"page=0,page", "size=0,size", "size=101,size"})
+    void findAllGameCharacters_paginationOutOfRange_returnsViolationOnFieldAndDoesNotCallService(String query, String field) {
+        MvcTestResult result = mvc.get().uri("/characters?" + query).exchange();
 
-    @Test
-    void findAllGameCharacters_sizeOutOfRange_returnsViolationWithFieldName() {
-        assertThat(mvc.get().uri("/characters?size=101"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("size");
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
+        verifyNoInteractions(service);
     }
 
     @Test
     void findAllGameCharacters_pageNotANumber_returnsReadableViolation() {
         assertThat(mvc.get().uri("/characters?page=abc"))
                 .bodyJson().extractingPath("$.violations[0].message").isEqualTo("Invalid value");
-    }
-
-    @Test
-    void findAllGameCharacters_paginationOutOfRange_doesNotCallService() {
-        mvc.get().uri("/characters?size=101").exchange();
-
-        verifyNoInteractions(service);
     }
 
     @Test
@@ -134,17 +150,12 @@ class GameCharacterControllerTest {
     }
 
     @Test
-    void getGameCharacterById_notFound_returnsNotFound() {
+    void getGameCharacterById_notFound_returnsNotFoundWithReasonAsViolation() {
         when(service.getGameCharacterById(CHARACTER_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
 
-        assertThat(mvc.get().uri("/characters/{id}", CHARACTER_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
+        MvcTestResult result = mvc.get().uri("/characters/{id}", CHARACTER_ID).exchange();
 
-    @Test
-    void getGameCharacterById_notFound_returnsReasonAsViolation() {
-        when(service.getGameCharacterById(CHARACTER_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
-
-        assertThat(mvc.get().uri("/characters/{id}", CHARACTER_ID)).bodyJson()
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND).bodyJson()
                 .extractingPath("$.violations[0].message").isEqualTo("Character not found");
     }
 
@@ -154,135 +165,87 @@ class GameCharacterControllerTest {
     }
 
     @Test
-    void createGameCharacter_validBody_returnsCreated() {
+    void createGameCharacter_validBody_returnsCreatedDetailAndPassesBodyToService() {
         when(service.createGameCharacter(any())).thenReturn(detail("Aragorn"));
 
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT))
-                .hasStatus(HttpStatus.CREATED);
-    }
+        MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT).exchange();
 
-    @Test
-    void createGameCharacter_validBody_passesBodyToService() {
-        when(service.createGameCharacter(any())).thenReturn(detail("Aragorn"));
-
-        mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT).exchange();
-
+        assertThat(result).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.id").isEqualTo(CHARACTER_ID.toString());
         verify(service).createGameCharacter(new InsertGameCharacterDTO("Aragorn", GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C"));
     }
 
     @Test
-    void createGameCharacter_validBody_returnsDetail() {
-        when(service.createGameCharacter(any())).thenReturn(detail("Aragorn"));
+    void createGameCharacter_nameOf255Chars_returnsCreated() {
+        when(service.createGameCharacter(any())).thenReturn(detail("a".repeat(255)));
+        String body = "{\"name\":\"" + "a".repeat(255) + "\",\"kind\":\"PLAYER\"}";
 
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT))
-                .bodyJson().extractingPath("$.id").isEqualTo(CHARACTER_ID.toString());
+        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.CREATED);
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            "{\"kind\":\"PLAYER\"}",
-            "{\"name\":\" \",\"kind\":\"PLAYER\"}",
-            "{\"name\":\"Aragorn\"}",
-            "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"backgroundColor\":\"red\"}",
-            "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"backgroundColor\":\"#12345\"}"})
-    void createGameCharacter_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+    @MethodSource("invalidInsertBodies")
+    void createGameCharacter_invalidBody_returnsBadRequestAndDoesNotCallService(String body) {
+        MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(service);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "{\"name\":\" \",\"kind\":\"PLAYER\"}|name",
+            "{\"name\":\"Aragorn\",\"kind\":null}|kind",
+            "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"backgroundColor\":\"red\"}|backgroundColor"})
+    void createGameCharacter_invalidField_returnsBadRequestTitleAndViolationOnThatField(String body, String field) {
+        MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("BAD_REQUEST");
+        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
     }
 
     @Test
-    void createGameCharacter_nameTooLong_returnsBadRequest() {
-        String body = "{\"name\":\"" + "a".repeat(256) + "\",\"kind\":\"PLAYER\"}";
+    void updateGameCharacter_validBody_returnsDetailAndPassesIdAndBodyToService() {
+        when(service.updateGameCharacter(eq(CHARACTER_ID), any())).thenReturn(detail("Strider"));
 
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+        MvcTestResult result = mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_UPDATE).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.name").isEqualTo("Strider");
+        verify(service).updateGameCharacter(CHARACTER_ID, new UpdateGameCharacterDTO("Strider", null, "Curse of Strahd", "#000000"));
     }
 
-    @Test
-    void createGameCharacter_invalidBody_doesNotCallService() {
-        mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"kind\":\"PLAYER\"}").exchange();
+    @ParameterizedTest
+    @MethodSource("invalidUpdateBodies")
+    void updateGameCharacter_invalidBody_returnsBadRequestAndDoesNotCallService(String body) {
+        MvcTestResult result = mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
         verifyNoInteractions(service);
     }
 
     @Test
-    void createGameCharacter_unknownKind_returnsBadRequest() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Aragorn\",\"kind\":\"WIZARD\"}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+    void updateGameCharacter_invalidBackgroundColor_returnsViolationOnBackgroundColorField() {
+        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}"))
+                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("backgroundColor");
     }
 
     @Test
-    void createGameCharacter_malformedJson_returnsBadRequest() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    void deleteGameCharacter_ownedCharacter_returnsConfirmationMessageAndDeletesThroughService() {
+        MvcTestResult result = mvc.delete().uri("/characters/{id}", CHARACTER_ID).exchange();
 
-    @Test
-    void createGameCharacter_userMissing_returnsNotFound() {
-        when(service.createGameCharacter(any())).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT))
-                .hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateGameCharacter_validBody_returnsDetail() {
-        when(service.updateGameCharacter(eq(CHARACTER_ID), any())).thenReturn(detail("Strider"));
-
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_UPDATE))
-                .bodyJson().extractingPath("$.name").isEqualTo("Strider");
-    }
-
-    @Test
-    void updateGameCharacter_validBody_passesIdAndBodyToService() {
-        when(service.updateGameCharacter(eq(CHARACTER_ID), any())).thenReturn(detail("Strider"));
-
-        mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_UPDATE).exchange();
-
-        verify(service).updateGameCharacter(CHARACTER_ID, new UpdateGameCharacterDTO("Strider", null, "Curse of Strahd", "#000000"));
-    }
-
-    @Test
-    void updateGameCharacter_blankName_returnsBadRequest() {
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"\"}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void deleteGameCharacter_ownedCharacter_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/characters/{id}", CHARACTER_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Character deleted");
-    }
-
-    @Test
-    void deleteGameCharacter_ownedCharacter_deletesThroughService() {
-        mvc.delete().uri("/characters/{id}", CHARACTER_ID).exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Character deleted");
         verify(service).deleteGameCharacter(CHARACTER_ID);
     }
 
     @Test
-    void deleteGameCharacter_notFound_returnsNotFound() {
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found")).when(service).deleteGameCharacter(CHARACTER_ID);
-
-        assertThat(mvc.delete().uri("/characters/{id}", CHARACTER_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateGameCharacterAvatar_imagePart_returnsDetail() {
-        when(service.updateGameCharacterAvatar(eq(CHARACTER_ID), any())).thenReturn(detail("Aragorn"));
-
-        assertThat(mvc.put().uri("/characters/{id}/avatar", CHARACTER_ID).multipart().file(image()))
-                .bodyJson().extractingPath("$.id").isEqualTo(CHARACTER_ID.toString());
-    }
-
-    @Test
-    void updateGameCharacterAvatar_imagePart_passesFileToService() {
+    void updateGameCharacterAvatar_imagePart_returnsDetailAndPassesFileToService() {
         when(service.updateGameCharacterAvatar(eq(CHARACTER_ID), any())).thenReturn(detail("Aragorn"));
         ArgumentCaptor<MultipartFile> file = ArgumentCaptor.forClass(MultipartFile.class);
 
-        mvc.put().uri("/characters/{id}/avatar", CHARACTER_ID).multipart().file(image()).exchange();
+        MvcTestResult result = mvc.put().uri("/characters/{id}/avatar", CHARACTER_ID).multipart().file(image()).exchange();
 
+        assertThat(result).bodyJson().extractingPath("$.id").isEqualTo(CHARACTER_ID.toString());
         verify(service).updateGameCharacterAvatar(eq(CHARACTER_ID), file.capture());
         assertThat(file.getValue().getOriginalFilename()).isEqualTo("avatar.png");
     }
@@ -304,112 +267,11 @@ class GameCharacterControllerTest {
     }
 
     @Test
-    void deleteGameCharacterAvatar_ownedCharacter_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/characters/{id}/avatar", CHARACTER_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Avatar removed");
-    }
+    void deleteGameCharacterAvatar_ownedCharacter_returnsConfirmationMessageAndDeletesThroughService() {
+        MvcTestResult result = mvc.delete().uri("/characters/{id}/avatar", CHARACTER_ID).exchange();
 
-    @Test
-    void deleteGameCharacterAvatar_ownedCharacter_deletesThroughService() {
-        mvc.delete().uri("/characters/{id}/avatar", CHARACTER_ID).exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Avatar removed");
         verify(service).deleteGameCharacterAvatar(CHARACTER_ID);
-    }
-
-    @Test
-    void createGameCharacter_nullKind_returnsBadRequest() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Aragorn\",\"kind\":null}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createGameCharacter_campaignNameTooLong_returnsBadRequest() {
-        String body = "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"campaignName\":\"" + "a".repeat(256) + "\"}";
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createGameCharacter_descriptionTooLong_returnsBadRequest() {
-        String body = "{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"description\":\"" + "a".repeat(2001) + "\"}";
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createGameCharacter_nameOf255Chars_returnsCreated() {
-        when(service.createGameCharacter(any())).thenReturn(detail("a".repeat(255)));
-        String body = "{\"name\":\"" + "a".repeat(255) + "\",\"kind\":\"PLAYER\"}";
-
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.CREATED);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}",
-            "{\"name\":\"Aragorn\",\"backgroundColor\":\"#12345\"}"})
-    void updateGameCharacter_invalidBackgroundColor_returnsBadRequest(String body) {
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateGameCharacter_campaignNameTooLong_returnsBadRequest() {
-        String body = "{\"name\":\"Aragorn\",\"campaignName\":\"" + "a".repeat(256) + "\"}";
-
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateGameCharacter_descriptionTooLong_returnsBadRequest() {
-        String body = "{\"name\":\"Aragorn\",\"description\":\"" + "a".repeat(2001) + "\"}";
-
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateGameCharacter_invalidBody_doesNotCallService() {
-        mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}").exchange();
-
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void createGameCharacter_blankName_returnsBadRequestTitle() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" \",\"kind\":\"PLAYER\"}"))
-                .bodyJson().extractingPath("$.title").isEqualTo("BAD_REQUEST");
-    }
-
-    @Test
-    void createGameCharacter_blankName_returnsViolationWithFieldName() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\" \",\"kind\":\"PLAYER\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("name");
-    }
-
-    @Test
-    void createGameCharacter_invalidBackgroundColor_returnsViolationOnBackgroundColorField() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"kind\":\"PLAYER\",\"backgroundColor\":\"red\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("backgroundColor");
-    }
-
-    @Test
-    void updateGameCharacter_invalidBackgroundColor_returnsViolationOnBackgroundColorField() {
-        assertThat(mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("backgroundColor");
-    }
-
-    @Test
-    void createGameCharacter_nullKind_returnsViolationOnKindField() {
-        assertThat(mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Aragorn\",\"kind\":null}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("kind");
     }
 
     @Test

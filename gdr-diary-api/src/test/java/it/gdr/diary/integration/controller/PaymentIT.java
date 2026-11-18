@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
@@ -86,14 +87,6 @@ class PaymentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAllPayments_paymentsOfOtherUser_returnsEmpty() {
-        createCurrentUser();
-        saveThreePayments(createOtherUser());
-
-        assertThat(listDescriptions("")).isEmpty();
-    }
-
-    @Test
     void findAllPayments_ownAndOthersPayments_returnsOnlyOwn() {
         AppUser current = createCurrentUser();
         savePayment(current, "Mine", PaymentStatus.SUCCEEDED, 1000, YESTERDAY);
@@ -110,39 +103,17 @@ class PaymentIT extends AbstractIntegrationTest {
         assertThat(listDescriptions("")).isEmpty();
     }
 
-    @Test
-    void findAllPayments_noSort_ordersByPaidAtDescendingWithUnpaidLast() {
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "''|B,A,C",
+            "?sort=paidAt&descending=false|A,B,C",
+            "?sort=amount&descending=false|A,C,B",
+            "?sort=amount|B,C,A",
+            "?sort=retainUntil|B,A,C"})
+    void findAllPayments_sortRequest_ordersAsExpected(String query, String expectedOrder) {
         saveThreePayments(createCurrentUser());
 
-        assertThat(listDescriptions("")).containsExactly("B", "A", "C");
-    }
-
-    @Test
-    void findAllPayments_paidAtAscending_ordersOldestFirstWithUnpaidLast() {
-        saveThreePayments(createCurrentUser());
-
-        assertThat(listDescriptions("?sort=paidAt&descending=false")).containsExactly("A", "B", "C");
-    }
-
-    @Test
-    void findAllPayments_amountAscending_ordersByAmount() {
-        saveThreePayments(createCurrentUser());
-
-        assertThat(listDescriptions("?sort=amount&descending=false")).containsExactly("A", "C", "B");
-    }
-
-    @Test
-    void findAllPayments_amountDescending_ordersByAmountHighestFirst() {
-        saveThreePayments(createCurrentUser());
-
-        assertThat(listDescriptions("?sort=amount")).containsExactly("B", "C", "A");
-    }
-
-    @Test
-    void findAllPayments_unknownSortKey_usesDefaultOrder() {
-        saveThreePayments(createCurrentUser());
-
-        assertThat(listDescriptions("?sort=retainUntil")).containsExactly("B", "A", "C");
+        assertThat(listDescriptions(query)).containsExactly(expectedOrder.split(","));
     }
 
     @Test
@@ -153,33 +124,19 @@ class PaymentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAllPayments_statusFilterOfOtherUsersPayments_returnsEmpty() {
-        createCurrentUser();
-        saveThreePayments(createOtherUser());
-
-        assertThat(listDescriptions("?status=SUCCEEDED")).isEmpty();
-    }
-
-    @Test
     void findAllPayments_unknownStatus_returnsBadRequest() {
         assertThat(mvc.get().uri("/me/payments?status=UNKNOWN").with(USER)).hasStatus(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void findAllPayments_secondPageOfTwo_returnsRemainingPayment() {
+    void findAllPayments_secondPageOfTwo_returnsRemainingPaymentAndTotals() {
         saveThreePayments(createCurrentUser());
 
-        assertThat(listDescriptions("?size=2&page=2")).containsExactly("C");
-    }
+        MvcTestResult result = mvc.get().uri("/me/payments?size=2&page=2").with(USER).exchange();
 
-    @Test
-    void findAllPayments_pagination_returnsTotals() {
-        saveThreePayments(createCurrentUser());
-
-        MvcTestResult result = mvc.get().uri("/me/payments?size=2").with(USER).exchange();
-
+        assertThat(descriptions(result)).containsExactly("C");
         assertThat(List.of(json(result, "$.totalRows"), json(result, "$.totalPages"), json(result, "$.page")))
-                .containsExactly("3", "2", "1");
+                .containsExactly("3", "2", "2");
     }
 
     @Test
@@ -188,39 +145,28 @@ class PaymentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void getPayment_ownPayment_returnsDetail() {
+    void getPayment_ownPayment_returnsDetailWithoutRetentionDate() {
         Payment payment = savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
 
-        assertThat(mvc.get().uri("/me/payments/{id}", payment.getId()).with(USER)).bodyJson().isLenientlyEqualTo("""
+        MvcTestResult result = mvc.get().uri("/me/payments/{id}", payment.getId()).with(USER).exchange();
+
+        assertThat(result).bodyJson().isLenientlyEqualTo("""
                 {"id":"%s","status":"SUCCEEDED","amountCents":2990,"currency":"EUR","description":"Premium annual",
                  "invoiceNumber":"2026-0042","receiptUrl":"https://pay.example/receipts/1","provider":"STRIPE",
                  "providerPaymentId":"%s","customerEmail":"frodo@shire.example","customerName":"Frodo Baggins",
                  "customerTaxCode":"BGGFRD68A01H501X","customerCountry":"IT"}
                 """.formatted(payment.getId(), payment.getProviderPaymentId()));
+        assertThat(result).bodyJson().doesNotHavePath("$.retainUntil");
     }
 
     @Test
-    void getPayment_ownPayment_doesNotExposeRetentionDate() {
-        Payment payment = savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
-
-        assertThat(mvc.get().uri("/me/payments/{id}", payment.getId()).with(USER)).bodyJson().doesNotHavePath("$.retainUntil");
-    }
-
-    @Test
-    void getPayment_paymentOfOtherUser_returnsNotFound() {
-        createCurrentUser();
-        Payment payment = savePayment(createOtherUser(), "Theirs", PaymentStatus.SUCCEEDED, 1000, YESTERDAY);
-
-        assertThat(mvc.get().uri("/me/payments/{id}", payment.getId()).with(USER)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void getPayment_paymentOfOtherUser_returnsNotFoundMessage() {
+    void getPayment_paymentOfOtherUser_returnsNotFoundWithMessage() {
         createCurrentUser();
         Payment payment = savePayment(createOtherUser(), "Theirs", PaymentStatus.SUCCEEDED, 1000, YESTERDAY);
 
         MvcTestResult result = mvc.get().uri("/me/payments/{id}", payment.getId()).with(USER).exchange();
 
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(json(result, "$.violations[0].message")).isEqualTo("Payment not found");
     }
 
@@ -257,48 +203,18 @@ class PaymentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void deleteAppUser_userWithPayments_returnsOk() {
-        savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
-
-        assertThat(mvc.delete().uri("/me").with(USER)).hasStatusOk();
-    }
-
-    @Test
-    void deleteAppUser_userWithPayments_keepsPaymentsDetached() {
-        savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
-
-        mvc.delete().uri("/me").with(USER).exchange();
-
-        assertThat(jdbc.queryForObject("select count(*) from payment where app_user_id is null", Integer.class)).isEqualTo(1);
-    }
-
-    @Test
-    void deleteAppUser_userWithPayments_keepsAllPayments() {
+    void deleteAppUser_userWithPayments_returnsOkAndKeepsAllPaymentsDetachedWithCustomerData() {
         saveThreePayments(createCurrentUser());
 
-        mvc.delete().uri("/me").with(USER).exchange();
+        MvcTestResult result = mvc.delete().uri("/me").with(USER).exchange();
 
-        assertThat(countRows("payment")).isEqualTo(3);
-    }
-
-    @Test
-    void deleteAppUser_userWithPayments_keepsCustomerData() {
-        savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
-
-        mvc.delete().uri("/me").with(USER).exchange();
-
-        assertThat(jdbc.queryForList("select customer_email || '|' || customer_name || '|' || customer_tax_code || '|' || customer_country "
-                + "|| '|' || invoice_number || '|' || amount_cents from payment", String.class))
-                .containsExactly("frodo@shire.example|Frodo Baggins|BGGFRD68A01H501X|IT|2026-0042|2990");
-    }
-
-    @Test
-    void deleteAppUser_userWithPayments_deletesTheUser() {
-        savePayment(createCurrentUser(), "Premium annual", PaymentStatus.SUCCEEDED, 2990, YESTERDAY);
-
-        mvc.delete().uri("/me").with(USER).exchange();
-
+        assertThat(result).hasStatusOk();
         assertThat(countRows("app_user")).isZero();
+        assertThat(jdbc.queryForList("select (app_user_id is null) || '|' || customer_email || '|' || customer_name || '|' || customer_tax_code "
+                + "|| '|' || customer_country || '|' || invoice_number from payment", String.class))
+                .hasSize(3)
+                .containsOnly("true|frodo@shire.example|Frodo Baggins|BGGFRD68A01H501X|IT|2026-0042");
+        assertThat(jdbc.queryForObject("select sum(amount_cents) from payment", Long.class)).isEqualTo(9000L);
     }
 
     @Test

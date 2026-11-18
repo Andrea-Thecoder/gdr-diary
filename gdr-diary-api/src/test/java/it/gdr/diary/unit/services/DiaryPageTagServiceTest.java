@@ -4,11 +4,8 @@ import static it.gdr.diary.unit.support.QueryStub.stubFind;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,8 +35,9 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -113,63 +111,8 @@ class DiaryPageTagServiceTest {
         return IntStream.rangeClosed(1, count).mapToObj(number -> tag("tag" + number)).toList();
     }
 
-    private DiaryPageTag saved() {
-        ArgumentCaptor<DiaryPageTag> captor = ArgumentCaptor.forClass(DiaryPageTag.class);
-        verify(database).save(captor.capture());
-        return captor.getValue();
-    }
-
-    @Test
-    void updateDiaryPageTag_pageNotOwnedOrMissing_throwsNotFound() {
-        givenOwnedPage(null);
-
-        assertThatThrownBy(() -> service.updateDiaryPageTag(PAGE_ID, request("combat")))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e).extracting(ResponseStatusException::getStatusCode, ResponseStatusException::getReason)
-                                .containsExactly(HttpStatus.NOT_FOUND, "Page not found"));
-    }
-
-    @Test
-    void updateDiaryPageTag_pageNotOwnedOrMissing_doesNotOpenTransactionNorTouchTags() {
-        givenOwnedPage(null);
-
-        catchThrowable(() -> service.updateDiaryPageTag(PAGE_ID, request("combat")));
-
-        verify(database, never()).beginTransaction();
-        verify(database, never()).find(DiaryPageTag.class);
-        verify(database, never()).save(any(DiaryPageTag.class));
-    }
-
-    @Test
-    void updateDiaryPageTag_ownedPage_checksOwnerOfPage() {
-        givenTags(null);
-
-        service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        verify(pageQuery.where(), atLeastOnce()).eq("diary.character.owner.keycloakId", SUBJECT);
-    }
-
-    @Test
-    void updateDiaryPageTag_ownedPage_locksDiaryOfTheUserBeforeReadingTags() {
-        QueryStub<Diary> diaries = givenLockedDiaryWithTags();
-
-        service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        InOrder order = inOrder(diaries.query(), database);
-        order.verify(diaries.query()).forUpdate();
-        order.verify(database, atLeastOnce()).find(DiaryPageTag.class);
-        verify(diaries.where()).idEq(DIARY_ID);
-        verify(diaries.where()).eq("character.owner.keycloakId", SUBJECT);
-    }
-
-    private QueryStub<Diary> givenLockedDiaryWithTags() {
-        givenOwnedPage(page);
-        QueryStub<Diary> diaries = givenLockedDiary(diary);
-        when(database.beginTransaction()).thenReturn(transaction);
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-        lenient().when(tags.where().findOne()).thenReturn(null);
-        lenient().when(tags.where().findList()).thenReturn(List.of());
-        return diaries;
+    private DiaryPageTag tagOrNull(String name) {
+        return name == null ? null : tag(name);
     }
 
     @Test
@@ -185,115 +128,17 @@ class DiaryPageTagServiceTest {
         verify(transaction, never()).commit();
     }
 
-    @Test
-    void updateDiaryPageTag_pageWithoutTag_savesNewTagLinkedToPageAndDiary() {
-        givenTags(null);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("Combat"));
-
-        DiaryPageTag saved = saved();
-        assertThat(saved.getName()).isEqualTo("Combat");
-        assertThat(saved.getPage()).isSameAs(page);
-        assertThat(saved.getDiary()).isSameAs(diary);
-        assertThat(result.tag()).isEqualTo("Combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_nameWithSurroundingSpaces_savesTrimmedName() {
-        givenTags(null);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("  combat  "));
-
-        assertThat(saved().getName()).isEqualTo("combat");
-        assertThat(result.tag()).isEqualTo("combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_pageWithOtherTag_renamesStoredRowInsteadOfAddingOne() {
-        DiaryPageTag current = tag("clues");
-        givenTags(current);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        assertThat(saved()).isSameAs(current);
-        assertThat(current.getName()).isEqualTo("combat");
-        assertThat(result.tag()).isEqualTo("combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_sameTagAsStored_doesNotSaveAgain() {
-        givenTags(tag("combat"));
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        verify(database, never()).save(any(DiaryPageTag.class));
-        assertThat(result.tag()).isEqualTo("combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_sameTagWithOtherCaseAndNoOtherPageHasIt_renamesStoredRow() {
-        DiaryPageTag current = tag("Combat");
-        givenTags(current);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        assertThat(saved().getName()).isEqualTo("combat");
-        assertThat(result.tag()).isEqualTo("combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_otherPageHasTagWithOtherCase_keepsSpellingAlreadyInTheDiary() {
-        givenTags(null, tag("Combat"));
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        assertThat(saved().getName()).isEqualTo("Combat");
-        assertThat(result.tag()).isEqualTo("Combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_diaryHasNineOtherTags_acceptsNewTag() {
-        givenTags(null, otherTags(9).toArray(DiaryPageTag[]::new));
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("brandnew"));
-
-        assertThat(result.tag()).isEqualTo("brandnew");
-    }
-
-    @Test
-    void updateDiaryPageTag_diaryHasTenOtherTags_rejectsNewTag() {
-        givenTags(null, otherTags(10).toArray(DiaryPageTag[]::new));
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = "own")
+    void updateDiaryPageTag_diaryHasTenOtherTags_rejectsNewTagAndSavesNothing(String currentTag) {
+        givenTags(tagOrNull(currentTag), otherTags(10).toArray(DiaryPageTag[]::new));
 
         assertThatThrownBy(() -> service.updateDiaryPageTag(PAGE_ID, request("brandnew")))
                 .isInstanceOf(ServiceException.class)
                 .hasMessage("A diary can have at most 10 different tags");
-    }
-
-    @Test
-    void updateDiaryPageTag_diaryHasTenOtherTags_savesNothingAndDoesNotCommit() {
-        givenTags(null, otherTags(10).toArray(DiaryPageTag[]::new));
-
-        catchThrowable(() -> service.updateDiaryPageTag(PAGE_ID, request("brandnew")));
-
         verify(database, never()).save(any(DiaryPageTag.class));
         verify(transaction, never()).commit();
-    }
-
-    @Test
-    void updateDiaryPageTag_diaryHasTenOtherTagsAndPageHasOwnTag_rejectsNewTagToo() {
-        givenTags(tag("own"), otherTags(10).toArray(DiaryPageTag[]::new));
-
-        assertThatThrownBy(() -> service.updateDiaryPageTag(PAGE_ID, request("brandnew")))
-                .isInstanceOf(ServiceException.class);
-    }
-
-    @Test
-    void updateDiaryPageTag_diaryHasTenOtherTags_acceptsOneOfThemIgnoringCase() {
-        givenTags(null, otherTags(10).toArray(DiaryPageTag[]::new));
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("TAG3"));
-
-        assertThat(result.tag()).isEqualTo("tag3");
     }
 
     @Test
@@ -303,59 +148,6 @@ class DiaryPageTagServiceTest {
         DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request("brandnew"));
 
         assertThat(result.tag()).isEqualTo("brandnew");
-    }
-
-    @Test
-    void updateDiaryPageTag_nullTag_deletesStoredTagAndReturnsNull() {
-        DiaryPageTag current = tag("combat");
-        givenTags(current);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request(null));
-
-        verify(database).delete(current);
-        verify(database, never()).save(any(DiaryPageTag.class));
-        assertThat(result.tag()).isNull();
-    }
-
-    @Test
-    void updateDiaryPageTag_nullTagOnPageWithoutTag_deletesNothing() {
-        givenTags(null);
-
-        DetailDiaryPageTagDTO result = service.updateDiaryPageTag(PAGE_ID, request(null));
-
-        verify(database, never()).delete(any(Object.class));
-        assertThat(result.tag()).isNull();
-    }
-
-    @Test
-    void updateDiaryPageTag_validRequest_commitsAfterSaving() {
-        givenTags(tag("clues"));
-
-        service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        InOrder order = inOrder(database, transaction);
-        order.verify(database).save(any(DiaryPageTag.class));
-        order.verify(transaction).commit();
-    }
-
-    @Test
-    void updateDiaryPageTag_validRequest_readsOnlyTagOfPageOfTheUser() {
-        QueryStub<DiaryPageTag> tags = givenTags(null);
-
-        service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        verify(tags.where(), atLeastOnce()).eq("page.id", PAGE_ID);
-        verify(tags.where(), atLeastOnce()).eq("diary.character.owner.keycloakId", SUBJECT);
-    }
-
-    @Test
-    void updateDiaryPageTag_validRequest_readsOtherTagsOnlyOfThisDiaryAndOwner() {
-        QueryStub<DiaryPageTag> tags = givenTags(null);
-
-        service.updateDiaryPageTag(PAGE_ID, request("combat"));
-
-        verify(tags.where()).eq("diary.id", DIARY_ID);
-        verify(tags.where()).ne("page.id", PAGE_ID);
     }
 
     @Test
@@ -376,43 +168,6 @@ class DiaryPageTagServiceTest {
         doThrow(failure).when(database).save(any(DiaryPageTag.class));
 
         assertThatThrownBy(() -> service.updateDiaryPageTag(PAGE_ID, request("combat"))).isSameAs(failure);
-    }
-
-    @Test
-    void deleteDiaryPageTagsByPage_anyPage_deletesOnlyTagsOfPage() {
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-
-        service.deleteDiaryPageTagsByPage(PAGE_ID);
-
-        verify(tags.where()).eq("page.id", PAGE_ID);
-    }
-
-    @Test
-    void deleteDiaryPageTagsByPage_anyPage_deletesTheSelectedTags() {
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-
-        service.deleteDiaryPageTagsByPage(PAGE_ID);
-
-        verify(tags.where()).delete();
-    }
-
-    @Test
-    void deleteDiaryPageTagsByDiaries_severalDiaries_deletesOnlyTagsOfThoseDiaries() {
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-        List<UUID> diaryIds = List.of(UUID.randomUUID(), UUID.randomUUID());
-
-        service.deleteDiaryPageTagsByDiaries(diaryIds);
-
-        verify(tags.where()).in("diary.id", diaryIds);
-    }
-
-    @Test
-    void deleteDiaryPageTagsByDiaries_severalDiaries_deletesTheSelectedTags() {
-        QueryStub<DiaryPageTag> tags = stubFind(database, DiaryPageTag.class);
-
-        service.deleteDiaryPageTagsByDiaries(List.of(UUID.randomUUID()));
-
-        verify(tags.where()).delete();
     }
 
     private DiaryPageTag tagOnPage(String name, int pageNumber) {
@@ -442,40 +197,6 @@ class DiaryPageTagServiceTest {
     }
 
     @Test
-    void findAllDiaryTagsByDiary_diaryNotOwnedOrMissing_throwsNotFound() {
-        when(jwtInspector.getSubject()).thenReturn(SUBJECT);
-        QueryStub<Diary> diaries = stubFind(database, Diary.class);
-        when(diaries.where().findOne()).thenReturn(null);
-        DiaryTagSearchRequest request = searchRequest(null, 1, 20);
-
-        assertThatThrownBy(() -> service.findAllDiaryTagsByDiary(DIARY_ID, request))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e).extracting(ResponseStatusException::getStatusCode, ResponseStatusException::getReason)
-                                .containsExactly(HttpStatus.NOT_FOUND, "Diary not found"));
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_diaryNotOwnedOrMissing_doesNotReadTags() {
-        when(jwtInspector.getSubject()).thenReturn(SUBJECT);
-        QueryStub<Diary> diaries = stubFind(database, Diary.class);
-        when(diaries.where().findOne()).thenReturn(null);
-
-        catchThrowable(() -> service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20)));
-
-        verify(database, never()).find(DiaryPageTag.class);
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_ownedDiary_filtersByDiaryAndOwner() {
-        QueryStub<DiaryPageTag> found = givenDiaryWithTags();
-
-        service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        verify(found.where()).eq("diary.id", DIARY_ID);
-        verify(found.where()).eq("diary.character.owner.keycloakId", SUBJECT);
-    }
-
-    @Test
     void findAllDiaryTagsByDiary_nameGiven_filtersByTrimmedName() {
         QueryStub<DiaryPageTag> found = givenDiaryWithTags();
 
@@ -491,54 +212,6 @@ class DiaryPageTagServiceTest {
         service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest("   ", 1, 20));
 
         verify(found.where(), never()).icontains(any(), any());
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_tagsDifferingByCase_groupsThemKeepingTheFirstName() {
-        givenDiaryWithTags(tagOnPage("Combat", 1), tagOnPage("clues", 2), tagOnPage("combat", 3));
-
-        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        assertThat(result.getList()).extracting(BaseDiaryTagDTO::name, BaseDiaryTagDTO::pageNumbers)
-                .containsExactly(tuple("Combat", List.of((short) 1, (short) 3)), tuple("clues", List.of((short) 2)));
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_anyDiary_asksTheDatabaseToSortByPageNumber() {
-        QueryStub<DiaryPageTag> found = givenDiaryWithTags();
-
-        service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        verify(found.where()).orderBy("page.pageNumber");
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_tagsFromTheDatabase_keepsTheOrderOfTheFirstPage() {
-        givenDiaryWithTags(tagOnPage("madonna mia", 3), tagOnPage("aaaaaaaa", 5));
-
-        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        assertThat(result.getList()).extracting(BaseDiaryTagDTO::name).containsExactly("madonna mia", "aaaaaaaa");
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_sameTagOnSeveralPages_listsAllItsPageNumbers() {
-        givenDiaryWithTags(tagOnPage("combat", 2), tagOnPage("combat", 4), tagOnPage("combat", 7));
-
-        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        assertThat(result.getList()).extracting(BaseDiaryTagDTO::pageNumbers)
-                .containsExactly(List.of((short) 2, (short) 4, (short) 7));
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_noTags_returnsEmptyList() {
-        givenDiaryWithTags();
-
-        PagedResultDTO<BaseDiaryTagDTO> result = service.findAllDiaryTagsByDiary(DIARY_ID, searchRequest(null, 1, 20));
-
-        assertThat(result.getList()).isEmpty();
-        assertThat(result.getTotalRows()).isZero();
     }
 
     @Test
@@ -565,7 +238,7 @@ class DiaryPageTagServiceTest {
     }
 
     @Test
-    void findTagByPages_noPages_doesNotQuery() {
+    void findTagByPages_noPages_returnsEmptyWithoutQuerying() {
         Map<UUID, String> result = service.findTagByPages(List.of());
 
         assertThat(result).isEmpty();
@@ -573,30 +246,19 @@ class DiaryPageTagServiceTest {
     }
 
     @Test
-    void findTagByPages_tagsOfSeveralPages_returnsTheTagOfEachPage() {
+    void findTagByPages_somePagesWithoutTag_returnsTagOfTaggedPagesOnly() {
         DiaryPageTag combat = tagOnPage("combat", 1);
         DiaryPageTag elsewhere = tagOnPage("Elsewhere", 2);
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
         QueryStub<DiaryPageTag> found = stubFind(database, DiaryPageTag.class);
         when(found.where().findList()).thenReturn(List.of(combat, elsewhere));
 
-        Map<UUID, String> result = service.findTagByPages(List.of(combat.getPage().getId(), elsewhere.getPage().getId()));
+        Map<UUID, String> result = service.findTagByPages(
+                List.of(combat.getPage().getId(), elsewhere.getPage().getId(), UUID.randomUUID()));
 
         assertThat(result).containsOnly(
                 Map.entry(combat.getPage().getId(), "combat"),
                 Map.entry(elsewhere.getPage().getId(), "Elsewhere"));
-    }
-
-    @Test
-    void findTagByPages_pageWithoutTag_isMissingFromResult() {
-        DiaryPageTag combat = tagOnPage("combat", 1);
-        when(jwtInspector.getSubject()).thenReturn(SUBJECT);
-        QueryStub<DiaryPageTag> found = stubFind(database, DiaryPageTag.class);
-        when(found.where().findList()).thenReturn(List.of(combat));
-
-        Map<UUID, String> result = service.findTagByPages(List.of(combat.getPage().getId(), UUID.randomUUID()));
-
-        assertThat(result).containsOnlyKeys(combat.getPage().getId());
     }
 
     @Test

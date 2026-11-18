@@ -3,7 +3,6 @@ package it.gdr.diary.unit.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -19,10 +18,12 @@ import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.services.DiaryPageTagService;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -30,8 +31,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class DiaryPageTagControllerTest {
@@ -55,63 +56,38 @@ class DiaryPageTagControllerTest {
         return "{\"tag\":\"" + tag + "\"}";
     }
 
+    static Stream<String> invalidTagBodies() {
+        return Stream.of("{\"tag\":\"\"}", "{\"tag\":\"   \"}", "{\"tag\":[\"a\"]}", "{\"tag\":\"a\\nb\"}",
+                "{\"tag\":\"a\\u0000b\"}", "{\"tag\":\"" + "a".repeat(31) + "\"}");
+    }
+
     @Test
-    void updateDiaryPageTag_validBody_returnsTagOfPage() {
+    void updateDiaryPageTag_validBody_returnsTagOfPageAndPassesItToService() {
         when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO("combat"));
 
         assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
                 .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
                 .bodyJson().extractingPath("$.tag").isEqualTo("combat");
-    }
-
-    @Test
-    void updateDiaryPageTag_validBody_passesTagToService() {
-        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO("combat"));
-
-        mvc.put().uri("/pages/{id}/tag", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")).exchange();
-
         verify(service).updateDiaryPageTag(PAGE_ID, new UpdateDiaryPageTagDTO("combat"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"{\"tag\":null}", "{}"})
-    void updateDiaryPageTag_nullTag_removesTagAndReturnsOk(String body) {
+    void updateDiaryPageTag_nullTag_removesTagReturnsNullAndPassesNullToService(String body) {
         when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO(null));
 
-        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatusOk();
+        MvcTestResult result = mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).hasStatusOk().bodyJson().extractingPath("$.tag").isNull();
         verify(service).updateDiaryPageTag(PAGE_ID, new UpdateDiaryPageTagDTO(null));
     }
 
-    @Test
-    void updateDiaryPageTag_removedTag_returnsNullTag() {
-        when(service.updateDiaryPageTag(eq(PAGE_ID), any())).thenReturn(new DetailDiaryPageTagDTO(null));
-
-        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"tag\":null}"))
-                .bodyJson().extractingPath("$.tag").isNull();
-    }
-
     @ParameterizedTest
-    @ValueSource(strings = {"{\"tag\":\"\"}", "{\"tag\":\"   \"}", "{\"tag\":[\"a\"]}",
-            "{\"tag\":\"a\\nb\"}", "{\"tag\":\"a\\u0000b\"}"})
-    void updateDiaryPageTag_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    @MethodSource("invalidTagBodies")
+    void updateDiaryPageTag_invalidBody_returnsBadRequestAndDoesNotCallService(String body) {
+        MvcTestResult result = mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 
-    @Test
-    void updateDiaryPageTag_tagOfThirtyOneCharacters_returnsBadRequest() {
-        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagBody("a".repeat(31))))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiaryPageTag_invalidBody_doesNotCallService() {
-        mvc.put().uri("/pages/{id}/tag", PAGE_ID).contentType(MediaType.APPLICATION_JSON).content("{\"tag\":\"\"}").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
         verifyNoInteractions(service);
     }
 
@@ -127,16 +103,6 @@ class DiaryPageTagControllerTest {
     @Test
     void updateDiaryPageTag_oldPluralPath_isNotMapped() {
         assertThat(mvc.put().uri("/pages/{id}/tags", PAGE_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
-                .hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateDiaryPageTag_pageNotFound_returnsNotFound() {
-        when(service.updateDiaryPageTag(eq(PAGE_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found"));
-
-        assertThat(mvc.put().uri("/pages/{id}/tag", PAGE_ID)
                 .contentType(MediaType.APPLICATION_JSON).content(tagBody("combat")))
                 .hasStatus(HttpStatus.NOT_FOUND);
     }
@@ -170,24 +136,15 @@ class DiaryPageTagControllerTest {
     }
 
     @Test
-    void findAllDiaryTagsByDiary_noParameters_returnsTagsWithPageNumbers() {
+    void findAllDiaryTagsByDiary_noParameters_returnsTagsWithPageNumbersUsingDefaultPaging() {
         when(service.findAllDiaryTagsByDiary(eq(DIARY_ID), any())).thenReturn(tagsPage());
 
-        assertThat(mvc.get().uri("/diaries/{diaryId}/tags", DIARY_ID))
-                .hasStatusOk()
-                .bodyJson().extractingPath("$.list[0].pageNumbers").isEqualTo(List.of(1, 4));
-    }
+        MvcTestResult result = mvc.get().uri("/diaries/{diaryId}/tags", DIARY_ID).exchange();
 
-    @Test
-    void findAllDiaryTagsByDiary_noParameters_usesDefaultPaging() {
-        when(service.findAllDiaryTagsByDiary(eq(DIARY_ID), any())).thenReturn(tagsPage());
-
-        mvc.get().uri("/diaries/{diaryId}/tags", DIARY_ID).exchange();
-
-        DiaryTagSearchRequest request = capturedSearchRequest();
-        assertThat(request.getPage()).isEqualTo(1);
-        assertThat(request.getSize()).isEqualTo(20);
-        assertThat(request.getName()).isNull();
+        assertThat(result).hasStatusOk().bodyJson().extractingPath("$.list[0].pageNumbers").isEqualTo(List.of(1, 4));
+        assertThat(capturedSearchRequest())
+                .extracting(DiaryTagSearchRequest::getPage, DiaryTagSearchRequest::getSize, DiaryTagSearchRequest::getName)
+                .containsExactly(1, 20, null);
     }
 
     @Test
@@ -196,31 +153,18 @@ class DiaryPageTagControllerTest {
 
         mvc.get().uri("/diaries/{diaryId}/tags?name=comb&page=2&size=50", DIARY_ID).exchange();
 
-        DiaryTagSearchRequest request = capturedSearchRequest();
-        assertThat(request.getName()).isEqualTo("comb");
-        assertThat(request.getPage()).isEqualTo(2);
-        assertThat(request.getSize()).isEqualTo(50);
+        assertThat(capturedSearchRequest())
+                .extracting(DiaryTagSearchRequest::getName, DiaryTagSearchRequest::getPage, DiaryTagSearchRequest::getSize)
+                .containsExactly("comb", 2, 50);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"page=0", "size=0", "size=101", "name=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
-    void findAllDiaryTagsByDiary_invalidParameters_returnsBadRequest(String query) {
-        assertThat(mvc.get().uri("/diaries/{diaryId}/tags?" + query, DIARY_ID)).hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    void findAllDiaryTagsByDiary_invalidParameters_returnsBadRequestAndDoesNotCallService(String query) {
+        MvcTestResult result = mvc.get().uri("/diaries/{diaryId}/tags?" + query, DIARY_ID).exchange();
 
-    @Test
-    void findAllDiaryTagsByDiary_invalidParameters_doesNotCallService() {
-        mvc.get().uri("/diaries/{diaryId}/tags?page=0", DIARY_ID).exchange();
-
-        verify(service, never()).findAllDiaryTagsByDiary(any(), any());
-    }
-
-    @Test
-    void findAllDiaryTagsByDiary_diaryNotFound_returnsNotFound() {
-        when(service.findAllDiaryTagsByDiary(eq(DIARY_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
-
-        assertThat(mvc.get().uri("/diaries/{diaryId}/tags", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        verifyNoInteractions(service);
     }
 
     @Test

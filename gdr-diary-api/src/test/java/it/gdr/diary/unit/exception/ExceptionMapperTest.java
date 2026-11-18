@@ -9,6 +9,7 @@ import it.gdr.diary.exception.ExceptionResponse;
 import it.gdr.diary.exception.RecentAuthenticationRequiredException;
 import it.gdr.diary.exception.ServiceException;
 import jakarta.persistence.OptimisticLockException;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -38,61 +39,52 @@ class ExceptionMapperTest {
         return response.getBody().getViolations().getFirst().getMessage();
     }
 
+    private static List<Object> summary(ResponseEntity<ExceptionResponse> response) {
+        return List.of(response.getStatusCode().value(), response.getBody().getStatus(), response.getBody().getTitle(), firstViolation(response));
+    }
+
     @Test
-    void mapServiceException_businessError_returnsBadRequest() {
+    void mapServiceException_businessError_returnsBadRequestWithMessage() {
         ResponseEntity<ExceptionResponse> response = mapper.mapServiceException(new ServiceException("The diary is full (100 pages)"));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(summary(response)).containsExactly(400, 400, "BAD_REQUEST", "The diary is full (100 pages)");
     }
 
     @Test
-    void mapServiceException_businessError_returnsMessageAsViolation() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapServiceException(new ServiceException("The diary is full (100 pages)"));
-
-        assertThat(firstViolation(response)).isEqualTo("The diary is full (100 pages)");
-    }
-
-    @Test
-    void mapServiceException_businessError_returnsTitleAndStatusInBody() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapServiceException(new ServiceException("x"));
-
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, ExceptionResponse::getStatus)
-                .containsExactly("BAD_REQUEST", 400);
-    }
-
-    @Test
-    void mapNotFoundException_notFound_returnsStatusOfException() {
+    void mapNotFoundException_notFound_returnsNotFoundWithBareTitleAndReason() {
         ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(summary(response)).containsExactly(404, 404, "NOT_FOUND", "Diary not found");
     }
 
     @Test
-    void mapNotFoundException_conflict_returnsStatusOfException() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.CONFLICT, "Modified"));
+    void mapNotFoundException_conflict_returnsConflictWithTitleAndReason() {
+        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(
+                new ResponseStatusException(HttpStatus.CONFLICT, "The diary changed while it was being deleted, try again"));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(summary(response)).containsExactly(409, 409, "CONFLICT", "The diary changed while it was being deleted, try again");
     }
 
     @Test
-    void mapNotFoundException_withReason_returnsReasonAsViolation() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
+    void mapNotFoundException_withoutReason_returnsReasonPhraseAsViolation() {
+        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        assertThat(firstViolation(response)).isEqualTo("Diary not found");
+        assertThat(firstViolation(response)).isEqualTo("Not Found");
     }
 
     @Test
-    void mapAuthException_authenticationFailure_returnsUnauthorized() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapAuthException(new BadCredentialsException("bad token"));
+    void mapNotFoundException_nonStandardStatus_returnsNumericTitle() {
+        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatusCode.valueOf(499)));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, body -> body.getViolations().getFirst().getMessage())
+                .containsExactly("499", "499");
     }
 
     @Test
-    void mapAuthException_authenticationFailure_hidesOriginalMessage() {
+    void mapAuthException_authenticationFailure_returnsUnauthorizedHidingOriginalMessage() {
         ResponseEntity<ExceptionResponse> response = mapper.mapAuthException(new BadCredentialsException("signature mismatch for kid 42"));
 
-        assertThat(firstViolation(response)).isEqualTo("Authentication required");
+        assertThat(List.of(response.getStatusCode().value(), firstViolation(response))).containsExactly(401, "Authentication required");
     }
 
     @Test
@@ -117,21 +109,12 @@ class ExceptionMapperTest {
     }
 
     @Test
-    void mapHttpMessageNotReadableException_malformedJson_returnsBadRequest() {
+    void mapHttpMessageNotReadableException_malformedJson_returnsBadRequestWithGenericMessage() {
         HttpMessageNotReadableException ex = new HttpMessageNotReadableException("bad json", mock(StreamReadException.class), new MockHttpInputMessage(new byte[0]));
 
         ResponseEntity<ExceptionResponse> response = mapper.mapHttpMessageNotReadableException(ex);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void mapHttpMessageNotReadableException_malformedJson_returnsGenericMessage() {
-        HttpMessageNotReadableException ex = new HttpMessageNotReadableException("bad json", mock(StreamReadException.class), new MockHttpInputMessage(new byte[0]));
-
-        ResponseEntity<ExceptionResponse> response = mapper.mapHttpMessageNotReadableException(ex);
-
-        assertThat(firstViolation(response)).isEqualTo("Malformed JSON request");
+        assertThat(List.of(response.getStatusCode().value(), firstViolation(response))).containsExactly(400, "Malformed JSON request");
     }
 
     @Test
@@ -168,21 +151,12 @@ class ExceptionMapperTest {
     }
 
     @Test
-    void mapMethodArgumentTypeMismatchException_invalidUuid_returnsBadRequest() {
+    void mapMethodArgumentTypeMismatchException_invalidUuid_returnsBadRequestNamingParameter() {
         MethodArgumentTypeMismatchException ex = new MethodArgumentTypeMismatchException("not-a-uuid", UUID.class, "id", null, null);
 
         ResponseEntity<ExceptionResponse> response = mapper.mapMethodArgumentTypeMismatchException(ex);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void mapMethodArgumentTypeMismatchException_invalidUuid_namesParameter() {
-        MethodArgumentTypeMismatchException ex = new MethodArgumentTypeMismatchException("not-a-uuid", UUID.class, "id", null, null);
-
-        ResponseEntity<ExceptionResponse> response = mapper.mapMethodArgumentTypeMismatchException(ex);
-
-        assertThat(firstViolation(response)).isEqualTo("Invalid value for parameter: id");
+        assertThat(List.of(response.getStatusCode().value(), firstViolation(response))).containsExactly(400, "Invalid value for parameter: id");
     }
 
     private static BindException bindException(FieldError... errors) {
@@ -241,132 +215,53 @@ class ExceptionMapperTest {
     }
 
     @Test
-    void mapMissingServletRequestPartException_missingFile_returnsBadRequestInBody() {
+    void mapMissingServletRequestPartException_missingFile_returnsBadRequestNamingThePart() {
         ResponseEntity<ExceptionResponse> response = mapper.mapMissingServletRequestPartException(new MissingServletRequestPartException("file"));
 
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, ExceptionResponse::getStatus)
-                .containsExactly("BAD_REQUEST", 400);
+        assertThat(response.getBody()).satisfies(
+                body -> assertThat(body).extracting(ExceptionResponse::getTitle, ExceptionResponse::getStatus).containsExactly("BAD_REQUEST", 400),
+                body -> assertThat(body.getViolations())
+                        .extracting(ExceptionResponse.Violation::getField, ExceptionResponse.Violation::getMessage)
+                        .containsExactly(tuple("file", "Required part is missing")));
     }
 
     @Test
-    void mapMissingServletRequestPartException_missingFile_namesPartInViolation() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapMissingServletRequestPartException(new MissingServletRequestPartException("file"));
-
-        assertThat(response.getBody().getViolations())
-                .extracting(ExceptionResponse.Violation::getField, ExceptionResponse.Violation::getMessage)
-                .containsExactly(tuple("file", "Required part is missing"));
-    }
-
-    @Test
-    void mapMultipartException_malformedBody_returnsBadRequestInBody() {
+    void mapMultipartException_malformedBody_returnsBadRequestWithGenericMessage() {
         ResponseEntity<ExceptionResponse> response = mapper.mapMultipartException(new MultipartException("no boundary"));
 
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, ExceptionResponse::getStatus)
-                .containsExactly("BAD_REQUEST", 400);
+        assertThat(summary(response)).containsExactly(400, 400, "BAD_REQUEST", "Malformed multipart request");
     }
 
     @Test
-    void mapMultipartException_malformedBody_returnsGenericMessage() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapMultipartException(new MultipartException("no boundary"));
-
-        assertThat(firstViolation(response)).isEqualTo("Malformed multipart request");
-    }
-
-    @Test
-    void mapMaxUploadSizeExceededException_tooLarge_returnsContentTooLarge() {
+    void mapMaxUploadSizeExceededException_tooLarge_returnsContentTooLargeWithMessage() {
         ResponseEntity<ExceptionResponse> response = mapper.mapMaxUploadSizeExceededException(new MaxUploadSizeExceededException(5_000_000));
 
-        assertThat(response.getStatusCode().value()).isEqualTo(413);
+        assertThat(List.of(response.getStatusCode().value(), response.getBody().getTitle(), firstViolation(response)))
+                .containsExactly(413, "CONTENT_TOO_LARGE", "File too large");
     }
 
     @Test
-    void mapOptimisticLockException_concurrentChange_returnsConflict() {
+    void mapOptimisticLockException_concurrentChange_returnsConflictWithMessage() {
         ResponseEntity<ExceptionResponse> response = mapper.mapOptimisticLockException(new OptimisticLockException("version changed"));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(List.of(response.getStatusCode().value(), response.getBody().getTitle(), firstViolation(response)))
+                .containsExactly(409, "CONFLICT", "The resource was modified elsewhere, reload it");
     }
 
     @Test
-    void mapRuntimeException_unexpectedError_returnsInternalServerError() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapRuntimeException(new IllegalStateException("boom"));
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @Test
-    void mapRuntimeException_unexpectedError_hidesInternalDetails() {
+    void mapRuntimeException_unexpectedError_returnsInternalServerErrorHidingDetails() {
         ResponseEntity<ExceptionResponse> response = mapper.mapRuntimeException(new IllegalStateException("password=secret"));
 
-        assertThat(firstViolation(response)).isEqualTo("An unexpected error occurred");
+        assertThat(List.of(response.getStatusCode().value(), firstViolation(response))).containsExactly(500, "An unexpected error occurred");
     }
 
     @Test
-    void mapRecentAuthenticationRequired_oldLogin_returnsUnauthorized() {
+    void mapRecentAuthenticationRequired_oldLogin_returnsUnauthorizedWithStepUpChallenge() {
         ResponseEntity<ExceptionResponse> response = mapper.mapRecentAuthenticationRequired(new RecentAuthenticationRequiredException(300));
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-    }
-
-    @Test
-    void mapRecentAuthenticationRequired_oldLogin_returnsStepUpChallengeWithMaxAge() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapRecentAuthenticationRequired(new RecentAuthenticationRequiredException(300));
-
-        assertThat(response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)).isEqualTo(
-                "Bearer error=\"insufficient_user_authentication\", "
-                        + "error_description=\"A more recent authentication is required\", max_age=\"300\"");
-    }
-
-    @Test
-    void mapRecentAuthenticationRequired_oldLogin_returnsReasonAsViolation() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapRecentAuthenticationRequired(new RecentAuthenticationRequiredException(300));
-
-        assertThat(firstViolation(response)).isEqualTo("Recent authentication required");
-    }
-
-    @Test
-    void mapNotFoundException_notFound_returnsBareStatusNameAsTitle() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
-
-        assertThat(response.getBody().getTitle()).isEqualTo("NOT_FOUND");
-    }
-
-    @Test
-    void mapNotFoundException_conflict_returnsConflictTitleAndReason() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(
-                new ResponseStatusException(HttpStatus.CONFLICT, "The diary changed while it was being deleted, try again"));
-
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, body -> body.getViolations().getFirst().getMessage())
-                .containsExactly("CONFLICT", "The diary changed while it was being deleted, try again");
-    }
-
-    @Test
-    void mapNotFoundException_withoutReason_returnsReasonPhraseAsViolation() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatus.NOT_FOUND));
-
-        assertThat(firstViolation(response)).isEqualTo("Not Found");
-    }
-
-    @Test
-    void mapNotFoundException_nonStandardStatus_returnsNumericTitle() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapNotFoundException(new ResponseStatusException(HttpStatusCode.valueOf(499)));
-
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, body -> body.getViolations().getFirst().getMessage())
-                .containsExactly("499", "499");
-    }
-
-    @Test
-    void mapMaxUploadSizeExceededException_tooLarge_returnsTitleAndMessage() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapMaxUploadSizeExceededException(new MaxUploadSizeExceededException(5_000_000));
-
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, body -> body.getViolations().getFirst().getMessage())
-                .containsExactly("CONTENT_TOO_LARGE", "File too large");
-    }
-
-    @Test
-    void mapOptimisticLockException_concurrentChange_returnsTitleAndMessage() {
-        ResponseEntity<ExceptionResponse> response = mapper.mapOptimisticLockException(new OptimisticLockException("version changed"));
-
-        assertThat(response.getBody()).extracting(ExceptionResponse::getTitle, body -> body.getViolations().getFirst().getMessage())
-                .containsExactly("CONFLICT", "The resource was modified elsewhere, reload it");
+        assertThat(List.of(response.getStatusCode().value(), firstViolation(response), response.getHeaders().getFirst(HttpHeaders.WWW_AUTHENTICATE)))
+                .containsExactly(401, "Recent authentication required",
+                        "Bearer error=\"insufficient_user_authentication\", "
+                                + "error_description=\"A more recent authentication is required\", max_age=\"300\"");
     }
 }

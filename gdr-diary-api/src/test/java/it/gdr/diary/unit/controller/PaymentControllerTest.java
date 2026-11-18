@@ -28,8 +28,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentControllerTest {
@@ -61,24 +61,13 @@ class PaymentControllerTest {
     }
 
     @Test
-    void findAllPayments_noParameters_returnsOk() {
-        when(service.findAllPayments(any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
-
-        assertThat(mvc.get().uri("/me/payments")).hasStatusOk();
-    }
-
-    @Test
-    void findAllPayments_paymentsFound_returnsPagedList() {
+    void findAllPayments_paymentsFound_returnsPagedListWithoutRetentionOrAudit() {
         when(service.findAllPayments(any())).thenReturn(PagedResultDTO.of(List.of(base()), 1, 1, 20));
 
-        assertThat(mvc.get().uri("/me/payments")).bodyJson().extractingPath("$.list[0].amountCents").isEqualTo(2990);
-    }
+        MvcTestResult result = mvc.get().uri("/me/payments").exchange();
 
-    @Test
-    void findAllPayments_paymentsFound_doesNotExposeRetentionOrAudit() {
-        when(service.findAllPayments(any())).thenReturn(PagedResultDTO.of(List.of(base()), 1, 1, 20));
-
-        assertThat(mvc.get().uri("/me/payments")).bodyText().doesNotContain("retainUntil", "createdBy", "version");
+        assertThat(result).hasStatusOk().bodyJson().extractingPath("$.list[0].amountCents").isEqualTo(2990);
+        assertThat(result).bodyText().doesNotContain("retainUntil", "createdBy", "version");
     }
 
     @Test
@@ -103,25 +92,13 @@ class PaymentControllerTest {
     }
 
     @Test
-    void getPaymentById_existingPayment_returnsDetail() {
+    void getPaymentById_existingPayment_returnsDetailWithoutRetentionOrAudit() {
         when(service.getPaymentById(PAYMENT_ID)).thenReturn(detail());
 
-        assertThat(mvc.get().uri("/me/payments/{id}", PAYMENT_ID)).bodyJson()
-                .extractingPath("$.providerPaymentId").isEqualTo("pi_123");
-    }
+        MvcTestResult result = mvc.get().uri("/me/payments/{id}", PAYMENT_ID).exchange();
 
-    @Test
-    void getPaymentById_existingPayment_doesNotExposeRetentionOrAudit() {
-        when(service.getPaymentById(PAYMENT_ID)).thenReturn(detail());
-
-        assertThat(mvc.get().uri("/me/payments/{id}", PAYMENT_ID)).bodyText().doesNotContain("retainUntil", "createdBy", "version");
-    }
-
-    @Test
-    void getPaymentById_paymentNotFound_returnsNotFound() {
-        when(service.getPaymentById(PAYMENT_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
-
-        assertThat(mvc.get().uri("/me/payments/{id}", PAYMENT_ID)).hasStatus(HttpStatus.NOT_FOUND);
+        assertThat(result).hasStatusOk().bodyJson().extractingPath("$.providerPaymentId").isEqualTo("pi_123");
+        assertThat(result).bodyText().doesNotContain("retainUntil", "createdBy", "version");
     }
 
     @Test

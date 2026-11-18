@@ -37,6 +37,7 @@ public class GameCharacterService {
     private final JwtInspector jwtInspector;
     private final DocumentService documentService;
     private final DiaryPageTagService tagService;
+    private final CharacterBackgroundService backgroundService;
 
     public PagedResultDTO<BaseGameCharacterDTO> findAllGameCharacters(GameCharacterSearchRequest request) {
         ExpressionList<GameCharacter> query = database.find(GameCharacter.class)
@@ -176,7 +177,9 @@ public class GameCharacterService {
     }
 
     private DetailGameCharacterDTO toDetailGameCharacterDTO(GameCharacter character) {
-        return DetailGameCharacterDTO.from(character, documentService.getDocumentUrl(character.getAvatarDocument()));
+        return DetailGameCharacterDTO.from(character,
+                documentService.getDocumentUrl(character.getAvatarDocument()),
+                backgroundService.findCharacterBackgroundPreview(character.getId()));
     }
 
     private void apply(GameCharacter character, String name, String description, String campaignName,

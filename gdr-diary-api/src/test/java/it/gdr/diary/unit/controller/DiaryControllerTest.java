@@ -5,7 +5,6 @@ import static org.mockito.Answers.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -21,15 +20,17 @@ import it.gdr.diary.dto.diary.UpdateBookmarkDiaryDTO;
 import it.gdr.diary.dto.diary.UpdateDiaryDTO;
 import it.gdr.diary.dto.search.DiarySearchRequest;
 import it.gdr.diary.exception.ExceptionMapper;
-import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.services.DiaryService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -38,8 +39,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.server.ResponseStatusException;
 
 @ExtendWith(MockitoExtension.class)
 class DiaryControllerTest {
@@ -73,42 +74,37 @@ class DiaryControllerTest {
     }
 
     @Test
-    void findAllDiariesByCharacter_diariesFound_returnsPagedList() {
+    void findAllDiariesByCharacter_filtersAndSort_returnsPagedListAndBindsSearchRequest() {
         BaseDiaryDTO diary = new BaseDiaryDTO(DIARY_ID, CHARACTER_ID, "Chapter one", null, null);
         when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(diary), 1, 1, 20));
-
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries", CHARACTER_ID)).bodyJson()
-                .extractingPath("$.list[0].title").isEqualTo("Chapter one");
-    }
-
-    @Test
-    void findAllDiariesByCharacter_queryParameters_bindsSearchRequest() {
-        when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
         ArgumentCaptor<DiarySearchRequest> request = ArgumentCaptor.forClass(DiarySearchRequest.class);
 
-        mvc.get().uri("/characters/{characterId}/diaries?title=chap&sort=title&descending=true", CHARACTER_ID).exchange();
+        MvcTestResult result = mvc.get()
+                .uri("/characters/{characterId}/diaries?title=chap&tag=combat&sort=title&descending=true", CHARACTER_ID).exchange();
 
+        assertThat(result).bodyJson().extractingPath("$.list[0].title").isEqualTo("Chapter one");
         verify(service).findAllDiariesByCharacter(eq(CHARACTER_ID), request.capture());
         assertThat(request.getValue())
-                .extracting(DiarySearchRequest::getTitle, DiarySearchRequest::getSort, DiarySearchRequest::isDescending)
-                .containsExactly("chap", "title", true);
+                .extracting(DiarySearchRequest::getTitle, DiarySearchRequest::getTag, DiarySearchRequest::getSort, DiarySearchRequest::isDescending)
+                .containsExactly("chap", "combat", "title", true);
     }
 
-    @Test
-    void findAllDiariesByCharacter_titleTooLong_returnsBadRequest() {
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries?title=" + "a".repeat(256), CHARACTER_ID))
-                .hasStatus(HttpStatus.BAD_REQUEST);
+    @ParameterizedTest
+    @MethodSource("invalidSearchQueries")
+    void findAllDiariesByCharacter_invalidQuery_returnsBadRequestOnFieldWithoutCallingService(String query, String field) {
+        MvcTestResult result = mvc.get().uri("/characters/{characterId}/diaries?" + query, CHARACTER_ID).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
+        verifyNoInteractions(service);
     }
 
-    @Test
-    void findAllDiariesByCharacter_tagParameter_bindsTagToSearchRequest() {
-        when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
-        ArgumentCaptor<DiarySearchRequest> request = ArgumentCaptor.forClass(DiarySearchRequest.class);
-
-        mvc.get().uri("/characters/{characterId}/diaries?tag=combat", CHARACTER_ID).exchange();
-
-        verify(service).findAllDiariesByCharacter(eq(CHARACTER_ID), request.capture());
-        assertThat(request.getValue().getTag()).isEqualTo("combat");
+    static Stream<Arguments> invalidSearchQueries() {
+        return Stream.of(
+                Arguments.of("title=" + "a".repeat(256), "title"),
+                Arguments.of("tag=" + "a".repeat(31), "tag"),
+                Arguments.of("page=0", "page"),
+                Arguments.of("size=0", "size"),
+                Arguments.of("size=101", "size"));
     }
 
     @Test
@@ -116,287 +112,6 @@ class DiaryControllerTest {
         when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any())).thenReturn(PagedResultDTO.of(List.of(), 0, 1, 20));
 
         assertThat(mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(30), CHARACTER_ID)).hasStatusOk();
-    }
-
-    @Test
-    void findAllDiariesByCharacter_tagTooLong_returnsBadRequest() {
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(31), CHARACTER_ID))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_tagTooLong_doesNotCallService() {
-        mvc.get().uri("/characters/{characterId}/diaries?tag=" + "a".repeat(31), CHARACTER_ID).exchange();
-
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_characterNotFound_returnsNotFound() {
-        when(service.findAllDiariesByCharacter(eq(CHARACTER_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
-
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries", CHARACTER_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void createDiary_validBody_returnsCreated() {
-        when(service.createDiary(eq(CHARACTER_ID), any())).thenReturn(detail("Chapter one"));
-
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
-                .hasStatus(HttpStatus.CREATED);
-    }
-
-    @Test
-    void createDiary_validBody_passesCharacterAndBodyToService() {
-        when(service.createDiary(eq(CHARACTER_ID), any())).thenReturn(detail("Chapter one"));
-
-        mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY).exchange();
-
-        verify(service).createDiary(CHARACTER_ID, new InsertDiaryDTO("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "{}",
-            "{\"title\":\"  \"}",
-            "{\"title\":\"Chapter\",\"coverColor\":\"blue\"}",
-            "{\"title\":\"Chapter\",\"fontSize\":0}",
-            "{\"title\":\"Chapter\",\"fontSize\":-4}"})
-    void createDiary_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createDiary_descriptionTooLong_returnsBadRequest() {
-        String body = "{\"title\":\"Chapter\",\"description\":\"" + "a".repeat(2001) + "\"}";
-
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createDiary_invalidBody_doesNotCallService() {
-        mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
-
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void getDiaryById_ownedDiary_returnsDetail() {
-        when(service.getDiaryById(DIARY_ID)).thenReturn(detail("Chapter one"));
-
-        assertThat(mvc.get().uri("/diaries/{id}", DIARY_ID)).bodyJson()
-                .extractingPath("$.characterId").isEqualTo(CHARACTER_ID.toString());
-    }
-
-    @Test
-    void getDiaryById_notFound_returnsNotFound() {
-        when(service.getDiaryById(DIARY_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
-
-        assertThat(mvc.get().uri("/diaries/{id}", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateDiary_validBody_returnsDetail() {
-        when(service.updateDiary(eq(DIARY_ID), any())).thenReturn(detail("Chapter two"));
-
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
-                .bodyJson().extractingPath("$.title").isEqualTo("Chapter two");
-    }
-
-    @Test
-    void updateDiary_validBody_passesIdAndBodyToService() {
-        when(service.updateDiary(eq(DIARY_ID), any())).thenReturn(detail("Chapter one"));
-
-        mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_BODY).exchange();
-
-        verify(service).updateDiary(DIARY_ID, new UpdateDiaryDTO("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16));
-    }
-
-    @Test
-    void updateDiary_blankTitle_returnsBadRequest() {
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"\"}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/diaries/{id}", DIARY_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Diary deleted");
-    }
-
-    @Test
-    void deleteDiary_ownedDiary_deletesThroughService() {
-        mvc.delete().uri("/diaries/{id}", DIARY_ID).exchange();
-
-        verify(service).deleteDiary(DIARY_ID);
-    }
-
-    @Test
-    void deleteDiary_notFound_returnsNotFound() {
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found")).when(service).deleteDiary(DIARY_ID);
-
-        assertThat(mvc.delete().uri("/diaries/{id}", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateDiaryCover_imagePart_returnsDetail() {
-        when(service.updateDiaryCover(eq(DIARY_ID), any())).thenReturn(detail("Chapter one"));
-
-        assertThat(mvc.put().uri("/diaries/{id}/cover", DIARY_ID).multipart().file(image()))
-                .bodyJson().extractingPath("$.id").isEqualTo(DIARY_ID.toString());
-    }
-
-    @Test
-    void updateDiaryCover_invalidFile_returnsBadRequest() {
-        when(service.updateDiaryCover(eq(DIARY_ID), any())).thenThrow(new ServiceException("File too large"));
-
-        assertThat(mvc.put().uri("/diaries/{id}/cover", DIARY_ID).multipart().file(image()))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void deleteDiaryCover_ownedDiary_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/diaries/{id}/cover", DIARY_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Cover removed");
-    }
-
-    @Test
-    void deleteDiaryCover_ownedDiary_deletesThroughService() {
-        mvc.delete().uri("/diaries/{id}/cover", DIARY_ID).exchange();
-
-        verify(service).deleteDiaryCover(DIARY_ID);
-    }
-
-    @Test
-    void createDiary_titleOf255Chars_returnsCreated() {
-        when(service.createDiary(eq(CHARACTER_ID), any())).thenReturn(detail("a".repeat(255)));
-        String body = "{\"title\":\"" + "a".repeat(255) + "\"}";
-
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.CREATED);
-    }
-
-    @Test
-    void createDiary_titleOf256Chars_returnsBadRequest() {
-        String body = "{\"title\":\"" + "a".repeat(256) + "\"}";
-
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiary_titleOf255Chars_returnsOk() {
-        when(service.updateDiary(eq(DIARY_ID), any())).thenReturn(detail("a".repeat(255)));
-        String body = "{\"title\":\"" + "a".repeat(255) + "\"}";
-
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.OK);
-    }
-
-    @Test
-    void updateDiary_titleOf256Chars_returnsBadRequest() {
-        String body = "{\"title\":\"" + "a".repeat(256) + "\"}";
-
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "{\"title\":\"Chapter\",\"coverColor\":\"blue\"}",
-            "{\"title\":\"Chapter\",\"coverColor\":\"#12345\"}",
-            "{\"title\":\"Chapter\",\"fontSize\":0}",
-            "{\"title\":\"Chapter\",\"fontSize\":-4}"})
-    void updateDiary_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiary_descriptionTooLong_returnsBadRequest() {
-        String body = "{\"title\":\"Chapter\",\"description\":\"" + "a".repeat(2001) + "\"}";
-
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateDiary_invalidBody_doesNotCallService() {
-        mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Chapter\",\"fontSize\":0}").exchange();
-
-        verifyNoInteractions(service);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"page=0", "size=0", "size=101"})
-    void findAllDiariesByCharacter_paginationOutOfRange_returnsBadRequest(String query) {
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries?" + query, CHARACTER_ID))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void findAllDiariesByCharacter_paginationOutOfRange_doesNotCallService() {
-        mvc.get().uri("/characters/{characterId}/diaries?size=101", CHARACTER_ID).exchange();
-
-        verifyNoInteractions(service);
-    }
-
-    @Test
-    void createDiary_blankTitle_returnsViolationOnTitleField() {
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"  \"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("title");
-    }
-
-    @Test
-    void createDiary_invalidCoverColor_returnsViolationOnCoverColorField() {
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Chapter\",\"coverColor\":\"blue\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("coverColor");
-    }
-
-    @Test
-    void createDiary_negativeFontSize_returnsViolationOnFontSizeField() {
-        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"Chapter\",\"fontSize\":-4}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("fontSize");
-    }
-
-    @Test
-    void updateDiary_blankTitle_returnsViolationOnTitleField() {
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("title");
-    }
-
-    @Test
-    void updateDiary_invalidCoverColor_returnsViolationOnCoverColorField() {
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Chapter\",\"coverColor\":\"#12345\"}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("coverColor");
-    }
-
-    @Test
-    void updateDiary_negativeFontSize_returnsViolationOnFontSizeField() {
-        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"Chapter\",\"fontSize\":-1}"))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("fontSize");
-    }
-
-    @Test
-    void findAllDiariesByCharacter_sizeOutOfRange_returnsViolationOnSizeField() {
-        assertThat(mvc.get().uri("/characters/{characterId}/diaries?size=101", CHARACTER_ID))
-                .bodyJson().extractingPath("$.violations[0].field").isEqualTo("size");
     }
 
     @Test
@@ -420,6 +135,120 @@ class DiaryControllerTest {
     }
 
     @Test
+    void createDiary_validBody_returnsCreatedAndPassesCharacterAndBodyToService() {
+        when(service.createDiary(eq(CHARACTER_ID), any())).thenReturn(detail("Chapter one"));
+
+        MvcTestResult result = mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.CREATED);
+        verify(service).createDiary(CHARACTER_ID, new InsertDiaryDTO("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16));
+    }
+
+    @Test
+    void createDiary_titleOf255Chars_returnsCreated() {
+        when(service.createDiary(eq(CHARACTER_ID), any())).thenReturn(detail("a".repeat(255)));
+        String body = "{\"title\":\"" + "a".repeat(255) + "\"}";
+
+        assertThat(mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.CREATED);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidCreateBodies")
+    void createDiary_invalidBody_returnsBadRequestOnFieldWithoutCallingService(String body, String field) {
+        MvcTestResult result = mvc.post().uri("/characters/{characterId}/diaries", CHARACTER_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
+        verifyNoInteractions(service);
+    }
+
+    static Stream<Arguments> invalidCreateBodies() {
+        return Stream.concat(
+                Stream.of(Arguments.of("{}", "title"), Arguments.of("{\"title\":\"  \"}", "title")),
+                invalidFieldBodies());
+    }
+
+    static Stream<Arguments> invalidFieldBodies() {
+        return Stream.of(
+                Arguments.of("{\"title\":\"" + "a".repeat(256) + "\"}", "title"),
+                Arguments.of("{\"title\":\"Chapter\",\"coverColor\":\"blue\"}", "coverColor"),
+                Arguments.of("{\"title\":\"Chapter\",\"coverColor\":\"#12345\"}", "coverColor"),
+                Arguments.of("{\"title\":\"Chapter\",\"fontSize\":0}", "fontSize"),
+                Arguments.of("{\"title\":\"Chapter\",\"fontSize\":-4}", "fontSize"),
+                Arguments.of("{\"title\":\"Chapter\",\"description\":\"" + "a".repeat(2001) + "\"}", "description"));
+    }
+
+    @Test
+    void getDiaryById_ownedDiary_returnsDetail() {
+        when(service.getDiaryById(DIARY_ID)).thenReturn(detail("Chapter one"));
+
+        assertThat(mvc.get().uri("/diaries/{id}", DIARY_ID)).bodyJson()
+                .extractingPath("$['characterId','title']")
+                .isEqualTo(Map.of("characterId", CHARACTER_ID.toString(), "title", "Chapter one"));
+    }
+
+    @Test
+    void updateDiary_validBody_returnsDetailAndPassesIdAndBodyToService() {
+        when(service.updateDiary(eq(DIARY_ID), any())).thenReturn(detail("Chapter two"));
+
+        MvcTestResult result = mvc.put().uri("/diaries/{id}", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(VALID_BODY).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.title").isEqualTo("Chapter two");
+        verify(service).updateDiary(DIARY_ID, new UpdateDiaryDTO("Chapter one", "The journey begins", "#1A2B3C", "Lora", (short) 16));
+    }
+
+    @Test
+    void updateDiary_titleOf255Chars_returnsOk() {
+        when(service.updateDiary(eq(DIARY_ID), any())).thenReturn(detail("a".repeat(255)));
+        String body = "{\"title\":\"" + "a".repeat(255) + "\"}";
+
+        assertThat(mvc.put().uri("/diaries/{id}", DIARY_ID).contentType(MediaType.APPLICATION_JSON).content(body))
+                .hasStatus(HttpStatus.OK);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidUpdateBodies")
+    void updateDiary_invalidBody_returnsBadRequestOnFieldWithoutCallingService(String body, String field) {
+        MvcTestResult result = mvc.put().uri("/diaries/{id}", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
+
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo(field);
+        verifyNoInteractions(service);
+    }
+
+    static Stream<Arguments> invalidUpdateBodies() {
+        return Stream.concat(Stream.of(Arguments.of("{\"title\":\"\"}", "title")), invalidFieldBodies());
+    }
+
+    @Test
+    void deleteDiary_ownedDiary_deletesThroughServiceAndReturnsConfirmationMessage() {
+        MvcTestResult result = mvc.delete().uri("/diaries/{id}", DIARY_ID).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Diary deleted");
+        verify(service).deleteDiary(DIARY_ID);
+    }
+
+    @Test
+    void updateDiaryCover_imagePart_returnsDetail() {
+        when(service.updateDiaryCover(eq(DIARY_ID), any())).thenReturn(detail("Chapter one"));
+
+        assertThat(mvc.put().uri("/diaries/{id}/cover", DIARY_ID).multipart().file(image()))
+                .bodyJson().extractingPath("$.id").isEqualTo(DIARY_ID.toString());
+    }
+
+    @Test
+    void deleteDiaryCover_ownedDiary_deletesThroughServiceAndReturnsConfirmationMessage() {
+        MvcTestResult result = mvc.delete().uri("/diaries/{id}/cover", DIARY_ID).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Cover removed");
+        verify(service).deleteDiaryCover(DIARY_ID);
+    }
+
+    @Test
     void getDiaryBookmark_diaryWithBookmark_returnsPageIdAndNumber() {
         when(service.getDiaryBookmark(DIARY_ID)).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 12));
 
@@ -429,76 +258,31 @@ class DiaryControllerTest {
     }
 
     @Test
-    void getDiaryBookmark_notFound_returnsNotFound() {
-        when(service.getDiaryBookmark(DIARY_ID)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found"));
-
-        assertThat(mvc.get().uri("/diaries/{id}/bookmark", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void updateDiaryBookmark_validBody_returnsBookmark() {
+    void updateDiaryBookmark_validBody_returnsBookmarkAndPassesPageIdToService() {
         when(service.updateDiaryBookmark(eq(DIARY_ID), any())).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
 
-        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY))
-                .bodyJson().extractingPath("$.pageNumber").isEqualTo(3);
-    }
-
-    @Test
-    void updateDiaryBookmark_validBody_passesPageIdToService() {
-        ArgumentCaptor<UpdateBookmarkDiaryDTO> request = ArgumentCaptor.forClass(UpdateBookmarkDiaryDTO.class);
-        when(service.updateDiaryBookmark(eq(DIARY_ID), any())).thenReturn(new BookmarkDiaryDTO(PAGE_ID, (short) 3));
-
-        mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+        MvcTestResult result = mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
                 .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY).exchange();
 
-        verify(service).updateDiaryBookmark(eq(DIARY_ID), request.capture());
-        assertThat(request.getValue().pageId()).isEqualTo(PAGE_ID);
+        assertThat(result).bodyJson().extractingPath("$.pageNumber").isEqualTo(3);
+        verify(service).updateDiaryBookmark(DIARY_ID, new UpdateBookmarkDiaryDTO(PAGE_ID));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "{\"pageId\":null}", "{\"pageId\":\"abc\"}", "{\"pageId\":12}", ""})
-    void updateDiaryBookmark_invalidBody_returnsBadRequest(String body) {
-        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(body))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
+    void updateDiaryBookmark_invalidBody_returnsBadRequestWithoutCallingService(String body) {
+        MvcTestResult result = mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
+                .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
 
-    @Test
-    void updateDiaryBookmark_invalidBody_doesNotCallService() {
-        mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content("{}").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
         verifyNoInteractions(service);
     }
 
     @Test
-    void updateDiaryBookmark_pageNotFound_returnsNotFound() {
-        when(service.updateDiaryBookmark(eq(DIARY_ID), any()))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found"));
+    void deleteDiaryBookmark_ownedDiary_deletesThroughServiceAndReturnsConfirmationMessage() {
+        MvcTestResult result = mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID).exchange();
 
-        assertThat(mvc.put().uri("/diaries/{id}/bookmark", DIARY_ID)
-                .contentType(MediaType.APPLICATION_JSON).content(BOOKMARK_BODY))
-                .hasStatus(HttpStatus.NOT_FOUND);
-    }
-
-    @Test
-    void deleteDiaryBookmark_ownedDiary_returnsConfirmationMessage() {
-        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID)).bodyJson()
-                .extractingPath("$.message").isEqualTo("Bookmark removed");
-    }
-
-    @Test
-    void deleteDiaryBookmark_ownedDiary_deletesThroughService() {
-        mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID).exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Bookmark removed");
         verify(service).deleteDiaryBookmark(DIARY_ID);
-    }
-
-    @Test
-    void deleteDiaryBookmark_notFound_returnsNotFound() {
-        doThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found")).when(service).deleteDiaryBookmark(DIARY_ID);
-
-        assertThat(mvc.delete().uri("/diaries/{id}/bookmark", DIARY_ID)).hasStatus(HttpStatus.NOT_FOUND);
     }
 }

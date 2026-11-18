@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,53 +105,30 @@ class DocumentServiceTest {
     }
 
     @Test
-    void createImageDocument_validPng_storesNameSizeAndBucket() {
+    void createImageDocument_validPng_uploadsFileAndSavesDocument() throws Exception {
         MultipartFile file = file("avatar.png", "image/png", PNG);
+        ArgumentCaptor<PutObjectArgs> args = ArgumentCaptor.forClass(PutObjectArgs.class);
 
         Document document = service.createImageDocument(file);
 
         assertThat(document).extracting(Document::getName, Document::getSize, Document::getBucket)
                 .containsExactly("avatar.png", (long) PNG.length, BUCKET);
-    }
-
-    @Test
-    void createImageDocument_validPng_generatesUuidObjectKey() {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
         assertThat(UUID.fromString(document.getObjectKey())).isNotNull();
-    }
-
-    @Test
-    void createImageDocument_validPng_uploadsToConfiguredBucketWithObjectKey() throws Exception {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-        ArgumentCaptor<PutObjectArgs> args = ArgumentCaptor.forClass(PutObjectArgs.class);
-
-        Document document = service.createImageDocument(file);
-
         verify(minioClient).putObject(args.capture());
         assertThat(args.getValue()).extracting(PutObjectArgs::bucket, PutObjectArgs::object)
                 .containsExactly(BUCKET, document.getObjectKey());
+        verify(database).save(document);
     }
 
     @Test
-    void createImageDocument_otherBucket_uploadsToThatBucket() throws Exception {
+    void createImageDocument_otherBucket_uploadsToThatBucketAndStoresItOnDocument() throws Exception {
         MultipartFile file = file("screenshot.png", "image/png", PNG);
         ArgumentCaptor<PutObjectArgs> args = ArgumentCaptor.forClass(PutObjectArgs.class);
 
-        service.createImageDocument(file, "feedback-documents");
+        Document document = service.createImageDocument(file, "feedback-documents");
 
         verify(minioClient).putObject(args.capture());
         assertThat(args.getValue().bucket()).isEqualTo("feedback-documents");
-    }
-
-    @Test
-    void createImageDocument_otherBucket_storesThatBucketOnDocument() {
-        MultipartFile file = file("screenshot.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file, "feedback-documents");
-
         assertThat(document.getBucket()).isEqualTo("feedback-documents");
     }
 
@@ -161,77 +139,72 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.createImageDocument(file, "feedback-documents")).isInstanceOf(ServiceException.class);
     }
 
-    @Test
-    void createImageDocument_validPng_savesDocument() {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
+    static Stream<Arguments> fileNames() {
+        return Stream.of(
+                Arguments.of("C:\\fakepath\\avatar.png", "avatar.png"),
+                Arguments.of("../../etc/avatar.png", "avatar.png"),
+                Arguments.of("ava\u0000tar.png", "avatar.png"),
+                Arguments.of("a".repeat(251) + ".png", "a".repeat(251) + ".png"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("fileNames")
+    void createImageDocument_fileNameWithPathOrNulOrAtLimit_storesCleanName(String original, String expected) {
+        MultipartFile file = file(original, "image/png", PNG);
 
         Document document = service.createImageDocument(file);
 
-        verify(database).save(document);
+        assertThat(document.getName()).isEqualTo(expected);
     }
 
     @Test
-    void createImageDocument_windowsPathInFileName_keepsOnlyFileName() {
-        MultipartFile file = file("C:\\fakepath\\avatar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getName()).isEqualTo("avatar.png");
-    }
-
-    @Test
-    void createImageDocument_unixPathInFileName_keepsOnlyFileName() {
-        MultipartFile file = file("../../etc/avatar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getName()).isEqualTo("avatar.png");
-    }
-
-    @Test
-    void createImageDocument_fileNameWithNulCharacter_storesNameWithoutIt() {
-        MultipartFile file = file("ava\u0000tar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getName()).isEqualTo("avatar.png");
-    }
-
-    @Test
-    void createImageDocument_fileNameOf255Chars_keepsWholeName() {
-        String name = "a".repeat(251) + ".png";
-        MultipartFile file = file(name, "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getName()).isEqualTo(name);
-    }
-
-    @Test
-    void createImageDocument_fileNameLongerThan255_isAccepted() {
+    void createImageDocument_fileNameLongerThan255_isAcceptedAndTruncatedKeepingExtension() {
         MultipartFile file = file("a".repeat(300) + ".png", "image/png", PNG);
 
         Document document = service.createImageDocument(file);
 
-        assertThat(document.getMimeType()).isEqualTo("image/png");
+        assertThat(document).satisfies(
+                saved -> assertThat(saved.getMimeType()).isEqualTo("image/png"),
+                saved -> assertThat(saved.getName()).hasSize(255).endsWith("aaa.png"));
     }
 
     @Test
-    void createImageDocument_fileNameLongerThan255_truncatesNameKeepingExtension() {
-        MultipartFile file = file("a".repeat(300) + ".png", "image/png", PNG);
+    void createImageDocument_longNameWithEmojiAcrossTheCut_storesNoLoneSurrogate() {
+        MultipartFile file = file("a".repeat(250) + "\uD83D\uDE00.png", "image/png", PNG);
 
         Document document = service.createImageDocument(file);
 
-        assertThat(document.getName()).hasSize(255).endsWith("aaa.png");
+        assertThat(new String(document.getName().getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8)).isEqualTo(document.getName());
     }
 
-    @Test
-    void createImageDocument_emptyFile_throwsServiceException() {
-        MultipartFile file = file("avatar.png", "image/png", new byte[0]);
+    static Stream<Arguments> invalidImages() {
+        byte[] wave = {'R', 'I', 'F', 'F', 0x24, 0, 0, 0, 'W', 'A', 'V', 'E', 'f', 'm', 't', ' '};
+        return Stream.of(
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/png", new byte[0]), "Empty file"),
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/pdf", PDF), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/png", "GIF89a....".getBytes()), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/png", "<svg xmlns=".getBytes()), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/png", "MZ\u0090\u0000".getBytes()), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.webp", "image/webp", new byte[]{'R', 'I', 'F', 'F', 0x24, 0}),
+                        "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.webp", "image/webp", wave), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", null, PNG),
+                        "Declared content type is missing or does not match the file content"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/jpeg", PNG),
+                        "Declared content type is missing or does not match the file content"),
+                Arguments.of(new MockMultipartFile("file", "avatar.jpg", "image/png", PNG),
+                        "File extension does not match the file content"),
+                Arguments.of(new MockMultipartFile("file", "avatar", "image/png", PNG),
+                        "File extension does not match the file content"));
+    }
 
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Empty file");
+    @ParameterizedTest
+    @MethodSource("invalidImages")
+    void createImageDocument_invalidFile_throwsServiceExceptionAndTouchesNoStorage(MultipartFile file, String message) {
+        Throwable thrown = catchThrowable(() -> service.createImageDocument(file));
+
+        assertThat(thrown).isInstanceOf(ServiceException.class).hasMessage(message);
+        verifyNoInteractions(minioClient, database);
     }
 
     @Test
@@ -245,31 +218,13 @@ class DocumentServiceTest {
     }
 
     @Test
-    void createImageDocument_pdf_throwsUnsupportedFileType() {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
+    void createImageDocument_exactlyAtMaxSize_isAccepted() {
+        config.setMaxFileSize(DataSize.ofBytes(PNG.length));
+        MultipartFile file = file("avatar.png", "image/png", PNG);
 
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
-    }
+        Document document = service.createImageDocument(file);
 
-    @ParameterizedTest
-    @ValueSource(strings = {"GIF89a....", "<svg xmlns=", "MZ\u0090\u0000"})
-    void createImageDocument_unknownContent_throwsUnsupportedFileType(String content) {
-        MultipartFile file = file("avatar.png", "image/png", content.getBytes());
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
-    }
-
-    @Test
-    void createImageDocument_truncatedWebpHeader_throwsUnsupportedFileType() {
-        MultipartFile file = file("avatar.webp", "image/webp", new byte[]{'R', 'I', 'F', 'F', 0x24, 0});
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
+        assertThat(document.getSize()).isEqualTo(PNG.length);
     }
 
     @Test
@@ -283,48 +238,13 @@ class DocumentServiceTest {
     }
 
     @Test
-    void createImageDocument_missingContentType_throwsServiceException() {
-        MultipartFile file = file("avatar.png", null, PNG);
+    void createImageDocument_imageLargerThanPdfLimit_isAccepted() {
+        config.setMaxPdfFileSize(DataSize.ofBytes(4));
+        MultipartFile file = file("avatar.png", "image/png", PNG);
 
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Declared content type is missing or does not match the file content");
-    }
+        Document document = service.createImageDocument(file);
 
-    @Test
-    void createImageDocument_declaredTypeDifferentFromContent_throwsServiceException() {
-        MultipartFile file = file("avatar.png", "image/jpeg", PNG);
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Declared content type is missing or does not match the file content");
-    }
-
-    @Test
-    void createImageDocument_extensionDifferentFromContent_throwsServiceException() {
-        MultipartFile file = file("avatar.jpg", "image/png", PNG);
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("File extension does not match the file content");
-    }
-
-    @Test
-    void createImageDocument_missingExtension_throwsServiceException() {
-        MultipartFile file = file("avatar", "image/png", PNG);
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("File extension does not match the file content");
-    }
-
-    @Test
-    void createImageDocument_invalidFile_doesNotTouchStorage() {
-        MultipartFile file = file("avatar.jpg", "image/png", PNG);
-
-        catchThrowable(() -> service.createImageDocument(file));
-
-        verifyNoInteractions(minioClient);
+        assertThat(document.getMimeType()).isEqualTo("image/png");
     }
 
     @Test
@@ -341,43 +261,28 @@ class DocumentServiceTest {
     }
 
     @Test
-    void createImageDocument_storageUnavailable_throwsInternalServerError() throws Exception {
+    void createImageDocument_storageUnavailable_throwsInternalServerErrorWithoutSavingDocument() throws Exception {
         MultipartFile file = file("avatar.png", "image/png", PNG);
         when(minioClient.putObject(any())).thenThrow(new MinioException("connection refused"));
 
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
-    }
+        Throwable thrown = catchThrowable(() -> service.createImageDocument(file));
 
-    @Test
-    void createImageDocument_storageUnavailable_doesNotSaveDocument() throws Exception {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-        when(minioClient.putObject(any())).thenThrow(new MinioException("connection refused"));
-
-        catchThrowable(() -> service.createImageDocument(file));
-
+        assertThat(thrown).isInstanceOfSatisfying(ResponseStatusException.class,
+                e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
         verify(database, never()).save(any());
     }
 
     @Test
-    void createImageDocument_saveFails_removesUploadedObject() throws Exception {
+    void createImageDocument_saveFails_removesUploadedObjectAndRethrows() throws Exception {
         MultipartFile file = file("avatar.png", "image/png", PNG);
         doThrow(new IllegalStateException("db down")).when(database).save(any(Document.class));
         ArgumentCaptor<RemoveObjectArgs> args = ArgumentCaptor.forClass(RemoveObjectArgs.class);
 
-        catchThrowable(() -> service.createImageDocument(file));
+        Throwable thrown = catchThrowable(() -> service.createImageDocument(file));
 
+        assertThat(thrown).isInstanceOf(IllegalStateException.class);
         verify(minioClient).removeObject(args.capture());
         assertThat(args.getValue().bucket()).isEqualTo(BUCKET);
-    }
-
-    @Test
-    void createImageDocument_saveFails_rethrowsException() {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-        doThrow(new IllegalStateException("db down")).when(database).save(any(Document.class));
-
-        assertThatThrownBy(() -> service.createImageDocument(file)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -390,10 +295,11 @@ class DocumentServiceTest {
     }
 
     @Test
-    void deleteDocumentRecord_null_doesNothing() {
+    void deleteDocument_null_doesNothing() {
         service.deleteDocumentRecord(null);
+        service.deleteDocumentFile(null);
 
-        verifyNoInteractions(database);
+        verifyNoInteractions(database, minioClient);
     }
 
     @Test
@@ -409,94 +315,90 @@ class DocumentServiceTest {
     }
 
     @Test
-    void deleteDocumentFile_null_doesNothing() {
-        service.deleteDocumentFile(null);
-
-        verifyNoInteractions(minioClient);
-    }
-
-    @Test
-    void deleteDocumentFile_storageFails_doesNotThrow() throws Exception {
+    void deleteDocumentFile_storageFails_doesNotThrowAndLogsWarningWithObjectKey(CapturedOutput output) throws Exception {
         Document document = storedDocument();
         doThrow(new MinioException("connection refused")).when(minioClient).removeObject(any());
 
-        assertThatCode(() -> service.deleteDocumentFile(document)).doesNotThrowAnyException();
+        Throwable thrown = catchThrowable(() -> service.deleteDocumentFile(document));
+
+        assertThat(thrown).isNull();
+        assertThat(output.getAll()).contains("Cannot remove the orphan file " + document.getObjectKey());
     }
 
     @Test
     void getDocumentUrl_null_returnsNull() {
-        String url = service.getDocumentUrl(null);
-
-        assertThat(url).isNull();
+        assertThat(service.getDocumentUrl(null)).isNull();
     }
 
     @Test
-    void getDocumentUrl_document_returnsPresignedUrl() throws Exception {
+    void getDocumentDownloadUrl_null_returnsNull() {
+        assertThat(service.getDocumentDownloadUrl(null)).isNull();
+    }
+
+    @Test
+    void getDocumentUrl_document_returnsPresignedUrlWithConfiguredExpiryAndNoDispositionOverride() throws Exception {
+        config.setUrlExpiry(Duration.ofMinutes(2));
         when(minioClient.getPresignedObjectUrl(any())).thenReturn("https://storage.example/signed");
+        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
 
         String url = service.getDocumentUrl(storedDocument());
 
+        verify(minioClient).getPresignedObjectUrl(args.capture());
         assertThat(url).isEqualTo("https://storage.example/signed");
+        assertThat(args.getValue().expiry()).isEqualTo(120);
+        assertThat(String.valueOf(args.getValue().extraQueryParams())).doesNotContain("response-content-disposition");
     }
 
     @Test
-    void getDocumentUrl_document_requestsConfiguredExpiry() throws Exception {
+    void getDocumentDownloadUrl_document_returnsPresignedUrlWithConfiguredExpiryAndAttachmentDisposition() throws Exception {
         config.setUrlExpiry(Duration.ofMinutes(2));
+        when(minioClient.getPresignedObjectUrl(any())).thenReturn("https://storage.example/download");
         ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
 
-        service.getDocumentUrl(storedDocument());
+        String url = service.getDocumentDownloadUrl(namedDocument("sheet.pdf"));
 
         verify(minioClient).getPresignedObjectUrl(args.capture());
+        assertThat(url).isEqualTo("https://storage.example/download");
         assertThat(args.getValue().expiry()).isEqualTo(120);
+        assertThat(String.valueOf(args.getValue().extraQueryParams()))
+                .contains("response-content-disposition", "attachment; filename*=UTF-8''sheet.pdf");
     }
 
     @Test
-    void getDocumentUrl_storageFails_throwsInternalServerError() throws Exception {
-        when(minioClient.getPresignedObjectUrl(any())).thenThrow(new MinioException("connection refused"));
-        Document document = storedDocument();
+    void getDocumentDownloadUrl_nameWithSpacesAndAccents_encodesFileName() throws Exception {
+        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
 
-        assertThatThrownBy(() -> service.getDocumentUrl(document))
+        service.getDocumentDownloadUrl(namedDocument("Scheda di Alira \u00e8.pdf"));
+
+        verify(minioClient).getPresignedObjectUrl(args.capture());
+        assertThat(String.valueOf(args.getValue().extraQueryParams())).contains("filename*=UTF-8''Scheda%20di%20Alira%20%C3%A8.pdf");
+    }
+
+    @Test
+    void getDocumentDownloadUrl_nameWithQuotesAndLineBreaks_putsNoRawControlCharactersInHeader() throws Exception {
+        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
+
+        service.getDocumentDownloadUrl(namedDocument("evil\".pdf\r\nX-Injected: yes"));
+
+        verify(minioClient).getPresignedObjectUrl(args.capture());
+        assertThat(String.valueOf(args.getValue().extraQueryParams())).doesNotContain("\r", "\n", "\"");
+    }
+
+    static Stream<Arguments> urlMethods() {
+        BiFunction<DocumentService, Document, String> url = DocumentService::getDocumentUrl;
+        BiFunction<DocumentService, Document, String> downloadUrl = DocumentService::getDocumentDownloadUrl;
+        return Stream.of(Arguments.of(url), Arguments.of(downloadUrl));
+    }
+
+    @ParameterizedTest
+    @MethodSource("urlMethods")
+    void getDocumentUrl_storageFails_throwsInternalServerError(BiFunction<DocumentService, Document, String> urlMethod) throws Exception {
+        when(minioClient.getPresignedObjectUrl(any())).thenThrow(new MinioException("connection refused"));
+        Document document = namedDocument("sheet.pdf");
+
+        assertThatThrownBy(() -> urlMethod.apply(service, document))
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
-    }
-
-    @Test
-    void createImageDocument_exactlyAtMaxSize_isAccepted() {
-        config.setMaxFileSize(DataSize.ofBytes(PNG.length));
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getSize()).isEqualTo(PNG.length);
-    }
-
-    @Test
-    void createImageDocument_riffContainerNotWebp_throwsUnsupportedFileType() {
-        byte[] wave = {'R', 'I', 'F', 'F', 0x24, 0, 0, 0, 'W', 'A', 'V', 'E', 'f', 'm', 't', ' '};
-        MultipartFile file = file("avatar.webp", "image/webp", wave);
-
-        assertThatThrownBy(() -> service.createImageDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
-    }
-
-    @Test
-    void createImageDocument_longNameWithEmojiAcrossTheCut_storesNoLoneSurrogate() {
-        MultipartFile file = file("a".repeat(250) + "\uD83D\uDE00.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(new String(document.getName().getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8)).isEqualTo(document.getName());
-    }
-
-    @Test
-    void deleteDocumentFile_storageFails_logsWarningWithObjectKey(CapturedOutput output) throws Exception {
-        Document document = storedDocument();
-        doThrow(new MinioException("connection refused")).when(minioClient).removeObject(any());
-
-        service.deleteDocumentFile(document);
-
-        assertThat(output.getAll()).contains("Cannot remove the orphan file " + document.getObjectKey());
     }
 
     private Document namedDocument(String name) {
@@ -505,99 +407,45 @@ class DocumentServiceTest {
         return document;
     }
 
-    @Test
-    void createPdfDocument_validPdf_storesPdfMimeType() {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
-
-        Document document = service.createPdfDocument(file);
-
-        assertThat(document.getMimeType()).isEqualTo("application/pdf");
-    }
-
-    @Test
-    void createPdfDocument_validPdf_storesNameSizeAndBucket() {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
-
-        Document document = service.createPdfDocument(file);
-
-        assertThat(document).extracting(Document::getName, Document::getSize, Document::getBucket)
-                .containsExactly("sheet.pdf", (long) PDF.length, BUCKET);
-    }
-
-    @Test
-    void createPdfDocument_validPdf_savesDocument() {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
-
-        Document document = service.createPdfDocument(file);
-
-        verify(database).save(document);
-    }
-
-    @Test
-    void createPdfDocument_validPdf_uploadsToConfiguredBucketWithObjectKey() throws Exception {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
+    @ParameterizedTest
+    @ValueSource(strings = {"sheet.pdf", "SHEET.PDF"})
+    void createPdfDocument_validPdf_storesMetadataUploadsFileAndSavesDocument(String name) throws Exception {
+        MultipartFile file = file(name, "application/pdf", PDF);
         ArgumentCaptor<PutObjectArgs> args = ArgumentCaptor.forClass(PutObjectArgs.class);
 
         Document document = service.createPdfDocument(file);
 
+        assertThat(document).extracting(Document::getName, Document::getMimeType, Document::getSize, Document::getBucket)
+                .containsExactly(name, "application/pdf", (long) PDF.length, BUCKET);
         verify(minioClient).putObject(args.capture());
         assertThat(args.getValue()).extracting(PutObjectArgs::bucket, PutObjectArgs::object)
                 .containsExactly(BUCKET, document.getObjectKey());
+        verify(database).save(document);
     }
 
-    @Test
-    void createPdfDocument_image_throwsUnsupportedFileType() {
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-
-        assertThatThrownBy(() -> service.createPdfDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
+    static Stream<Arguments> invalidPdfs() {
+        return Stream.of(
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/pdf", new byte[0]), "Empty file"),
+                Arguments.of(new MockMultipartFile("file", "avatar.png", "image/png", PNG), "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/pdf", "just some text".getBytes()),
+                        "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/pdf", "<html></html>".getBytes()),
+                        "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/pdf", "PK\u0003\u0004".getBytes()),
+                        "Unsupported file type"),
+                Arguments.of(new MockMultipartFile("file", "sheet.pdf", "application/octet-stream", PDF),
+                        "Declared content type is missing or does not match the file content"),
+                Arguments.of(new MockMultipartFile("file", "sheet.png", "application/pdf", PDF),
+                        "File extension does not match the file content"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"just some text", "<html></html>", "PK\u0003\u0004"})
-    void createPdfDocument_contentWithoutPdfSignature_throwsUnsupportedFileType(String content) {
-        MultipartFile file = file("sheet.pdf", "application/pdf", content.getBytes());
+    @MethodSource("invalidPdfs")
+    void createPdfDocument_invalidFile_throwsServiceExceptionAndTouchesNoStorage(MultipartFile file, String message) {
+        Throwable thrown = catchThrowable(() -> service.createPdfDocument(file));
 
-        assertThatThrownBy(() -> service.createPdfDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Unsupported file type");
-    }
-
-    @Test
-    void createPdfDocument_declaredTypeNotPdf_throwsServiceException() {
-        MultipartFile file = file("sheet.pdf", "application/octet-stream", PDF);
-
-        assertThatThrownBy(() -> service.createPdfDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Declared content type is missing or does not match the file content");
-    }
-
-    @Test
-    void createPdfDocument_extensionNotPdf_throwsServiceException() {
-        MultipartFile file = file("sheet.png", "application/pdf", PDF);
-
-        assertThatThrownBy(() -> service.createPdfDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("File extension does not match the file content");
-    }
-
-    @Test
-    void createPdfDocument_uppercaseExtension_isAccepted() {
-        MultipartFile file = file("SHEET.PDF", "application/pdf", PDF);
-
-        Document document = service.createPdfDocument(file);
-
-        assertThat(document.getMimeType()).isEqualTo("application/pdf");
-    }
-
-    @Test
-    void createPdfDocument_emptyFile_throwsServiceException() {
-        MultipartFile file = file("sheet.pdf", "application/pdf", new byte[0]);
-
-        assertThatThrownBy(() -> service.createPdfDocument(file))
-                .isInstanceOf(ServiceException.class)
-                .hasMessage("Empty file");
+        assertThat(thrown).isInstanceOf(ServiceException.class).hasMessage(message);
+        verifyNoInteractions(minioClient, database);
     }
 
     @Test
@@ -631,16 +479,6 @@ class DocumentServiceTest {
     }
 
     @Test
-    void createImageDocument_imageLargerThanPdfLimit_isAccepted() {
-        config.setMaxPdfFileSize(DataSize.ofBytes(4));
-        MultipartFile file = file("avatar.png", "image/png", PNG);
-
-        Document document = service.createImageDocument(file);
-
-        assertThat(document.getMimeType()).isEqualTo("image/png");
-    }
-
-    @Test
     void createPdfDocument_typeNotAllowedByConfig_throwsUnsupportedFileType() {
         config.setAllowedMimeTypes(List.of("image/png"));
         MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
@@ -648,102 +486,5 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.createPdfDocument(file))
                 .isInstanceOf(ServiceException.class)
                 .hasMessage("Unsupported file type");
-    }
-
-    @Test
-    void createPdfDocument_invalidFile_doesNotTouchStorage() {
-        MultipartFile file = file("sheet.png", "application/pdf", PDF);
-
-        catchThrowable(() -> service.createPdfDocument(file));
-
-        verifyNoInteractions(minioClient);
-    }
-
-    @Test
-    void createPdfDocument_saveFails_removesUploadedObject() throws Exception {
-        MultipartFile file = file("sheet.pdf", "application/pdf", PDF);
-        doThrow(new IllegalStateException("db down")).when(database).save(any(Document.class));
-
-        catchThrowable(() -> service.createPdfDocument(file));
-
-        verify(minioClient).removeObject(any(RemoveObjectArgs.class));
-    }
-
-    @Test
-    void getDocumentDownloadUrl_null_returnsNull() {
-        String url = service.getDocumentDownloadUrl(null);
-
-        assertThat(url).isNull();
-    }
-
-    @Test
-    void getDocumentDownloadUrl_document_returnsPresignedUrl() throws Exception {
-        when(minioClient.getPresignedObjectUrl(any())).thenReturn("https://storage.example/download");
-
-        String url = service.getDocumentDownloadUrl(namedDocument("sheet.pdf"));
-
-        assertThat(url).isEqualTo("https://storage.example/download");
-    }
-
-    @Test
-    void getDocumentDownloadUrl_document_requestsConfiguredExpiry() throws Exception {
-        config.setUrlExpiry(Duration.ofMinutes(2));
-        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
-
-        service.getDocumentDownloadUrl(namedDocument("sheet.pdf"));
-
-        verify(minioClient).getPresignedObjectUrl(args.capture());
-        assertThat(args.getValue().expiry()).isEqualTo(120);
-    }
-
-    @Test
-    void getDocumentDownloadUrl_document_asksForAttachmentDisposition() throws Exception {
-        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
-
-        service.getDocumentDownloadUrl(namedDocument("sheet.pdf"));
-
-        verify(minioClient).getPresignedObjectUrl(args.capture());
-        assertThat(String.valueOf(args.getValue().extraQueryParams()))
-                .contains("response-content-disposition", "attachment; filename*=UTF-8''sheet.pdf");
-    }
-
-    @Test
-    void getDocumentDownloadUrl_nameWithSpacesAndAccents_encodesFileName() throws Exception {
-        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
-
-        service.getDocumentDownloadUrl(namedDocument("Scheda di Alira è.pdf"));
-
-        verify(minioClient).getPresignedObjectUrl(args.capture());
-        assertThat(String.valueOf(args.getValue().extraQueryParams())).contains("filename*=UTF-8''Scheda%20di%20Alira%20%C3%A8.pdf");
-    }
-
-    @Test
-    void getDocumentDownloadUrl_nameWithQuotesAndLineBreaks_putsNoRawControlCharactersInHeader() throws Exception {
-        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
-
-        service.getDocumentDownloadUrl(namedDocument("evil\".pdf\r\nX-Injected: yes"));
-
-        verify(minioClient).getPresignedObjectUrl(args.capture());
-        assertThat(String.valueOf(args.getValue().extraQueryParams())).doesNotContain("\r", "\n", "\"");
-    }
-
-    @Test
-    void getDocumentDownloadUrl_storageFails_throwsInternalServerError() throws Exception {
-        when(minioClient.getPresignedObjectUrl(any())).thenThrow(new MinioException("connection refused"));
-        Document document = namedDocument("sheet.pdf");
-
-        assertThatThrownBy(() -> service.getDocumentDownloadUrl(document))
-                .isInstanceOfSatisfying(ResponseStatusException.class,
-                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
-    }
-
-    @Test
-    void getDocumentUrl_document_asksForNoContentDispositionOverride() throws Exception {
-        ArgumentCaptor<GetPresignedObjectUrlArgs> args = ArgumentCaptor.forClass(GetPresignedObjectUrlArgs.class);
-
-        service.getDocumentUrl(namedDocument("sheet.pdf"));
-
-        verify(minioClient).getPresignedObjectUrl(args.capture());
-        assertThat(String.valueOf(args.getValue().extraQueryParams())).doesNotContain("response-content-disposition");
     }
 }

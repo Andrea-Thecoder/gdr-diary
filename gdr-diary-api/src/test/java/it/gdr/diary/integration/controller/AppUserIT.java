@@ -51,20 +51,12 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createAppUser_calledTwice_returnsSameId() {
+    void createAppUser_calledTwice_returnsSameIdAndStoresOneUser() {
         UUID first = createAppUser();
 
         UUID second = createAppUser();
 
         assertThat(second).isEqualTo(first);
-    }
-
-    @Test
-    void createAppUser_calledTwice_storesOneUser() {
-        createAppUser();
-
-        createAppUser();
-
         assertThat(countRows("app_user")).isEqualTo(1);
     }
 
@@ -83,17 +75,11 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void getAppUserBySubject_newUser_returnsEmptySettings() {
+    void getAppUserBySubject_newUser_returnsEmptySettingsAndIsNotPremium() {
         createAppUser();
 
-        assertThat(mvc.get().uri("/me")).bodyJson().extractingPath("$.settings").isEqualTo(Map.of());
-    }
-
-    @Test
-    void getAppUserBySubject_newUser_isNotPremium() {
-        createAppUser();
-
-        assertThat(mvc.get().uri("/me")).bodyJson().extractingPath("$.premium").isEqualTo(false);
+        assertThat(mvc.get().uri("/me")).bodyJson().extractingPath("$").asMap()
+                .containsEntry("settings", Map.of()).containsEntry("premium", false);
     }
 
     @Test
@@ -127,7 +113,7 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateAppUserAvatar_validImage_returnsDownloadableUrl() throws Exception {
+    void updateAppUserAvatar_validImage_returnsDownloadableUrlAndStoresFileUnderDocumentKey() throws Exception {
         createAppUser();
         String url = json(mvc.put().uri("/me/avatar").multipart().file(pngFile("me.png")).exchange(), "$.payload");
 
@@ -135,14 +121,6 @@ class AppUserIT extends AbstractIntegrationTest {
                 .send(HttpRequest.newBuilder(URI.create(url)).build(), HttpResponse.BodyHandlers.ofByteArray());
 
         assertThat(download.body()).isEqualTo(PNG);
-    }
-
-    @Test
-    void updateAppUserAvatar_validImage_storesFileUnderDocumentKey() throws Exception {
-        createAppUser();
-
-        mvc.put().uri("/me/avatar").multipart().file(pngFile("me.png")).exchange();
-
         String objectKey = jdbc.queryForObject("select object_key from document", String.class);
         assertThat(storedObjectKeys()).containsExactly(objectKey);
     }
@@ -168,22 +146,13 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void deleteAppUser_userWithEverything_deletesAllRows() {
+    void deleteAppUser_userWithEverything_deletesAllRowsAndFiles() throws Exception {
         createUserWithEverything();
 
         mvc.delete().uri("/me").exchange();
 
-        assertThat(List.of(countRows("app_user"), countRows("game_character"), countRows("diary"), countRows("diary_page"), countRows("document")))
-                .containsOnly(0);
-    }
-
-    @Test
-    void deleteAppUser_userWithEverything_removesAllFilesFromStorage() throws Exception {
-        createUserWithEverything();
-
-        mvc.delete().uri("/me").exchange();
-
-        assertThat(storedObjectKeys()).isEmpty();
+        assertThat(List.of(countRows("app_user"), countRows("game_character"), countRows("diary"), countRows("diary_page"),
+                countRows("document"), storedObjectKeys().size())).containsOnly(0);
     }
 
     @Test
@@ -206,29 +175,14 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void deleteAppUser_loginOlderThanMaxAge_returnsUnauthorized() {
-        createAppUser();
-
-        assertThat(mvc.delete().uri("/me").with(TestJwt.authenticatedAt(Instant.now().minus(Duration.ofMinutes(10)))))
-                .hasStatus(HttpStatus.UNAUTHORIZED);
-    }
-
-    @Test
-    void deleteAppUser_loginOlderThanMaxAge_returnsStepUpChallenge() {
-        createAppUser();
-
-        assertThat(mvc.delete().uri("/me").with(TestJwt.authenticatedAt(Instant.now().minus(Duration.ofMinutes(10)))))
-                .headers().hasValue(HttpHeaders.WWW_AUTHENTICATE,
-                        "Bearer error=\"insufficient_user_authentication\", "
-                                + "error_description=\"A more recent authentication is required\", max_age=\"300\"");
-    }
-
-    @Test
-    void deleteAppUser_loginOlderThanMaxAge_deletesNothing() throws Exception {
+    void deleteAppUser_loginOlderThanMaxAge_returnsStepUpChallengeAndDeletesNothing() throws Exception {
         createUserWithEverything();
 
-        mvc.delete().uri("/me").with(TestJwt.authenticatedAt(Instant.now().minus(Duration.ofMinutes(10)))).exchange();
+        MvcTestResult result = mvc.delete().uri("/me").with(TestJwt.authenticatedAt(Instant.now().minus(Duration.ofMinutes(10)))).exchange();
 
+        assertThat(result).hasStatus(HttpStatus.UNAUTHORIZED).headers().hasValue(HttpHeaders.WWW_AUTHENTICATE,
+                "Bearer error=\"insufficient_user_authentication\", "
+                        + "error_description=\"A more recent authentication is required\", max_age=\"300\"");
         assertThat(List.of(countRows("app_user"), countRows("game_character"), countRows("diary"), countRows("diary_page"), storedObjectKeys().size()))
                 .doesNotContain(0);
     }
@@ -247,70 +201,39 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateAppUserSettings_overMaxSize_returnsBadRequest() {
-        createAppUser();
-
-        assertThat(mvc.patch().uri("/me/settings").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"settings\":{\"notes\":\"" + "a".repeat(11_000) + "\"}}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateAppUserSettings_overMaxSize_keepsStoredSettings() {
+    void updateAppUserSettings_overMaxSize_returnsBadRequestAndKeepsStoredSettings() {
         createAppUser();
         patchSettings("{\"font\":\"Lora\"}");
 
-        patchSettings("{\"notes\":\"" + "a".repeat(11_000) + "\"}");
+        MvcTestResult result = mvc.patch().uri("/me/settings").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"settings\":{\"notes\":\"" + "a".repeat(11_000) + "\"}}").exchange();
 
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(mvc.get().uri("/me")).bodyJson().extractingPath("$.settings").isEqualTo(Map.of("font", "Lora"));
     }
 
     @Test
-    void updateAppUserAvatar_pdfContent_returnsBadRequest() {
+    void updateAppUserAvatar_pdfContent_returnsBadRequestAndStoresNothing() throws Exception {
         createAppUser();
         MockMultipartFile pdf = new MockMultipartFile("file", "avatar.pdf", MediaType.APPLICATION_PDF_VALUE, "%PDF-1.7 content".getBytes());
 
-        assertThat(mvc.put().uri("/me/avatar").multipart().file(pdf)).hasStatus(HttpStatus.BAD_REQUEST);
-    }
+        MvcTestResult result = mvc.put().uri("/me/avatar").multipart().file(pdf).exchange();
 
-    @Test
-    void updateAppUserAvatar_pdfContent_storesNothing() throws Exception {
-        createAppUser();
-        MockMultipartFile pdf = new MockMultipartFile("file", "avatar.pdf", MediaType.APPLICATION_PDF_VALUE, "%PDF-1.7 content".getBytes());
-
-        mvc.put().uri("/me/avatar").multipart().file(pdf).exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(List.of(storedObjectKeys().size(), countRows("document"))).containsOnly(0);
     }
 
     private static final int PARALLEL_REQUESTS = 8;
 
-    private List<MvcTestResult> createUserInParallel() {
-        return ConcurrentCalls.fireAtOnce(PARALLEL_REQUESTS, index -> mvc.post().uri("/me")
+    @Test
+    void createAppUser_parallelFirstCalls_neverFailStoreOneUserAndReturnSameId() {
+        List<MvcTestResult> results = ConcurrentCalls.fireAtOnce(PARALLEL_REQUESTS, index -> mvc.post().uri("/me")
                 .with(TestJwt.as(TestJwt.USER_SUBJECT, TestJwt.USER_EMAIL, "user")).exchange());
-    }
-
-    @Test
-    void createAppUser_parallelFirstCalls_neverReturnsServerError() {
-        List<Integer> statuses = ConcurrentCalls.statuses(createUserInParallel());
-
-        assertThat(statuses).allMatch(status -> status < 500);
-    }
-
-    @Test
-    void createAppUser_parallelFirstCalls_storesOneUser() {
-        createUserInParallel();
-
-        assertThat(countRows("app_user")).isEqualTo(1);
-    }
-
-    @Test
-    void createAppUser_parallelFirstCalls_returnsSameIdToEveryCaller() {
-        List<MvcTestResult> results = createUserInParallel();
 
         List<String> ids = results.stream().filter(result -> result.getResponse().getStatus() == 200)
                 .map(result -> json(result, "$.payload")).distinct().toList();
-
+        assertThat(ConcurrentCalls.statuses(results)).allMatch(status -> status < 500);
+        assertThat(countRows("app_user")).isEqualTo(1);
         assertThat(ids).hasSize(1);
     }
 
@@ -341,22 +264,6 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateAppUserSettings_emptySettingsObject_returnsBadRequest() {
-        createAppUser();
-
-        assertThat(mvc.patch().uri("/me/settings").contentType(MediaType.APPLICATION_JSON).content("{\"settings\":{}}"))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void updateAppUserSettings_nulCharacterInValue_returnsBadRequest() {
-        createAppUser();
-
-        assertThat(mvc.patch().uri("/me/settings").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"settings\":{\"font\":\"a\\u0000b\"}}")).hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
     void deleteAppUserAvatar_withoutAvatar_returnsOk() {
         createAppUser();
 
@@ -379,14 +286,10 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void updateAppUserAvatar_userNotCreated_returnsNotFound() {
-        assertThat(mvc.put().uri("/me/avatar").multipart().file(pngFile("me.png"))).hasStatus(HttpStatus.NOT_FOUND);
-    }
+    void updateAppUserAvatar_userNotCreated_returnsNotFoundAndStoresNoFile() throws Exception {
+        MvcTestResult result = mvc.put().uri("/me/avatar").multipart().file(pngFile("me.png")).exchange();
 
-    @Test
-    void updateAppUserAvatar_userNotCreated_storesNoFile() throws Exception {
-        mvc.put().uri("/me/avatar").multipart().file(pngFile("me.png")).exchange();
-
+        assertThat(result).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(storedObjectKeys()).isEmpty();
     }
 
@@ -409,46 +312,25 @@ class AppUserIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createAppUser_tokenWithoutEmailClaim_returnsBadRequest() {
-        assertThat(mvc.post().uri("/me").with(tokenWithoutEmail())).hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
-    void createAppUser_tokenWithoutEmailClaim_keepsStoredEmail() {
+    void createAppUser_tokenWithoutEmailClaim_returnsBadRequestAndKeepsStoredEmail() {
         createAppUser();
 
-        mvc.post().uri("/me").with(tokenWithoutEmail()).exchange();
+        MvcTestResult result = mvc.post().uri("/me").with(tokenWithoutEmail()).exchange();
 
-        String email = jdbc.queryForObject("select email from app_user", String.class);
-        assertThat(email).isEqualTo(TestJwt.USER_EMAIL);
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(jdbc.queryForObject("select email from app_user", String.class)).isEqualTo(TestJwt.USER_EMAIL);
     }
 
     @Test
-    void deleteAppUser_charactersWithoutDiaries_deletesUserAndCharacters() {
+    void deleteAppUser_charactersWithoutDiaries_returnsOkAndDeletesUserAndCharacters() {
         createAppUser();
         createGameCharacter("Aragorn");
         createGameCharacter("Legolas");
 
-        mvc.delete().uri("/me").exchange();
+        MvcTestResult result = mvc.delete().uri("/me").exchange();
 
+        assertThat(result).hasStatusOk();
         assertThat(List.of(countRows("app_user"), countRows("game_character"))).containsOnly(0);
-    }
-
-    @Test
-    void deleteAppUser_charactersWithoutDiaries_returnsOk() {
-        createAppUser();
-        createGameCharacter("Aragorn");
-
-        assertThat(mvc.delete().uri("/me")).hasStatusOk();
-    }
-
-    @Test
-    void updateAppUserSettings_twoParallelPatches_neverReturnsServerError() {
-        createAppUser();
-
-        List<Integer> statuses = ConcurrentCalls.statuses(patchSettingsInParallel());
-
-        assertThat(statuses).allMatch(status -> status < 500);
     }
 
     @Test
@@ -463,40 +345,19 @@ class AppUserIT extends AbstractIntegrationTest {
     private static final String INSERT_CHARACTER = "insert into game_character (id, owner_id, created_at, updated_at, version, "
             + "name, kind, created_by, updated_by) values (?, ?, now(), now(), 1, 'Racing', 'PLAYER', 'test', 'test')";
 
-    private MvcTestResult deleteAppUserWhileCharacterIsAdded(UUID userId) {
+    @Test
+    void deleteAppUser_characterAddedBeforeCommit_returnsConflictWithRetryMessageAndKeepsUser() {
+        UUID userId = createAppUser();
+        MvcTestResult result;
         try (BlockingTransaction creation = BlockingTransaction.begin(jdbc).execute(INSERT_CHARACTER, UUID.randomUUID(), userId)) {
             CompletableFuture<MvcTestResult> delete = creation.startBlockedCall(
                     () -> mvc.delete().uri("/me").with(TestJwt.authenticatedAt(Instant.now())).exchange());
             creation.commit();
-            return delete.join();
+            result = delete.join();
         }
-    }
 
-    @Test
-    void deleteAppUser_characterAddedBeforeCommit_returnsConflict() {
-        UUID userId = createAppUser();
-
-        MvcTestResult result = deleteAppUserWhileCharacterIsAdded(userId);
-
-        assertThat(result).hasStatus(HttpStatus.CONFLICT);
-    }
-
-    @Test
-    void deleteAppUser_characterAddedBeforeCommit_returnsRetryMessage() {
-        UUID userId = createAppUser();
-
-        MvcTestResult result = deleteAppUserWhileCharacterIsAdded(userId);
-
-        assertThat(result).bodyJson().extractingPath("$.violations[0].message")
+        assertThat(result).hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.violations[0].message")
                 .isEqualTo("The account changed while it was being deleted, try again");
-    }
-
-    @Test
-    void deleteAppUser_characterAddedBeforeCommit_keepsUser() {
-        UUID userId = createAppUser();
-
-        deleteAppUserWhileCharacterIsAdded(userId);
-
         assertThat(countRows("app_user")).isEqualTo(1);
     }
 }

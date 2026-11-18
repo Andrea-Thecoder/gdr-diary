@@ -33,7 +33,7 @@ public class SecurityConfig {
     private List<String> allowedOrigins = List.of();
     private List<String> allowedMethods = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
     private List<String> allowedHeaders = List.of("Authorization", "Content-Type", "Accept");
-    private List<String> exposedHeaders = List.of(HttpHeaders.WWW_AUTHENTICATE);
+    private List<String> exposedHeaders = List.of(HttpHeaders.WWW_AUTHENTICATE, HttpHeaders.CONTENT_DISPOSITION);
     private Duration maxAge = Duration.ofHours(1);
 
     @Bean

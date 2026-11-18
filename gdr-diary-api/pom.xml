@@ -36,6 +36,7 @@
         <springdoc-openapi-starter-webmvc-ui.version>3.1.1</springdoc-openapi-starter-webmvc-ui.version>
         <keycloak-admin-client.version>26.0.12</keycloak-admin-client.version>
         <minio.version>9.0.3</minio.version>
+        <pdfbox.version>3.0.8</pdfbox.version>
         <okhttp.version>5.3.2</okhttp.version>
         <ebean-ddl-generator.version>19.6.0</ebean-ddl-generator.version>
             <ebean-maven-plugin.version>19.7.0</ebean-maven-plugin.version>
@@ -149,6 +150,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>${pdfbox.version}</version>
     </dependency>
 
     <dependency>

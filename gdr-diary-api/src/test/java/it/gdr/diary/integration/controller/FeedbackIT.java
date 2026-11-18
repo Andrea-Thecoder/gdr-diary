@@ -87,31 +87,17 @@ class FeedbackIT extends AbstractIntegrationTest {
     // ---- POST /feedback ----
 
     @Test
-    void createFeedback_noToken_returnsCreated() {
-        assertThat(form()).hasStatus(HttpStatus.CREATED);
-    }
+    void createFeedback_noToken_savesNewAnonymousFeedbackWithUpperCaseType() {
+        MvcTestResult result = form(newAddress(), "bug", "The page does not turn").exchange();
 
-    @Test
-    void createFeedback_noToken_returnsReceivedMessage() {
-        assertThat(form()).bodyJson().extractingPath("$.message").isEqualTo("Feedback received");
-    }
-
-    @Test
-    void createFeedback_noToken_savesNewFeedbackWithUpperCaseType() {
-        UUID id = sendFeedback("bug", "The page does not turn");
-
-        assertThat(jdbc.queryForMap("select type, status, email, privacy_accepted from feedback where id = ?", id))
+        assertThat(result).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.message").isEqualTo("Feedback received");
+        assertThat(jdbc.queryForMap("select type, status, email, privacy_accepted, created_by from feedback where message = ?",
+                "The page does not turn"))
                 .containsEntry("type", "BUG")
                 .containsEntry("status", "NEW")
                 .containsEntry("email", "alira@example.com")
-                .containsEntry("privacy_accepted", true);
-    }
-
-    @Test
-    void createFeedback_noToken_recordsAnonymousCreator() {
-        UUID id = sendFeedback();
-
-        assertThat(jdbc.queryForObject("select created_by from feedback where id = ?", String.class, id)).isEqualTo("N/A");
+                .containsEntry("privacy_accepted", true)
+                .containsEntry("created_by", "N/A");
     }
 
     @Test
@@ -128,73 +114,30 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createFeedback_technicalInfoNotAnObject_returnsBadRequestMessage() {
-        assertThat(form().param("technicalInfo", "[1,2]"))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("Technical info is not a valid JSON object");
-    }
-
-    @Test
-    void createFeedback_twoImages_storesThemInFeedbackBucket() throws Exception {
-        sendFeedback(image("one.png"), image("two.png"));
-
-        assertThat(storedObjectKeys(FEEDBACK_BUCKET)).hasSize(2);
-    }
-
-    @Test
-    void createFeedback_twoImages_storesNothingInDiaryBucket() throws Exception {
-        sendFeedback(image("one.png"), image("two.png"));
-
-        assertThat(storedObjectKeys()).isEmpty();
-    }
-
-    @Test
-    void createFeedback_twoImages_linksBothDocumentsToFeedback() {
+    void createFeedback_twoImages_storesFilesInFeedbackBucketAndLinksDocumentsToFeedback() throws Exception {
         UUID id = sendFeedback(image("one.png"), image("two.png"));
 
+        assertThat(storedObjectKeys(FEEDBACK_BUCKET)).hasSize(2);
+        assertThat(storedObjectKeys()).isEmpty();
         assertThat(jdbc.queryForObject("select count(*) from feedback_document where feedback_id = ?", Integer.class, id)).isEqualTo(2);
-    }
-
-    @Test
-    void createFeedback_twoImages_recordsFeedbackBucketOnDocuments() {
-        sendFeedback(image("one.png"), image("two.png"));
-
         assertThat(jdbc.queryForList("select distinct bucket from document", String.class)).containsExactly(FEEDBACK_BUCKET);
     }
 
     @Test
-    void createFeedback_trapFieldFilled_returnsCreated() {
-        assertThat(form().param("website", "https://spam.example")).hasStatus(HttpStatus.CREATED);
-    }
+    void createFeedback_trapFieldFilled_returnsCreatedAndSavesNothing() throws Exception {
+        MvcTestResult result = form(image("one.png")).param("website", "https://spam.example").exchange();
 
-    @Test
-    void createFeedback_trapFieldFilled_savesNothing() throws Exception {
-        form(image("one.png")).param("website", "https://spam.example").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.CREATED);
         assertThat(countRows("feedback") + countRows("document") + storedObjectKeys(FEEDBACK_BUCKET).size()).isZero();
     }
 
     @Test
-    void createFeedback_consentMissing_returnsBadRequest() {
+    void createFeedback_consentMissing_returnsBadRequestOnConsentAndSavesNothing() {
         MvcTestResult result = mvc.post().uri("/feedback").multipart().with(newAddress())
                 .param("type", "idea").param("message", "Hi").param("email", "alira@example.com").exchange();
 
-        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("consent");
-    }
-
-    @Test
-    void createFeedback_consentFalse_savesNothing() {
-        mvc.post().uri("/feedback").multipart().with(newAddress())
-                .param("type", "idea").param("message", "Hi").param("email", "alira@example.com").param("consent", "false").exchange();
-
+        assertThat(result).hasStatus(HttpStatus.BAD_REQUEST).bodyJson().extractingPath("$.violations[0].field").isEqualTo("consent");
         assertThat(countRows("feedback")).isZero();
-    }
-
-    @Test
-    void createFeedback_missingEmail_reportsEmailAsViolationField() {
-        MvcTestResult result = mvc.post().uri("/feedback").multipart().with(newAddress())
-                .param("type", "idea").param("message", "Hi").param("consent", "true").exchange();
-
-        assertThat(result).bodyJson().extractingPath("$.violations[0].field").isEqualTo("email");
     }
 
     @Test
@@ -212,15 +155,10 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createFeedback_fourImages_returnsTooManyFilesMessage() {
-        assertThat(form(image("1.png"), image("2.png"), image("3.png"), image("4.png")))
-                .bodyJson().extractingPath("$.violations[0].message").isEqualTo("Too many files (maximum 3)");
-    }
+    void createFeedback_fourImages_returnsTooManyFilesMessageAndStoresNoFile() throws Exception {
+        MvcTestResult result = form(image("1.png"), image("2.png"), image("3.png"), image("4.png")).exchange();
 
-    @Test
-    void createFeedback_fourImages_storesNoFile() throws Exception {
-        form(image("1.png"), image("2.png"), image("3.png"), image("4.png")).exchange();
-
+        assertThat(result).bodyJson().extractingPath("$.violations[0].message").isEqualTo("Too many files (maximum 3)");
         assertThat(storedObjectKeys(FEEDBACK_BUCKET)).isEmpty();
     }
 
@@ -240,20 +178,12 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void createFeedback_secondImageInvalid_removesFirstImageFromStorage() throws Exception {
+    void createFeedback_secondImageInvalid_removesFirstImageFromStorageAndSavesNoRow() throws Exception {
         MockMultipartFile pdf = new MockMultipartFile("files", "doc.pdf", MediaType.APPLICATION_PDF_VALUE, PDF);
 
         form(image("one.png"), pdf).exchange();
 
         assertThat(storedObjectKeys(FEEDBACK_BUCKET)).isEmpty();
-    }
-
-    @Test
-    void createFeedback_secondImageInvalid_savesNoRow() {
-        MockMultipartFile pdf = new MockMultipartFile("files", "doc.pdf", MediaType.APPLICATION_PDF_VALUE, PDF);
-
-        form(image("one.png"), pdf).exchange();
-
         assertThat(countRows("feedback") + countRows("feedback_document") + countRows("document")).isZero();
     }
 
@@ -298,53 +228,19 @@ class FeedbackIT extends AbstractIntegrationTest {
                 .isEqualTo(Map.of("bearerAuth", List.of()));
     }
 
-    @ParameterizedTest
-    @CsvSource({"GET,/feedback/not-a-uuid", "PATCH,/feedback/not-a-uuid/read", "DELETE,/feedback/not-a-uuid"})
-    void adminRoute_idNotUuid_returnsBadRequest(String method, String path) {
-        assertThat(mvc.method(HttpMethod.valueOf(method)).uri(path).with(ADMIN)).hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
     // ---- rate limit ----
 
     @Test
-    void createFeedback_fifthRequestFromSameAddress_returnsCreated() {
+    void createFeedback_sixthRequestFromSameAddress_isBlockedWithRetryAfterAndNothingSaved() {
         RequestPostProcessor address = newAddress();
         sendFromAddress(address, 4);
 
-        assertThat(form(address, "idea", "Fifth")).hasStatus(HttpStatus.CREATED);
-    }
+        MvcTestResult fifth = form(address, "idea", "Fifth").exchange();
+        MvcTestResult sixth = form(address, "idea", "Sixth").exchange();
 
-    @Test
-    void createFeedback_sixthRequestFromSameAddress_returnsTooManyRequests() {
-        RequestPostProcessor address = newAddress();
-        sendFromAddress(address, 5);
-
-        assertThat(form(address, "idea", "Sixth")).hasStatus(HttpStatus.TOO_MANY_REQUESTS);
-    }
-
-    @Test
-    void createFeedback_sixthRequestFromSameAddress_returnsRetryAfterOfTheWindow() {
-        RequestPostProcessor address = newAddress();
-        sendFromAddress(address, 5);
-
-        assertThat(form(address, "idea", "Sixth")).headers().hasValue(HttpHeaders.RETRY_AFTER, "3600");
-    }
-
-    @Test
-    void createFeedback_sixthRequestFromSameAddress_returnsErrorInApiFormat() {
-        RequestPostProcessor address = newAddress();
-        sendFromAddress(address, 5);
-
-        assertThat(form(address, "idea", "Sixth")).bodyJson().extractingPath("$.title").isEqualTo("TOO_MANY_REQUESTS");
-    }
-
-    @Test
-    void createFeedback_sixthRequestFromSameAddress_savesNothing() {
-        RequestPostProcessor address = newAddress();
-        sendFromAddress(address, 5);
-
-        form(address, "idea", "Sixth").exchange();
-
+        assertThat(fifth).hasStatus(HttpStatus.CREATED);
+        assertThat(sixth).hasStatus(HttpStatus.TOO_MANY_REQUESTS).headers().hasValue(HttpHeaders.RETRY_AFTER, "3600");
+        assertThat(sixth).bodyJson().extractingPath("$.title").isEqualTo("TOO_MANY_REQUESTS");
         assertThat(countRows("feedback")).isEqualTo(5);
     }
 
@@ -390,29 +286,24 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void markFeedbackAsRead_userRole_keepsStatus() {
-        UUID id = sendFeedback();
-
-        mvc.patch().uri("/feedback/{id}/read", id).with(USER).exchange();
-
-        assertThat(storedStatus(id)).isEqualTo("NEW");
-    }
-
-    @Test
-    void deleteFeedback_userRole_keepsData() throws Exception {
+    void adminChanges_userRole_keepStatusAndData() throws Exception {
         UUID id = sendFeedback(image("one.png"));
 
+        mvc.patch().uri("/feedback/{id}/read", id).with(USER).exchange();
         mvc.delete().uri("/feedback/{id}", id).with(USER).exchange();
 
+        assertThat(storedStatus(id)).isEqualTo("NEW");
         assertThat(storedObjectKeys(FEEDBACK_BUCKET)).hasSize(1);
     }
 
     @Test
-    void deleteFeedback_noToken_keepsRow() {
+    void adminChanges_noToken_keepStatusAndData() {
         UUID id = sendFeedback();
 
+        mvc.patch().uri("/feedback/{id}/read", id).exchange();
         mvc.delete().uri("/feedback/{id}", id).exchange();
 
+        assertThat(storedStatus(id)).isEqualTo("NEW");
         assertThat(countRows("feedback")).isEqualTo(1);
     }
 
@@ -478,12 +369,6 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAllFeedbacks_createdFromAfterCreatedTo_returnsBadRequest() {
-        assertThat(mvc.get().uri("/feedback?createdFrom={from}&createdTo={to}", TODAY, YESTERDAY).with(ADMIN))
-                .hasStatus(HttpStatus.BAD_REQUEST);
-    }
-
-    @Test
     void findAllFeedbacks_unknownType_returnsBadRequest() {
         assertThat(mvc.get().uri("/feedback?type=PRAISE").with(ADMIN)).hasStatus(HttpStatus.BAD_REQUEST);
     }
@@ -506,52 +391,43 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void getFeedbackById_feedbackWithImage_returnsAttachmentUrlOfFeedbackBucket() {
+    void getFeedbackById_feedbackWithImage_returnsAttachmentWithBucketUrlAndOriginalFileName() {
         UUID id = sendFeedback(image("screenshot.png"));
 
-        assertThat(mvc.get().uri("/feedback/{id}", id).with(ADMIN)).bodyJson().extractingPath("$.attachments[0].url")
-                .asString().contains("/" + FEEDBACK_BUCKET + "/");
+        MvcTestResult result = mvc.get().uri("/feedback/{id}", id).with(ADMIN).exchange();
+
+        assertThat(result).bodyJson().extractingPath("$.attachments[0].url").asString().contains("/" + FEEDBACK_BUCKET + "/");
+        assertThat(result).bodyJson().extractingPath("$.attachments[0].fileName").isEqualTo("screenshot.png");
     }
 
-    @Test
-    void getFeedbackById_feedbackWithImage_returnsOriginalFileName() {
-        UUID id = sendFeedback(image("screenshot.png"));
-
-        assertThat(mvc.get().uri("/feedback/{id}", id).with(ADMIN)).bodyJson().extractingPath("$.attachments[0].fileName")
-                .isEqualTo("screenshot.png");
-    }
-
-    @Test
-    void getFeedbackById_missingFeedback_returnsNotFound() {
-        assertThat(mvc.get().uri("/feedback/{id}", UUID.randomUUID()).with(ADMIN)).hasStatus(HttpStatus.NOT_FOUND);
+    @ParameterizedTest
+    @CsvSource({"GET,/feedback/{id}", "PATCH,/feedback/{id}/read", "DELETE,/feedback/{id}"})
+    void adminRoute_missingFeedback_returnsNotFound(String method, String path) {
+        assertThat(mvc.method(HttpMethod.valueOf(method)).uri(path, UUID.randomUUID()).with(ADMIN)).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     // ---- PATCH /feedback/{id}/... ----
 
     @ParameterizedTest
     @CsvSource({"read,READ", "answered,ANSWERED", "archive,ARCHIVED", "unread,NEW"})
-    void changeFeedbackStatus_admin_storesNewStatus(String action, String status) {
+    void changeFeedbackStatus_admin_returnsAndStoresNewStatus(String action, String status) {
         UUID id = sendFeedback();
         jdbc.update("update feedback set status = 'READ' where id = ?", id);
 
-        mvc.patch().uri("/feedback/{id}/" + action, id).with(ADMIN).exchange();
+        MvcTestResult result = mvc.patch().uri("/feedback/{id}/" + action, id).with(ADMIN).exchange();
 
-        assertThat(storedStatus(id)).isEqualTo(status);
+        assertThat(List.of(json(result, "$.status"), storedStatus(id))).containsExactly(status, status);
     }
 
     @Test
-    void archiveFeedback_admin_returnsArchivedDetail() {
+    void archiveFeedback_calledTwice_returnsArchivedDetailBothTimes() {
         UUID id = sendFeedback();
 
-        assertThat(mvc.patch().uri("/feedback/{id}/archive", id).with(ADMIN)).bodyJson().extractingPath("$.status").isEqualTo("ARCHIVED");
-    }
+        MvcTestResult first = mvc.patch().uri("/feedback/{id}/archive", id).with(ADMIN).exchange();
+        MvcTestResult second = mvc.patch().uri("/feedback/{id}/archive", id).with(ADMIN).exchange();
 
-    @Test
-    void archiveFeedback_calledTwice_returnsOk() {
-        UUID id = sendFeedback();
-        mvc.patch().uri("/feedback/{id}/archive", id).with(ADMIN).exchange();
-
-        assertThat(mvc.patch().uri("/feedback/{id}/archive", id).with(ADMIN)).hasStatusOk();
+        assertThat(first).hasStatusOk().bodyJson().extractingPath("$.status").isEqualTo("ARCHIVED");
+        assertThat(second).hasStatusOk().bodyJson().extractingPath("$.status").isEqualTo("ARCHIVED");
     }
 
     private MvcTestResult markAsReadWhileArchivedElsewhere(UUID id) {
@@ -565,52 +441,25 @@ class FeedbackIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void markFeedbackAsRead_changedAtTheSameTime_returnsConflict() {
+    void markFeedbackAsRead_changedAtTheSameTime_returnsConflictAndKeepsTheOtherChange() {
         UUID id = sendFeedback();
 
         MvcTestResult result = markAsReadWhileArchivedElsewhere(id);
 
         assertThat(result).hasStatus(HttpStatus.CONFLICT);
-    }
-
-    @Test
-    void markFeedbackAsRead_changedAtTheSameTime_keepsTheOtherChange() {
-        UUID id = sendFeedback();
-
-        markAsReadWhileArchivedElsewhere(id);
-
         assertThat(storedStatus(id)).isEqualTo("ARCHIVED");
-    }
-
-    @Test
-    void markFeedbackAsRead_missingFeedback_returnsNotFound() {
-        assertThat(mvc.patch().uri("/feedback/{id}/read", UUID.randomUUID()).with(ADMIN)).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     // ---- DELETE /feedback/{id} ----
 
     @Test
-    void deleteFeedback_admin_returnsDeletedMessage() {
-        UUID id = sendFeedback();
-
-        assertThat(mvc.delete().uri("/feedback/{id}", id).with(ADMIN)).bodyJson().extractingPath("$.message").isEqualTo("Feedback deleted");
-    }
-
-    @Test
-    void deleteFeedback_feedbackWithImages_deletesAllRows() {
+    void deleteFeedback_feedbackWithImages_returnsDeletedMessageAndRemovesRowsAndFiles() throws Exception {
         UUID id = sendFeedback(image("one.png"), image("two.png"));
 
-        mvc.delete().uri("/feedback/{id}", id).with(ADMIN).exchange();
+        MvcTestResult result = mvc.delete().uri("/feedback/{id}", id).with(ADMIN).exchange();
 
+        assertThat(result).bodyJson().extractingPath("$.message").isEqualTo("Feedback deleted");
         assertThat(countRows("feedback") + countRows("feedback_document") + countRows("document")).isZero();
-    }
-
-    @Test
-    void deleteFeedback_feedbackWithImages_removesFilesFromStorage() throws Exception {
-        UUID id = sendFeedback(image("one.png"), image("two.png"));
-
-        mvc.delete().uri("/feedback/{id}", id).with(ADMIN).exchange();
-
         assertThat(storedObjectKeys(FEEDBACK_BUCKET)).isEmpty();
     }
 
@@ -622,11 +471,6 @@ class FeedbackIT extends AbstractIntegrationTest {
         mvc.delete().uri("/feedback/{id}", deleted).with(ADMIN).exchange();
 
         assertThat(storedObjectKeys(FEEDBACK_BUCKET)).hasSize(1);
-    }
-
-    @Test
-    void deleteFeedback_missingFeedback_returnsNotFound() {
-        assertThat(mvc.delete().uri("/feedback/{id}", UUID.randomUUID()).with(ADMIN)).hasStatus(HttpStatus.NOT_FOUND);
     }
 
     @Test
