@@ -22,6 +22,7 @@ import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.CharacterBackgroundService;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.DiaryPageContentValidator;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
@@ -65,7 +66,7 @@ class CharacterBackgroundServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CharacterBackgroundService(database, jwtInspector, JsonMapper.builder().build(), config, contentValidator);
+        service = new CharacterBackgroundService(database, jwtInspector, JsonMapper.builder().build(), config, contentValidator, new OwnedResources(database, jwtInspector));
     }
 
     private static Map<String, Object> document(String text) {

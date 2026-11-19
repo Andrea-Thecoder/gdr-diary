@@ -37,9 +37,10 @@ public class CharacterBackgroundService {
     private final ObjectMapper objectMapper;
     private final CharacterBackgroundConfig config;
     private final DiaryPageContentValidator contentValidator;
+    private final OwnedResources ownedResources;
 
     public DetailCharacterBackgroundDTO getCharacterBackground(UUID characterId) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = getPlayerCharacterByIdAndOwner(characterId);
         CharacterBackground background = findBackgroundByCharacter(character.getId());
         return background == null ? DetailCharacterBackgroundDTO.empty() : DetailCharacterBackgroundDTO.from(background);
     }
@@ -57,7 +58,7 @@ public class CharacterBackgroundService {
     }
 
     public DetailCharacterBackgroundDTO updateCharacterBackground(UUID characterId, UpdateCharacterBackgroundDTO request) {
-        getGameCharacterByIdAndOwner(characterId);
+        getPlayerCharacterByIdAndOwner(characterId);
         validateContent(request.content());
         BackgroundText text = BackgroundText.of(request.content());
         if (text.length() > config.getMaxTextLength()) {
@@ -119,14 +120,8 @@ public class CharacterBackgroundService {
                 .findOne();
     }
 
-    private GameCharacter getGameCharacterByIdAndOwner(UUID id) {
-        GameCharacter character = database.find(GameCharacter.class)
-                .setLabel("getGameCharacterByIdAndOwner")
-                .where().idEq(id).eq("owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (character == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
-        }
+    private GameCharacter getPlayerCharacterByIdAndOwner(UUID id) {
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(id);
         if (character.getKind() == GameCharacterKind.GAME_MASTER) {
             throw new ServiceException("A game master has no background");
         }

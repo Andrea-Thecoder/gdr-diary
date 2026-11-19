@@ -1,6 +1,7 @@
 package it.gdr.diary.services;
 
 import io.ebean.Database;
+import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.Http;
 import io.minio.MinioClient;
@@ -20,6 +21,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -184,6 +187,18 @@ public class DocumentService {
             }
         }
         return true;
+    }
+
+    public void copyDocumentContent(Document document, OutputStream out) {
+        try (InputStream in = minioClient.getObject(GetObjectArgs.builder()
+                .bucket(document.getBucket())
+                .object(document.getObjectKey())
+                .build())) {
+            in.transferTo(out);
+        } catch (Exception e) {
+            log.error("Cannot read the file of document {}", document.getObjectKey(), e);
+            throw new UncheckedIOException(new IOException("Cannot read the file of document " + document.getId(), e));
+        }
     }
 
     private void putObject(Document document, MultipartFile file) {

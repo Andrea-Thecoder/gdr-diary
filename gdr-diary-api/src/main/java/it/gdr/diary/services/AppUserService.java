@@ -7,7 +7,6 @@ import it.gdr.diary.config.AppUserConfig;
 import it.gdr.diary.dto.app_user.DetailAppUserDTO;
 import it.gdr.diary.dto.app_user.UpdateSettingsAppUserDTO;
 import it.gdr.diary.validation.StorableText;
-import it.gdr.diary.exception.RecentAuthenticationRequiredException;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.AppUser;
@@ -17,6 +16,7 @@ import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
+import it.gdr.diary.security.RecentAuthentication;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -26,9 +26,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.ObjectMapper;
 
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -47,7 +44,7 @@ public class AppUserService {
     private final ObjectMapper objectMapper;
     private final AppUserConfig config;
     private final DocumentService documentService;
-    private final Clock clock;
+    private final RecentAuthentication recentAuthentication;
     private final DiaryPageTagService tagService;
     private final KeycloakUserService keycloakUserService;
 
@@ -99,7 +96,7 @@ public class AppUserService {
     }
 
     public void deleteAppUser() {
-        requireRecentAuthentication();
+        recentAuthentication.require(config.getDeleteMaxAuthAge());
         String subject = jwtInspector.getSubject();
         keycloakUserService.deleteKeycloakUser(subject);
         List<Document> documents;
@@ -112,15 +109,6 @@ public class AppUserService {
             throw e;
         }
         documents.forEach(documentService::deleteDocumentFile);
-    }
-
-    private void requireRecentAuthentication() {
-        Duration maxAge = config.getDeleteMaxAuthAge();
-        Instant limit = clock.instant().minus(maxAge);
-        boolean recent = jwtInspector.getAuthTime().filter(authTime -> !authTime.isBefore(limit)).isPresent();
-        if (!recent) {
-            throw new RecentAuthenticationRequiredException(maxAge.toSeconds());
-        }
     }
 
     private List<Document> deleteAppUserData(String keycloakId) {

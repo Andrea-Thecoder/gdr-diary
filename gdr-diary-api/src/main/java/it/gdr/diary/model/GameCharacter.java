@@ -23,9 +23,6 @@ public class GameCharacter extends AbstractAuditable {
     @Index
     private String name;
 
-    @Column(name = "description", length = 2000)
-    private String description;
-
     @Column(name = "campaign_name", length = 255)
     @Index
     private String campaignName;

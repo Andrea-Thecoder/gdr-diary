@@ -11,9 +11,6 @@ public record UpdateGameCharacterDTO(
         @Schema(description = "Character name", examples = {"Thorin Oakenshield"}, requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank @Size(max = 255) @ValidText String name,
 
-        @Schema(description = "Free text description of the character", examples = {"Dwarf fighter, exiled king of Erebor"})
-        @Size(max = 2000) @ValidText String description,
-
         @Schema(description = "Name of the campaign the character plays in", examples = {"The Lost Mine"})
         @Size(max = 255) @ValidText String campaignName,
 

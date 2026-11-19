@@ -12,7 +12,6 @@ import it.gdr.diary.dto.search.DiaryTagSearchRequest;
 import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.Diary;
-import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.DiaryPageTag;
 import it.gdr.diary.security.JwtInspector;
 import jakarta.persistence.PersistenceException;
@@ -40,9 +39,10 @@ public class DiaryPageTagService {
 
     private final Database database;
     private final JwtInspector jwtInspector;
+    private final OwnedResources ownedResources;
 
     public PagedResultDTO<BaseDiaryTagDTO> findAllDiaryTagsByDiary(UUID diaryId, DiaryTagSearchRequest request) {
-        getDiaryByIdAndOwner(diaryId);
+        ownedResources.getDiaryByIdAndOwner(diaryId);
         ExpressionList<DiaryPageTag> query = database.find(DiaryPageTag.class)
                 .setLabel("findAllDiaryTagsByDiary")
                 .select("name")
@@ -79,14 +79,14 @@ public class DiaryPageTagService {
     }
 
     public DetailDiaryPageTagDTO updateDiaryPageTag(UUID pageId, UpdateDiaryPageTagDTO request) {
-        UUID diaryId = getDiaryPageByIdAndOwner(pageId).getDiary().getId();
+        UUID diaryId = ownedResources.getDiaryPageReferenceByIdAndOwner(pageId).getDiary().getId();
         String requested = request.tag() == null ? null : request.tag().trim();
         String result;
         try (Transaction transaction = database.beginTransaction()) {
             // Il diario e' bloccato come in DiaryPageService: serializza i cambi dei tag, protegge il limite dei 10 tag
             // e impedisce che la pagina venga cancellata mentre si salva il tag.
             Diary diary = lockDiaryByOwner(diaryId);
-            getDiaryPageByIdAndOwner(pageId);
+            ownedResources.getDiaryPageReferenceByIdAndOwner(pageId);
             DiaryPageTag current = database.find(DiaryPageTag.class)
                     .setLabel("updateDiaryPageTag")
                     .where().eq("page.id", pageId).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
@@ -105,7 +105,7 @@ public class DiaryPageTagService {
                 if (current == null) {
                     current = new DiaryPageTag();
                     current.setDiary(diary);
-                    current.setPage(getDiaryPageByIdAndOwner(pageId));
+                    current.setPage(ownedResources.getDiaryPageReferenceByIdAndOwner(pageId));
                 }
                 if (!name.equals(current.getName())) {
                     current.setName(name);
@@ -163,29 +163,5 @@ public class DiaryPageTagService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
         }
         return locked;
-    }
-
-    private Diary getDiaryByIdAndOwner(UUID id) {
-        Diary diary = database.find(Diary.class)
-                .setLabel("getDiaryByIdAndOwner")
-                .select("id")
-                .where().idEq(id).eq("character.owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (diary == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found");
-        }
-        return diary;
-    }
-
-    private DiaryPage getDiaryPageByIdAndOwner(UUID id) {
-        DiaryPage page = database.find(DiaryPage.class)
-                .setLabel("getDiaryPageByIdAndOwner")
-                .select("id, diary")
-                .where().idEq(id).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (page == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
-        }
-        return page;
     }
 }

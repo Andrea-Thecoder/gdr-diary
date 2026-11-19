@@ -37,9 +37,10 @@ public class DiaryService {
     private final JwtInspector jwtInspector;
     private final DocumentService documentService;
     private final DiaryPageTagService tagService;
+    private final OwnedResources ownedResources;
 
     public PagedResultDTO<BaseDiaryDTO> findAllDiariesByCharacter(UUID characterId, DiarySearchRequest request) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(characterId);
         ExpressionList<Diary> query = database.find(Diary.class)
                 .setLabel("findAllDiariesByCharacter")
                 .fetch("coverDocument")
@@ -62,11 +63,11 @@ public class DiaryService {
     }
 
     public DetailDiaryDTO getDiaryById(UUID id) {
-        return toDetailDiaryDTO(getDiaryByIdAndOwner(id));
+        return toDetailDiaryDTO(ownedResources.getDiaryWithCoverByIdAndOwner(id));
     }
 
     public DetailDiaryDTO createDiary(UUID characterId, InsertDiaryDTO request) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(characterId);
         Diary diary = new Diary();
         diary.setCharacter(character);
         apply(diary, request.title(), request.description(), request.coverColor(), request.font(), request.fontSize());
@@ -82,14 +83,14 @@ public class DiaryService {
     }
 
     public DetailDiaryDTO updateDiary(UUID id, UpdateDiaryDTO request) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         apply(diary, request.title(), request.description(), request.coverColor(), request.font(), request.fontSize());
         database.save(diary);
         return toDetailDiaryDTO(diary);
     }
 
     public DetailDiaryDTO updateDiaryCover(UUID id, MultipartFile file) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         Document previous = diary.getCoverDocument();
         Document cover = null;
         try (Transaction transaction = database.beginTransaction()) {
@@ -107,7 +108,7 @@ public class DiaryService {
     }
 
     public void deleteDiaryCover(UUID id) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         Document previous = diary.getCoverDocument();
         try (Transaction transaction = database.beginTransaction()) {
             diary.setCoverDocument(null);
@@ -131,7 +132,7 @@ public class DiaryService {
     }
 
     public BookmarkDiaryDTO updateDiaryBookmark(UUID id, UpdateBookmarkDiaryDTO request) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         DiaryPage page = database.find(DiaryPage.class)
                 .setLabel("getBookmarkPage")
                 .where().idEq(request.pageId()).eq("diary.id", diary.getId())
@@ -152,13 +153,13 @@ public class DiaryService {
     }
 
     public void deleteDiaryBookmark(UUID id) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         diary.setBookmarkPage(null);
         database.save(diary);
     }
 
     public void deleteDiary(UUID id) {
-        Diary diary = getDiaryByIdAndOwner(id);
+        Diary diary = ownedResources.getDiaryWithCoverByIdAndOwner(id);
         Document cover = diary.getCoverDocument();
         try (Transaction transaction = database.beginTransaction()) {
             lockDiary(diary.getId());
@@ -189,29 +190,6 @@ public class DiaryService {
         if (locked == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found");
         }
-    }
-
-    private GameCharacter getGameCharacterByIdAndOwner(UUID characterId) {
-        GameCharacter character = database.find(GameCharacter.class)
-                .setLabel("getGameCharacterByIdAndOwner")
-                .where().idEq(characterId).eq("owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (character == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
-        }
-        return character;
-    }
-
-    private Diary getDiaryByIdAndOwner(UUID id) {
-        Diary diary = database.find(Diary.class)
-                .setLabel("getDiaryByIdAndOwner")
-                .fetch("coverDocument")
-                .where().idEq(id).eq("character.owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (diary == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found");
-        }
-        return diary;
     }
 
     private DetailDiaryDTO toDetailDiaryDTO(Diary diary) {

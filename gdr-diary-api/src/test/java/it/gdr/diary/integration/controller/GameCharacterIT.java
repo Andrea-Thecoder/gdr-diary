@@ -35,10 +35,9 @@ class GameCharacterIT extends AbstractIntegrationTest {
         return value == null ? "null" : "\"" + value + "\"";
     }
 
-    private UUID createCharacterWith(String name, String kind, String description, String campaignName) {
+    private UUID createCharacterWith(String name, String kind, String campaignName) {
         MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":" + quoted(name) + ",\"kind\":\"" + kind + "\",\"description\":" + quoted(description)
-                        + ",\"campaignName\":" + quoted(campaignName) + "}")
+                .content("{\"name\":" + quoted(name) + ",\"kind\":\"" + kind + "\",\"campaignName\":" + quoted(campaignName) + "}")
                 .exchange();
         return UUID.fromString(json(result, "$.id"));
     }
@@ -106,7 +105,7 @@ class GameCharacterIT extends AbstractIntegrationTest {
     void createGameCharacter_gameMasterKind_storesKind() {
         createAppUser();
 
-        UUID id = createCharacterWith("Narrator", "GAME_MASTER", null, null);
+        UUID id = createCharacterWith("Narrator", "GAME_MASTER", null);
 
         assertThat(mvc.get().uri("/characters/{id}", id)).bodyJson().extractingPath("$.kind").isEqualTo("GAME_MASTER");
     }
@@ -186,8 +185,8 @@ class GameCharacterIT extends AbstractIntegrationTest {
     @CsvSource({"name,ARA", "name,'  Aragorn '", "campaignName,STRAHD"})
     void findAllGameCharacters_textFilter_matchesIgnoringCaseAndSurroundingSpaces(String filter, String value) {
         createAppUser();
-        createCharacterWith("Aragorn", "PLAYER", null, "Curse of Strahd");
-        createCharacterWith("Legolas", "PLAYER", null, "Lost Mine");
+        createCharacterWith("Aragorn", "PLAYER", "Curse of Strahd");
+        createCharacterWith("Legolas", "PLAYER", "Lost Mine");
 
         assertThat(mvc.get().uri("/characters").param(filter, value)).bodyJson()
                 .extractingPath("$.list[*].name").isEqualTo(List.of("Aragorn"));
@@ -197,10 +196,10 @@ class GameCharacterIT extends AbstractIntegrationTest {
     @CsvSource({"name,%,100% Orc", "name,_,snake_case", "campaignName,%,Aragorn", "campaignName,_,Legolas"})
     void findAllGameCharacters_wildcardInFilter_matchesOnlyTheLiteralCharacter(String filter, String value, String expected) {
         createAppUser();
-        createCharacterWith("100% Orc", "PLAYER", null, "plain");
-        createCharacterWith("snake_case", "PLAYER", null, "plain");
-        createCharacterWith("Aragorn", "PLAYER", null, "100% Chaos");
-        createCharacterWith("Legolas", "PLAYER", null, "dark_sun");
+        createCharacterWith("100% Orc", "PLAYER", "plain");
+        createCharacterWith("snake_case", "PLAYER", "plain");
+        createCharacterWith("Aragorn", "PLAYER", "100% Chaos");
+        createCharacterWith("Legolas", "PLAYER", "dark_sun");
 
         assertThat(mvc.get().uri("/characters").param(filter, value)).bodyJson()
                 .extractingPath("$.list[*].name").isEqualTo(List.of(expected));
@@ -252,9 +251,9 @@ class GameCharacterIT extends AbstractIntegrationTest {
     @CsvSource({"campaignName,Legolas,Aragorn,Gimli", "'campaignName&descending=true',Gimli,Aragorn,Legolas"})
     void findAllGameCharacters_sortByCampaignName_putsNullCampaignsAtTheEndOfTheDirection(String sort, String first, String second, String third) {
         createAppUser();
-        createCharacterWith("Aragorn", "PLAYER", null, "Lost Mine");
-        createCharacterWith("Legolas", "PLAYER", null, "Curse of Strahd");
-        createCharacterWith("Gimli", "PLAYER", null, null);
+        createCharacterWith("Aragorn", "PLAYER", "Lost Mine");
+        createCharacterWith("Legolas", "PLAYER", "Curse of Strahd");
+        createCharacterWith("Gimli", "PLAYER", null);
 
         assertThat(mvc.get().uri("/characters?sort=" + sort)).bodyJson()
                 .extractingPath("$.list[*].name").isEqualTo(List.of(first, second, third));
@@ -264,8 +263,8 @@ class GameCharacterIT extends AbstractIntegrationTest {
     @CsvSource({"description,description", "owner.email,owner.email", "x,nonexistent"})
     void findAllGameCharacters_injectedSortFields_keepsNameOrder(String key, String property) {
         createAppUser();
-        createCharacterWith("Aragorn", "PLAYER", "z", null);
-        createCharacterWith("Legolas", "PLAYER", "a", null);
+        createCharacterWith("Aragorn", "PLAYER", null);
+        createCharacterWith("Legolas", "PLAYER", null);
 
         MvcTestResult result = mvc.get().uri("/characters").param("SORT_FIELDS[" + key + "]", property).param("sort", key).exchange();
 
@@ -319,11 +318,11 @@ class GameCharacterIT extends AbstractIntegrationTest {
     @Test
     void updateGameCharacter_optionalFieldsNull_clearsThem() {
         createAppUser();
-        UUID id = createCharacterWith("Aragorn", "PLAYER", "Ranger", "Lost Mine");
+        UUID id = createCharacterWith("Aragorn", "PLAYER", "Lost Mine");
 
         mvc.put().uri("/characters/{id}", id).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Aragorn\"}").exchange();
 
-        Map<String, Object> stored = jdbc.queryForMap("select description, campaign_name, background_color from game_character where id = ?", id);
+        Map<String, Object> stored = jdbc.queryForMap("select campaign_name, background_color from game_character where id = ?", id);
         assertThat(stored.values()).containsOnlyNulls();
     }
 

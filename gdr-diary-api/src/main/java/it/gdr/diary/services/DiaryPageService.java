@@ -14,7 +14,6 @@ import it.gdr.diary.exception.ServiceException;
 import it.gdr.diary.exception.SqlStates;
 import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
-import it.gdr.diary.security.JwtInspector;
 import jakarta.persistence.PersistenceException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -38,17 +37,17 @@ public class DiaryPageService {
             Set.of(SqlStates.UNIQUE_VIOLATION, SqlStates.CHECK_VIOLATION, SqlStates.DEADLOCK);
 
     private final Database database;
-    private final JwtInspector jwtInspector;
     private final ObjectMapper objectMapper;
     private final DiaryPageConfig config;
     private final DiaryPageContentValidator contentValidator;
     private final DiaryPageTagService tagService;
+    private final OwnedResources ownedResources;
 
     public PagedResultDTO<BaseDiaryPageDTO> findAllDiaryPagesByDiary(UUID diaryId, int page) {
         if (page < 1) {
             throw new ServiceException("The page must be 1 or greater");
         }
-        Diary diary = getDiaryByIdAndOwner(diaryId);
+        Diary diary = ownedResources.getDiaryByIdAndOwner(diaryId);
         ExpressionList<DiaryPage> query = database.find(DiaryPage.class)
                 .setLabel("findAllDiaryPagesByDiary")
                 .where().eq("diary.id", diary.getId())
@@ -61,7 +60,7 @@ public class DiaryPageService {
     }
 
     public BaseDiaryPageDTO createDiaryPage(UUID diaryId, InsertDiaryPageDTO request) {
-        Diary diary = getDiaryByIdAndOwner(diaryId);
+        Diary diary = ownedResources.getDiaryByIdAndOwner(diaryId);
         validateContent(request.content());
         DiaryPage page = new DiaryPage();
         page.setDiary(diary);
@@ -88,7 +87,7 @@ public class DiaryPageService {
     }
 
     public BaseDiaryPageDTO updateDiaryPage(UUID id, UpdateDiaryPageDTO request) {
-        DiaryPage page = getDiaryPageByIdAndOwner(id);
+        DiaryPage page = ownedResources.getDiaryPageByIdAndOwner(id);
         if (!Objects.equals(page.getVersion(), request.version())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "The page was modified elsewhere, reload it");
         }
@@ -99,10 +98,10 @@ public class DiaryPageService {
     }
 
     public void deleteDiaryPage(UUID id) {
-        UUID diaryId = getDiaryPageByIdAndOwner(id).getDiary().getId();
+        UUID diaryId = ownedResources.getDiaryPageByIdAndOwner(id).getDiary().getId();
         try (Transaction transaction = database.beginTransaction()) {
             lockDiary(diaryId, "Page not found");
-            DiaryPage page = getDiaryPageByIdAndOwner(id);
+            DiaryPage page = ownedResources.getDiaryPageByIdAndOwner(id);
             tagService.deleteDiaryPageTagsByPage(page.getId());
             database.delete(page);
             List<DiaryPage> following = database.find(DiaryPage.class)
@@ -140,27 +139,5 @@ public class DiaryPageService {
             throw new ServiceException("Page content too large");
         }
         contentValidator.validate(content);
-    }
-
-    private Diary getDiaryByIdAndOwner(UUID id) {
-        Diary diary = database.find(Diary.class)
-                .setLabel("getDiaryByIdAndOwner")
-                .where().idEq(id).eq("character.owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (diary == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Diary not found");
-        }
-        return diary;
-    }
-
-    private DiaryPage getDiaryPageByIdAndOwner(UUID id) {
-        DiaryPage page = database.find(DiaryPage.class)
-                .setLabel("getDiaryPageByIdAndOwner")
-                .where().idEq(id).eq("diary.character.owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (page == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Page not found");
-        }
-        return page;
     }
 }

@@ -17,9 +17,6 @@ public record DetailGameCharacterDTO(
         @Schema(description = "Kind of character: PLAYER or GAME_MASTER", examples = {"PLAYER"})
         GameCharacterKind kind,
 
-        @Schema(description = "Free text description of the character", examples = {"Dwarf fighter, exiled king of Erebor"}, nullable = true)
-        String description,
-
         @Schema(description = "Name of the campaign the character plays in", examples = {"The Lost Mine"}, nullable = true)
         String campaignName,
 
@@ -44,7 +41,6 @@ public record DetailGameCharacterDTO(
                 character.getId(),
                 character.getName(),
                 character.getKind(),
-                character.getDescription(),
                 character.getCampaignName(),
                 character.getBackgroundColor(),
                 character.getAvatarDocument() == null ? null : character.getAvatarDocument().getId(),

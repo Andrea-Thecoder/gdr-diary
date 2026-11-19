@@ -12,8 +12,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.text.Normalizer;
-import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -28,9 +26,10 @@ public class CharacterBackgroundPdfService {
     private final Database database;
     private final JwtInspector jwtInspector;
     private final BackgroundPdfRenderer renderer;
+    private final OwnedResources ownedResources;
 
     public BackgroundPdf getCharacterBackgroundPdf(UUID characterId) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = getPlayerCharacterByIdAndOwner(characterId);
         CharacterBackground background = database.find(CharacterBackground.class)
                 .setLabel("getCharacterBackgroundPdf")
                 .where().eq("character.id", characterId).eq("character.owner.keycloakId", jwtInspector.getSubject())
@@ -44,23 +43,11 @@ public class CharacterBackgroundPdfService {
     }
 
     static String fileName(String characterName) {
-        String plain = Normalizer.normalize(StringUtils.defaultString(characterName), Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("(^-+)|(-+$)", "");
-        String shortened = StringUtils.left(plain, FILE_NAME_MAX_LENGTH).replaceAll("-+$", "");
-        return FILE_PREFIX + (shortened.isEmpty() ? FILE_FALLBACK : shortened) + ".pdf";
+        return FILE_PREFIX + FileNames.slug(characterName, FILE_NAME_MAX_LENGTH, FILE_FALLBACK) + ".pdf";
     }
 
-    private GameCharacter getGameCharacterByIdAndOwner(UUID id) {
-        GameCharacter character = database.find(GameCharacter.class)
-                .setLabel("getGameCharacterByIdAndOwner")
-                .where().idEq(id).eq("owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (character == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
-        }
+    private GameCharacter getPlayerCharacterByIdAndOwner(UUID id) {
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(id);
         if (character.getKind() == GameCharacterKind.GAME_MASTER) {
             throw new ServiceException("A game master has no background");
         }

@@ -16,9 +16,6 @@ public record InsertGameCharacterDTO(
         @Schema(description = "Kind of character: PLAYER for a character played by the user, GAME_MASTER for a game master profile. It cannot be changed after creation", examples = {"PLAYER"}, requiredMode = Schema.RequiredMode.REQUIRED)
         @NotNull GameCharacterKind kind,
 
-        @Schema(description = "Free text description of the character", examples = {"Dwarf fighter, exiled king of Erebor"})
-        @Size(max = 2000) @ValidText String description,
-
         @Schema(description = "Name of the campaign the character plays in", examples = {"The Lost Mine"})
         @Size(max = 255) @ValidText String campaignName,
 

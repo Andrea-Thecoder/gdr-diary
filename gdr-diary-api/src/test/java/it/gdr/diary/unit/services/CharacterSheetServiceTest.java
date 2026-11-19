@@ -31,6 +31,7 @@ import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.CharacterSheetService;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
@@ -74,7 +75,7 @@ class CharacterSheetServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CharacterSheetService(database, jwtInspector, documentService, config);
+        service = new CharacterSheetService(database, jwtInspector, documentService, config, new OwnedResources(database, jwtInspector));
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 

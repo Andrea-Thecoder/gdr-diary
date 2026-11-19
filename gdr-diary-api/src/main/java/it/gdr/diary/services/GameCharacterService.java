@@ -38,6 +38,7 @@ public class GameCharacterService {
     private final DocumentService documentService;
     private final DiaryPageTagService tagService;
     private final CharacterBackgroundService backgroundService;
+    private final OwnedResources ownedResources;
 
     public PagedResultDTO<BaseGameCharacterDTO> findAllGameCharacters(GameCharacterSearchRequest request) {
         ExpressionList<GameCharacter> query = database.find(GameCharacter.class)
@@ -53,7 +54,7 @@ public class GameCharacterService {
     }
 
     public DetailGameCharacterDTO getGameCharacterById(UUID id) {
-        return toDetailGameCharacterDTO(getGameCharacterByIdAndOwner(id));
+        return toDetailGameCharacterDTO(ownedResources.getGameCharacterWithAvatarByIdAndOwner(id));
     }
 
     public DetailGameCharacterDTO createGameCharacter(InsertGameCharacterDTO request) {
@@ -61,7 +62,7 @@ public class GameCharacterService {
         GameCharacter character = new GameCharacter();
         character.setOwner(user);
         character.setKind(request.kind());
-        apply(character, request.name(), request.description(), request.campaignName(), request.backgroundColor());
+        apply(character, request.name(), request.campaignName(), request.backgroundColor());
         try {
             database.save(character);
         } catch (PersistenceException e) {
@@ -74,14 +75,14 @@ public class GameCharacterService {
     }
 
     public DetailGameCharacterDTO updateGameCharacter(UUID id, UpdateGameCharacterDTO request) {
-        GameCharacter character = getGameCharacterByIdAndOwner(id);
-        apply(character, request.name(), request.description(), request.campaignName(), request.backgroundColor());
+        GameCharacter character = ownedResources.getGameCharacterWithAvatarByIdAndOwner(id);
+        apply(character, request.name(), request.campaignName(), request.backgroundColor());
         database.save(character);
         return toDetailGameCharacterDTO(character);
     }
 
     public DetailGameCharacterDTO updateGameCharacterAvatar(UUID id, MultipartFile file) {
-        GameCharacter character = getGameCharacterByIdAndOwner(id);
+        GameCharacter character = ownedResources.getGameCharacterWithAvatarByIdAndOwner(id);
         Document previous = character.getAvatarDocument();
         Document avatar = null;
         try (Transaction transaction = database.beginTransaction()) {
@@ -99,7 +100,7 @@ public class GameCharacterService {
     }
 
     public void deleteGameCharacterAvatar(UUID id) {
-        GameCharacter character = getGameCharacterByIdAndOwner(id);
+        GameCharacter character = ownedResources.getGameCharacterWithAvatarByIdAndOwner(id);
         Document previous = character.getAvatarDocument();
         try (Transaction transaction = database.beginTransaction()) {
             character.setAvatarDocument(null);
@@ -111,7 +112,7 @@ public class GameCharacterService {
     }
 
     public void deleteGameCharacter(UUID id) {
-        GameCharacter character = getGameCharacterByIdAndOwner(id);
+        GameCharacter character = ownedResources.getGameCharacterWithAvatarByIdAndOwner(id);
         List<Document> documents = new ArrayList<>();
         if (character.getAvatarDocument() != null) {
             documents.add(character.getAvatarDocument());
@@ -153,18 +154,6 @@ public class GameCharacterService {
         documents.forEach(documentService::deleteDocumentFile);
     }
 
-    private GameCharacter getGameCharacterByIdAndOwner(UUID id) {
-        GameCharacter character = database.find(GameCharacter.class)
-                .setLabel("getGameCharacterByIdAndOwner")
-                .fetch("avatarDocument")
-                .where().idEq(id).eq("owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (character == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
-        }
-        return character;
-    }
-
     private AppUser getAppUserBySubject() {
         AppUser user = database.find(AppUser.class)
                 .setLabel("getAppUserBySubject")
@@ -182,10 +171,8 @@ public class GameCharacterService {
                 backgroundService.findCharacterBackgroundPreview(character.getId()));
     }
 
-    private void apply(GameCharacter character, String name, String description, String campaignName,
-                       String backgroundColor) {
+    private void apply(GameCharacter character, String name, String campaignName, String backgroundColor) {
         character.setName(name);
-        character.setDescription(description);
         character.setCampaignName(campaignName);
         character.setBackgroundColor(backgroundColor);
     }

@@ -27,6 +27,7 @@ import it.gdr.diary.model.Diary;
 import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.DiaryPageContentValidator;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.DiaryPageService;
 import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.unit.support.QueryStub;
@@ -75,7 +76,7 @@ class DiaryPageServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DiaryPageService(database, jwtInspector, JsonMapper.builder().build(), config, contentValidator, tagService);
+        service = new DiaryPageService(database, JsonMapper.builder().build(), config, contentValidator, tagService, new OwnedResources(database, jwtInspector));
     }
 
     private Diary diary() {

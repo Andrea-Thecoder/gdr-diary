@@ -15,6 +15,7 @@ import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.BackgroundPdfRenderer;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.CharacterBackgroundPdfService;
 import it.gdr.diary.unit.support.QueryStub;
 import java.util.List;
@@ -47,7 +48,7 @@ class CharacterBackgroundPdfServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new CharacterBackgroundPdfService(database, jwtInspector, renderer);
+        service = new CharacterBackgroundPdfService(database, jwtInspector, renderer, new OwnedResources(database, jwtInspector));
     }
 
     private GameCharacter character(String name, String campaign, GameCharacterKind kind) {

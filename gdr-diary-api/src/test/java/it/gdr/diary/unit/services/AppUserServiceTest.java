@@ -31,6 +31,7 @@ import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
+import it.gdr.diary.security.RecentAuthentication;
 import it.gdr.diary.services.AppUserService;
 import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
@@ -98,7 +99,7 @@ class AppUserServiceTest {
     @BeforeEach
     void setUp() {
         service = new AppUserService(database, jwtInspector, JsonMapper.builder().build(), config, documentService,
-                Clock.fixed(NOW, ZoneOffset.UTC), tagService, keycloakUserService);
+                new RecentAuthentication(jwtInspector, Clock.fixed(NOW, ZoneOffset.UTC)), tagService, keycloakUserService);
         lenient().when(jwtInspector.getSubject()).thenReturn(SUBJECT);
         users = stubFindLeniently(database, AppUser.class);
     }

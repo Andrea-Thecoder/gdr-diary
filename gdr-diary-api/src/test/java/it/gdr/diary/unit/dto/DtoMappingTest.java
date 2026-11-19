@@ -56,7 +56,6 @@ class DtoMappingTest {
         character.setId(CHARACTER_ID);
         character.setName("Aragorn");
         character.setKind(GameCharacterKind.PLAYER);
-        character.setDescription("Ranger");
         character.setCampaignName("Lost Mine");
         character.setBackgroundColor("#1A2B3C");
         return character;
@@ -123,7 +122,7 @@ class DtoMappingTest {
     void detailGameCharacterFrom_character_copiesAllFields() {
         DetailGameCharacterDTO dto = DetailGameCharacterDTO.from(character(), URL);
 
-        assertThat(dto).isEqualTo(new DetailGameCharacterDTO(CHARACTER_ID, "Aragorn", GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, URL, null));
+        assertThat(dto).isEqualTo(new DetailGameCharacterDTO(CHARACTER_ID, "Aragorn", GameCharacterKind.PLAYER, "Lost Mine", "#1A2B3C", null, URL, null));
     }
 
     @Test

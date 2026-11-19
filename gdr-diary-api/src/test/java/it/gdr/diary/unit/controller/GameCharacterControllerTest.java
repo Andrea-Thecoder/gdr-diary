@@ -47,10 +47,10 @@ class GameCharacterControllerTest {
 
     private static final UUID CHARACTER_ID = UUID.fromString("0b8f9c1e-6f0a-4b9e-9c55-3b7a3a1d2f10");
     private static final String VALID_INSERT = """
-            {"name":"Aragorn","kind":"PLAYER","description":"Ranger","campaignName":"Lost Mine","backgroundColor":"#1A2B3C"}
+            {"name":"Aragorn","kind":"PLAYER","campaignName":"Lost Mine","backgroundColor":"#1A2B3C"}
             """;
     private static final String VALID_UPDATE = """
-            {"name":"Strider","description":null,"campaignName":"Curse of Strahd","backgroundColor":"#000000"}
+            {"name":"Strider","campaignName":"Curse of Strahd","backgroundColor":"#000000"}
             """;
 
     @Mock
@@ -66,7 +66,7 @@ class GameCharacterControllerTest {
     }
 
     private DetailGameCharacterDTO detail(String name) {
-        return new DetailGameCharacterDTO(CHARACTER_ID, name, GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C", null, null, null);
+        return new DetailGameCharacterDTO(CHARACTER_ID, name, GameCharacterKind.PLAYER, "Lost Mine", "#1A2B3C", null, null, null);
     }
 
     private MockMultipartFile image() {
@@ -89,7 +89,6 @@ class GameCharacterControllerTest {
                 insertBody(",\"backgroundColor\":\"red\""),
                 insertBody(",\"backgroundColor\":\"#12345\""),
                 insertBody(",\"campaignName\":\"" + "a".repeat(256) + "\""),
-                insertBody(",\"description\":\"" + "a".repeat(2001) + "\""),
                 "{\"name\":");
     }
 
@@ -98,8 +97,7 @@ class GameCharacterControllerTest {
                 "{\"name\":\"\"}",
                 "{\"name\":\"Aragorn\",\"backgroundColor\":\"red\"}",
                 "{\"name\":\"Aragorn\",\"backgroundColor\":\"#12345\"}",
-                "{\"name\":\"Aragorn\",\"campaignName\":\"" + "a".repeat(256) + "\"}",
-                "{\"name\":\"Aragorn\",\"description\":\"" + "a".repeat(2001) + "\"}");
+                "{\"name\":\"Aragorn\",\"campaignName\":\"" + "a".repeat(256) + "\"}");
     }
 
     @Test
@@ -171,7 +169,7 @@ class GameCharacterControllerTest {
         MvcTestResult result = mvc.post().uri("/characters").contentType(MediaType.APPLICATION_JSON).content(VALID_INSERT).exchange();
 
         assertThat(result).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.id").isEqualTo(CHARACTER_ID.toString());
-        verify(service).createGameCharacter(new InsertGameCharacterDTO("Aragorn", GameCharacterKind.PLAYER, "Ranger", "Lost Mine", "#1A2B3C"));
+        verify(service).createGameCharacter(new InsertGameCharacterDTO("Aragorn", GameCharacterKind.PLAYER, "Lost Mine", "#1A2B3C"));
     }
 
     @Test
@@ -211,7 +209,7 @@ class GameCharacterControllerTest {
         MvcTestResult result = mvc.put().uri("/characters/{id}", CHARACTER_ID).contentType(MediaType.APPLICATION_JSON).content(VALID_UPDATE).exchange();
 
         assertThat(result).bodyJson().extractingPath("$.name").isEqualTo("Strider");
-        verify(service).updateGameCharacter(CHARACTER_ID, new UpdateGameCharacterDTO("Strider", null, "Curse of Strahd", "#000000"));
+        verify(service).updateGameCharacter(CHARACTER_ID, new UpdateGameCharacterDTO("Strider", "Curse of Strahd", "#000000"));
     }
 
     @ParameterizedTest

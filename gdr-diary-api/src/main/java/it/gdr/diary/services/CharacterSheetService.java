@@ -34,10 +34,11 @@ public class CharacterSheetService {
     private final JwtInspector jwtInspector;
     private final DocumentService documentService;
     private final CharacterSheetConfig config;
+    private final OwnedResources ownedResources;
 
     public PagedResultDTO<BaseCharacterSheetDTO> findAllCharacterSheetsByCharacter(UUID characterId,
                                                                                     CharacterSheetSearchRequest request) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(characterId);
         ExpressionList<CharacterSheet> query = database.find(CharacterSheet.class)
                 .setLabel("findAllCharacterSheetsByCharacter")
                 .fetch("document")
@@ -53,7 +54,7 @@ public class CharacterSheetService {
 
     public DetailCharacterSheetDTO createCharacterSheet(UUID characterId, InsertCharacterSheetDTO request,
                                                         MultipartFile file) {
-        GameCharacter character = getGameCharacterByIdAndOwner(characterId);
+        GameCharacter character = ownedResources.getGameCharacterByIdAndOwner(characterId);
         CharacterSheet sheet = new CharacterSheet();
         sheet.setCharacter(character);
         apply(sheet, request.title(), request.system());
@@ -130,17 +131,6 @@ public class CharacterSheetService {
         if (locked == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
         }
-    }
-
-    private GameCharacter getGameCharacterByIdAndOwner(UUID characterId) {
-        GameCharacter character = database.find(GameCharacter.class)
-                .setLabel("getGameCharacterByIdAndOwner")
-                .where().idEq(characterId).eq("owner.keycloakId", jwtInspector.getSubject())
-                .findOne();
-        if (character == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found");
-        }
-        return character;
     }
 
     private CharacterSheet getCharacterSheetByIdAndOwner(UUID id) {

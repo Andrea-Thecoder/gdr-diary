@@ -137,7 +137,8 @@ class ConfigValidationTest {
 
     @Test
     void startup_validUserConfig_succeeds() {
-        userRunner("app.user.max-settings-size=10KB", "app.user.delete-max-auth-age=5m").run(context -> assertThat(context).hasNotFailed());
+        userRunner("app.user.max-settings-size=10KB", "app.user.delete-max-auth-age=5m", "app.user.export-max-auth-age=5m")
+                .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Test
@@ -196,6 +197,12 @@ class ConfigValidationTest {
     @Test
     void startup_zeroMaxBackgroundContentSize_fails() {
         characterBackgroundRunner("app.character-background.max-content-size=0B").run(context -> assertThat(context).hasFailed());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"app.user.export-max-auth-age=0s", "app.user.export-max-auth-age=-1m"})
+    void startup_exportMaxAuthAgeNotPositive_fails(String property) {
+        userRunner(property).run(context -> assertThat(context).hasFailed());
     }
 
     @Test

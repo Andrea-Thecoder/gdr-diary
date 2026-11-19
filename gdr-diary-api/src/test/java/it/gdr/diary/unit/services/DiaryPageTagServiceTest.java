@@ -25,6 +25,7 @@ import it.gdr.diary.model.DiaryPage;
 import it.gdr.diary.model.DiaryPageTag;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.DiaryPageTagService;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.unit.support.QueryStub;
 import jakarta.persistence.PersistenceException;
 import java.sql.SQLException;
@@ -64,7 +65,7 @@ class DiaryPageTagServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DiaryPageTagService(database, jwtInspector);
+        service = new DiaryPageTagService(database, jwtInspector, new OwnedResources(database, jwtInspector));
         diary = new Diary();
         diary.setId(DIARY_ID);
         page = new DiaryPage();

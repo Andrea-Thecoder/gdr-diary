@@ -24,6 +24,9 @@ public class AppUserConfig {
     @NotNull
     @DurationMin(seconds = 1)
     private Duration deleteMaxAuthAge = Duration.ofMinutes(5);
+    @NotNull
+    @DurationMin(seconds = 1)
+    private Duration exportMaxAuthAge = Duration.ofMinutes(5);
 
     @AssertTrue(message = "app.user.max-settings-size must be greater than zero")
     public boolean isMaxSettingsSizePositive() {

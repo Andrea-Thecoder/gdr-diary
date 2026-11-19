@@ -30,6 +30,7 @@ import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.model.GameCharacterKind;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.CharacterBackgroundService;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.DiaryPageTagService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.services.GameCharacterService;
@@ -75,7 +76,7 @@ class GameCharacterServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GameCharacterService(database, jwtInspector, documentService, tagService, backgroundService);
+        service = new GameCharacterService(database, jwtInspector, documentService, tagService, backgroundService, new OwnedResources(database, jwtInspector));
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 
@@ -124,7 +125,7 @@ class GameCharacterServiceTest {
     }
 
     private InsertGameCharacterDTO insertRequest() {
-        return new InsertGameCharacterDTO("Aragorn", GameCharacterKind.PLAYER, "Ranger of the North", "Lost Mine", "#1A2B3C");
+        return new InsertGameCharacterDTO("Aragorn", GameCharacterKind.PLAYER, "Lost Mine", "#1A2B3C");
     }
 
     @Test
@@ -164,9 +165,9 @@ class GameCharacterServiceTest {
         verify(database).save(saved.capture());
         assertThat(saved.getValue().getOwner()).isSameAs(owner);
         assertThat(result)
-                .extracting(DetailGameCharacterDTO::name, DetailGameCharacterDTO::kind, DetailGameCharacterDTO::description,
+                .extracting(DetailGameCharacterDTO::name, DetailGameCharacterDTO::kind,
                         DetailGameCharacterDTO::campaignName, DetailGameCharacterDTO::backgroundColor)
-                .containsExactly("Aragorn", GameCharacterKind.PLAYER, "Ranger of the North", "Lost Mine", "#1A2B3C");
+                .containsExactly("Aragorn", GameCharacterKind.PLAYER, "Lost Mine", "#1A2B3C");
     }
 
     @Test

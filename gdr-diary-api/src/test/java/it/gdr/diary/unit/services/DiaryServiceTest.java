@@ -31,6 +31,7 @@ import it.gdr.diary.model.Document;
 import it.gdr.diary.model.GameCharacter;
 import it.gdr.diary.security.JwtInspector;
 import it.gdr.diary.services.DiaryPageTagService;
+import it.gdr.diary.services.OwnedResources;
 import it.gdr.diary.services.DiaryService;
 import it.gdr.diary.services.DocumentService;
 import it.gdr.diary.unit.support.QueryStub;
@@ -75,7 +76,7 @@ class DiaryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new DiaryService(database, jwtInspector, documentService, tagService);
+        service = new DiaryService(database, jwtInspector, documentService, tagService, new OwnedResources(database, jwtInspector));
         when(jwtInspector.getSubject()).thenReturn(SUBJECT);
     }
 
