@@ -27,7 +27,7 @@ describe('privacy page', () => {
 		await expect
 			.element(page.getByRole('heading', { level: 1 }))
 			.toHaveTextContent('Come tratto i tuoi dati');
-		await expect.element(page.getByText('11 novembre 2026')).toBeVisible();
+		await expect.element(page.getByText('19 novembre 2026')).toBeVisible();
 	});
 
 	it('says that drafts are removed when the page is saved or on logout', async () => {

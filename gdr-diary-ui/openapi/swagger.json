@@ -41,6 +41,10 @@
       "description": "Read and write the background story of the characters of the logged-in user (one story per character)"
     },
     {
+      "name": "User export",
+      "description": "Copy of all the data of the logged-in user (GDPR access and portability)"
+    },
+    {
       "name": "Payments",
       "description": "The payments of the logged-in user (read only)"
     },
@@ -3735,6 +3739,54 @@
         ]
       }
     },
+    "/me/export": {
+      "get": {
+        "tags": [
+          "User export"
+        ],
+        "summary": "Download a copy of all the data of the logged-in user",
+        "description": "Returns a ZIP archive with dati.json (account: email, premium, settings; characters with their background story, character sheets and diaries with every page; payments of the account), a LEGGIMI.txt that explains the content and the files of the user: profile image, images of characters and diaries, PDFs of the character sheets. The text of the story and of the pages is the JSON document of the editor. Bookmarks and page tags are not included, neither are the feedbacks (they are not linked to the account). Everything is read in a single read-only transaction, so the copy is consistent. It requires a recent login with the password (the auth_time claim of the token, app.user.export-max-auth-age, five minutes by default): otherwise it answers 401 with WWW-Authenticate error insufficient_user_authentication. The response has Content-Disposition attachment with the name diario-gdr-<date>.zip.",
+        "operationId": "getUserExport",
+        "responses": {
+          "200": {
+            "description": "The ZIP archive with the data and the files of the user",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid token, or the last login with the password is older than app.user.export-max-auth-age (the answer carries WWW-Authenticate with error insufficient_user_authentication and the client must ask for the password again)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The user does not exist yet (POST /me was never called)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/feedback/{id}": {
       "get": {
         "tags": [
@@ -4531,15 +4583,6 @@
             "maxLength": 255,
             "minLength": 0
           },
-          "description": {
-            "type": "string",
-            "description": "Free text description of the character",
-            "examples": [
-              "Dwarf fighter, exiled king of Erebor"
-            ],
-            "maxLength": 2000,
-            "minLength": 0
-          },
           "campaignName": {
             "type": "string",
             "description": "Name of the campaign the character plays in",
@@ -4590,16 +4633,6 @@
             ],
             "examples": [
               "PLAYER"
-            ]
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Free text description of the character",
-            "examples": [
-              "Dwarf fighter, exiled king of Erebor"
             ]
           },
           "campaignName": {
@@ -4902,15 +4935,6 @@
             "examples": [
               "PLAYER"
             ]
-          },
-          "description": {
-            "type": "string",
-            "description": "Free text description of the character",
-            "examples": [
-              "Dwarf fighter, exiled king of Erebor"
-            ],
-            "maxLength": 2000,
-            "minLength": 0
           },
           "campaignName": {
             "type": "string",

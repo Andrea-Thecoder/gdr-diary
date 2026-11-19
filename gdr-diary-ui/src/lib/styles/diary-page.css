@@ -92,6 +92,10 @@
 	line-height: calc(var(--lh, 36px) * 1.2);
 }
 
+.diary-prose [data-color] {
+	-webkit-text-stroke: 0.35px currentColor;
+}
+
 .diary-prose [data-color='red'] {
 	color: var(--ink-red);
 }
@@ -139,7 +143,7 @@
 }
 
 .diary-prose li::marker {
-	color: var(--orn);
+	color: var(--page-line);
 }
 
 .diary-prose li p {
@@ -149,7 +153,7 @@
 .diary-prose blockquote {
 	margin: 0;
 	padding-left: 16px;
-	border-left: 3px solid var(--orn);
+	border-left: 3px solid var(--page-line);
 	font-style: italic;
 }
 
@@ -157,7 +161,7 @@
 	height: var(--lh, 36px);
 	margin: 0;
 	border: 0;
-	background: linear-gradient(var(--orn), var(--orn)) center / 60% 1px no-repeat;
+	background: linear-gradient(var(--page-line), var(--page-line)) center / 60% 2px no-repeat;
 }
 
 .diary-prose hr.ProseMirror-selectednode {

@@ -81,7 +81,6 @@ describe('createCharacter', () => {
 	const input = {
 		kind: 'PLAYER' as const,
 		name: ' Alira ',
-		description: '',
 		campaignName: ' Nord ',
 		backgroundColor: '#3B2A6B'
 	};
@@ -153,7 +152,7 @@ describe('createCharacter', () => {
 describe('fetchCharacter', () => {
 	it('loads the detail of a character', async () => {
 		const { api, fetchMock } = clientWith(() =>
-			json({ id: 'abc', name: 'Alira', description: 'Elfa' })
+			json({ id: 'abc', name: 'Alira', campaignName: 'Nord' })
 		);
 
 		const result = await fetchCharacter(api, 'abc');
@@ -161,7 +160,7 @@ describe('fetchCharacter', () => {
 		expect(new URL((fetchMock.mock.calls[0]?.[0] as Request).url).pathname).toBe(
 			'/base/characters/abc'
 		);
-		expect(result.description).toBe('Elfa');
+		expect(result.campaignName).toBe('Nord');
 	});
 
 	it('throws when the character is not found', async () => {
@@ -174,7 +173,6 @@ describe('fetchCharacter', () => {
 describe('updateCharacter', () => {
 	const input = {
 		name: ' Alira ',
-		description: ' Elfa ',
 		campaignName: '',
 		backgroundColor: '#3B2A6B'
 	};
@@ -189,7 +187,6 @@ describe('updateCharacter', () => {
 		expect(new URL(request.url).pathname).toBe('/base/characters/abc');
 		expect(await request.json()).toEqual({
 			name: 'Alira',
-			description: 'Elfa',
 			campaignName: '',
 			backgroundColor: '#3B2A6B'
 		});

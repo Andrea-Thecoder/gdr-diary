@@ -564,6 +564,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a copy of all the data of the logged-in user
+         * @description Returns a ZIP archive with dati.json (account: email, premium, settings; characters with their background story, character sheets and diaries with every page; payments of the account), a LEGGIMI.txt that explains the content and the files of the user: profile image, images of characters and diaries, PDFs of the character sheets. The text of the story and of the pages is the JSON document of the editor. Bookmarks and page tags are not included, neither are the feedbacks (they are not linked to the account). Everything is read in a single read-only transaction, so the copy is consistent. It requires a recent login with the password (the auth_time claim of the token, app.user.export-max-auth-age, five minutes by default): otherwise it answers 401 with WWW-Authenticate error insufficient_user_authentication. The response has Content-Disposition attachment with the name diario-gdr-<date>.zip.
+         */
+        get: operations["getUserExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/feedback/{id}": {
         parameters: {
             query?: never;
@@ -921,11 +941,6 @@ export interface components {
              */
             name: string;
             /**
-             * @description Free text description of the character
-             * @example Dwarf fighter, exiled king of Erebor
-             */
-            description?: string;
-            /**
              * @description Name of the campaign the character plays in
              * @example The Lost Mine
              */
@@ -955,11 +970,6 @@ export interface components {
              * @enum {string}
              */
             kind?: "PLAYER" | "GAME_MASTER";
-            /**
-             * @description Free text description of the character
-             * @example Dwarf fighter, exiled king of Erebor
-             */
-            description?: string | null;
             /**
              * @description Name of the campaign the character plays in
              * @example The Lost Mine
@@ -1148,11 +1158,6 @@ export interface components {
              * @enum {string}
              */
             kind: "PLAYER" | "GAME_MASTER";
-            /**
-             * @description Free text description of the character
-             * @example Dwarf fighter, exiled king of Erebor
-             */
-            description?: string;
             /**
              * @description Name of the campaign the character plays in
              * @example The Lost Mine
@@ -4672,6 +4677,44 @@ export interface operations {
                 content?: never;
             };
             /** @description Payment not found, or owned by another user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+        };
+    };
+    getUserExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ZIP archive with the data and the files of the user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": string;
+                };
+            };
+            /** @description Missing, expired or invalid token, or the last login with the password is older than app.user.export-max-auth-age (the answer carries WWW-Authenticate with error insufficient_user_authentication and the client must ask for the password again) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExceptionResponse"];
+                };
+            };
+            /** @description The user does not exist yet (POST /me was never called) */
             404: {
                 headers: {
                     [name: string]: unknown;

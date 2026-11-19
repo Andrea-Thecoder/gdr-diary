@@ -365,7 +365,6 @@ describe('edit character', () => {
 		id: 'id-alira',
 		kind: 'PLAYER',
 		name: 'Alira dei Salici',
-		description: 'Elfa del nord',
 		campaignName: 'Il Nord Spezzato',
 		backgroundColor: '#3B2A6B',
 		avatarUrl: null
@@ -396,9 +395,7 @@ describe('edit character', () => {
 		await expect
 			.element(page.getByRole('textbox', { name: 'Nome *' }))
 			.toHaveValue('Alira dei Salici');
-		await expect
-			.element(page.getByRole('textbox', { name: 'Descrizione' }))
-			.toHaveValue('Elfa del nord');
+		expect(page.getByRole('textbox', { name: 'Descrizione' }).elements()).toHaveLength(0);
 		await expect
 			.element(page.getByRole('textbox', { name: 'Campagna' }))
 			.toHaveValue('Il Nord Spezzato');
@@ -419,7 +416,6 @@ describe('edit character', () => {
 		expect(api.PUT.mock.calls[0]?.[0]).toBe('/characters/{id}');
 		expect((api.PUT.mock.calls[0]?.[1] as { body: unknown }).body).toEqual({
 			name: 'Alira la Saggia',
-			description: 'Elfa del nord',
 			campaignName: 'Il Nord Spezzato',
 			backgroundColor: '#3B2A6B'
 		});

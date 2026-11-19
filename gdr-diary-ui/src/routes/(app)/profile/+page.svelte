@@ -6,6 +6,7 @@
 	import AccountHeader from '#lib/components/app/AccountHeader.svelte';
 	import DeleteAccountDialog from '#lib/components/app/DeleteAccountDialog.svelte';
 	import AvatarDialog from '#lib/components/app/AvatarDialog.svelte';
+	import DataExportSection from '#lib/components/app/DataExportSection.svelte';
 	import PaymentsSection from '#lib/components/app/PaymentsSection.svelte';
 	import ProfileSummary from '#lib/components/app/ProfileSummary.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -280,6 +281,7 @@
 			</FieldRow>
 		</SettingsSection>
 		<PaymentsSection />
+		<DataExportSection {notice} />
 		<SettingsSection title="Elimina l’account" intro="Una scelta senza ritorno.">
 			{#snippet action()}
 				<Button variant="dangerOutline" size="sm" onclick={askToDelete}>Elimina account</Button>

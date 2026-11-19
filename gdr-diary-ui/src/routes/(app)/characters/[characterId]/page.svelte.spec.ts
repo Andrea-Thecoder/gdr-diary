@@ -115,18 +115,12 @@ describe('diaries page', () => {
 			.toHaveAttribute('href', '/characters');
 	});
 
-	it('shows the description of the character under the header', async () => {
+	it('does not show the description of the character, the lead text of the tab stays', async () => {
 		renderPage({ ...character, description: 'Elfa del nord, esule dei Salici.' });
-
-		await expect.element(page.getByText('Elfa del nord, esule dei Salici.')).toBeVisible();
-		expect(document.body.textContent).not.toContain('Ogni diario ha le sue pagine');
-	});
-
-	it('shows the lead text when the description is empty or only spaces', async () => {
-		renderPage({ ...character, description: '   ' });
 		await expect.element(page.getByRole('heading', { name: 'Cronache del Nord' })).toBeVisible();
 
 		expect(document.querySelector('[data-character-description]')).toBeNull();
+		expect(document.body.textContent).not.toContain('Elfa del nord, esule dei Salici.');
 		await expect.element(page.getByText(/Ogni diario ha le sue pagine/)).toBeVisible();
 	});
 

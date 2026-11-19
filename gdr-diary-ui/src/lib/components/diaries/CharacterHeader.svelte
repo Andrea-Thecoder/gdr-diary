@@ -27,7 +27,6 @@
 	let { character, tab, subtitle, count, newLabel, onnew }: Props = $props();
 
 	const name = $derived(character.name ?? '');
-	const description = $derived(character.description?.trim() ?? '');
 	const hasAvatar = $derived(character.avatarUrl !== null && character.avatarUrl !== undefined);
 </script>
 
@@ -67,16 +66,7 @@
 			</Button>
 		{/if}
 	</div>
-	{#if description !== ''}
-		<p
-			data-character-description
-			class="mx-0 mt-6 mb-0 max-w-[40em] text-[clamp(17px,1.8vw,20px)] leading-[1.55] [overflow-wrap:anywhere] whitespace-pre-line text-soft"
-		>
-			{description}
-		</p>
-	{:else}
-		<p class="mx-0 mt-6 mb-0 max-w-[36em] text-[clamp(17px,1.8vw,20px)] text-soft">{subtitle}</p>
-	{/if}
+	<p class="mx-0 mt-6 mb-0 max-w-[36em] text-[clamp(17px,1.8vw,20px)] text-soft">{subtitle}</p>
 	{#if !isMaster(character.kind)}
 		<BackgroundBox
 			characterId={character.id ?? ''}

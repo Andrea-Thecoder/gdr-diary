@@ -1,6 +1,7 @@
 import type { JSONContent } from '@tiptap/core';
 import type { ApiClient } from '#lib/api/client.js';
 import { describeApiError } from '#lib/api/client.js';
+import { fileNameFromDisposition, type DownloadedFile } from '#lib/api/download.js';
 import type { components } from '#lib/api/schema.js';
 import { ConflictError, RejectedPageError, emptyDoc } from '#lib/book/pages.js';
 
@@ -75,24 +76,12 @@ export async function saveBackground(
 	return backgroundFromDto(data);
 }
 
-export interface BackgroundPdfFile {
-	blob: Blob;
-	fileName: string;
-}
+export type BackgroundPdfFile = DownloadedFile;
 
 export const DEFAULT_PDF_NAME = 'background.pdf';
 
 export function fileNameFrom(disposition: string | null): string {
-	const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition ?? '');
-	if (encoded?.[1] !== undefined) {
-		try {
-			return decodeURIComponent(encoded[1]);
-		} catch {
-			return DEFAULT_PDF_NAME;
-		}
-	}
-	const plain = /filename="([^"]+)"/i.exec(disposition ?? '');
-	return plain?.[1] ?? DEFAULT_PDF_NAME;
+	return fileNameFromDisposition(disposition, DEFAULT_PDF_NAME);
 }
 
 export async function downloadBackgroundPdf(

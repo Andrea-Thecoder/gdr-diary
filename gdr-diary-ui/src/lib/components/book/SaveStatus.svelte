@@ -22,7 +22,7 @@
 <span
 	role="status"
 	class={[
-		'inline-flex min-h-8 items-center gap-2 rounded-full border px-3 text-[16px]',
+		'inline-flex min-h-8 min-w-[10rem] items-center justify-center gap-2 rounded-full border px-3 text-[16px]',
 		state === 'unsaved' || state === 'offline' || state === 'conflict'
 			? 'border-danger text-danger'
 			: 'border-(--field-border) text-soft',

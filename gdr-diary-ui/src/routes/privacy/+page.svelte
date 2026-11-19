@@ -12,8 +12,8 @@
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
 	import { getPrivacyContact } from '#lib/env.js';
 
-	const UPDATED_ISO = '2026-11-11';
-	const UPDATED_LABEL = '11 novembre 2026';
+	const UPDATED_ISO = '2026-11-19';
+	const UPDATED_LABEL = '19 novembre 2026';
 	const GARANTE_URL = 'https://www.garanteprivacy.it';
 
 	const titles = {
@@ -111,11 +111,11 @@
 	];
 
 	const rights = [
-		'accedere ai tuoi dati e averne una copia;',
+		'accedere ai tuoi dati e averne una copia: dal profilo, con «Scarica i miei dati» (per sicurezza ti chiedo di nuovo la password);',
 		'correggerli: l’email la cambi dal profilo, il resto direttamente nell’app;',
 		'farli cancellare: dal profilo, con «Elimina account»;',
 		'chiedere di limitare il trattamento;',
-		'riceverli in un formato leggibile da un computer (portabilità): per ora non c’è un pulsante, scrivimi e te li mando;',
+		'riceverli in un formato leggibile da un computer (portabilità): «Scarica i miei dati» ti dà un file ZIP con account, impostazioni, personaggi e loro storie, diari con le pagine e pagamenti in formato JSON, più le immagini e le schede in PDF. Non contiene i segnalibri e i tag delle pagine, né i feedback, che non sono legati all’account: se ti servono, scrivimi;',
 		'opporti al trattamento che si basa sul mio legittimo interesse, cioè ai dati tecnici.'
 	];
 

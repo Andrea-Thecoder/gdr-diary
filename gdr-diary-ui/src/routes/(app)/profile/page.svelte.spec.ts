@@ -483,10 +483,24 @@ describe('profile page', () => {
 		});
 	});
 
-	it('says in advance that the password will be asked', async () => {
+	it('says in advance that the password will be asked to delete the account', async () => {
 		renderPage();
 
-		await expect.element(page.getByText(/ti chiederemo di nuovo la password/)).toBeVisible();
+		await expect
+			.element(
+				page
+					.getByRole('region', { name: 'Elimina l’account' })
+					.getByText(/ti chiederemo di nuovo la password/)
+			)
+			.toBeVisible();
+	});
+
+	it('offers a copy of the data next to the payments', async () => {
+		renderPage();
+
+		await expect
+			.element(page.getByRole('region', { name: 'I tuoi dati' }).getByRole('button'))
+			.toHaveTextContent('Scarica i miei dati');
 	});
 
 	it('does nothing when the deletion is cancelled', async () => {

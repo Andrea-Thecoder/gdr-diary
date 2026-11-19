@@ -66,6 +66,7 @@
 	const charactersHref = $derived(
 		resolve('/(app)/characters/[characterId]', { characterId: character.id ?? '' })
 	);
+	const widest = $derived(formatCount(maxChars).replace(/\d/g, '0'));
 	const nearlyFull = $derived(isNearlyFull(background.length, maxChars));
 	const percent = $derived(fillPercent(background.length, maxChars));
 	const fill = $derived(fillLabel(background.length, maxChars));
@@ -254,10 +255,16 @@
 						aria-live="polite"
 						data-background-counter
 					>
-						<span class="max-[760px]:hidden">
+						<span
+							class="inline-flex flex-col items-end tabular-nums after:invisible after:block after:h-0 after:overflow-hidden after:content-[attr(data-widest)] max-[760px]:hidden"
+							data-widest={`${widest} / ${widest} caratteri`}
+						>
 							{formatCount(background.length)} / {formatCount(maxChars)} caratteri
 						</span>
-						<span class="min-[761px]:hidden">
+						<span
+							class="inline-flex flex-col items-end tabular-nums after:invisible after:block after:h-0 after:overflow-hidden after:content-[attr(data-widest)] min-[761px]:hidden"
+							data-widest={`${widest} / ${widest}`}
+						>
 							{formatCount(background.length)} / {formatCount(maxChars)}
 						</span>
 					</p>

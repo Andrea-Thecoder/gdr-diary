@@ -26,7 +26,6 @@ export interface KindCopy {
 	label: string;
 	namePlaceholder: string;
 	campaignLabel: string;
-	descriptionPlaceholder: string;
 	submit: string;
 }
 
@@ -36,7 +35,6 @@ const KIND_COPY: Record<CharacterKind, KindCopy> = {
 		label: 'Personaggio',
 		namePlaceholder: 'Alira dei Salici',
 		campaignLabel: 'Campagna',
-		descriptionPlaceholder: 'Chi è, da dove viene, cosa vuole.',
 		submit: 'Forgia il personaggio'
 	},
 	GAME_MASTER: {
@@ -44,7 +42,6 @@ const KIND_COPY: Record<CharacterKind, KindCopy> = {
 		label: 'Master',
 		namePlaceholder: 'Il Master della Torre',
 		campaignLabel: 'Campagna che guidi',
-		descriptionPlaceholder: 'Che master sei e che tono dai alle sessioni.',
 		submit: 'Crea il Master'
 	}
 };

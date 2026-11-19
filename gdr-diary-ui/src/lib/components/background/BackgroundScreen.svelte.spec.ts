@@ -455,6 +455,63 @@ describe('story screen, full scroll', () => {
 	});
 });
 
+describe('story screen, steady header', () => {
+	function headerHeight(): number {
+		const bar = document.querySelector('[data-background-bar]');
+		return (
+			(bar?.parentElement?.getBoundingClientRect().top ?? 0) +
+			(bar?.getBoundingClientRect().top ?? 0)
+		);
+	}
+
+	function counterWidth(): number {
+		return document.querySelector('[data-background-counter]')?.getBoundingClientRect().width ?? 0;
+	}
+
+	function controlsBottom(): number {
+		return document.querySelector('[data-background-counter]')?.getBoundingClientRect().bottom ?? 0;
+	}
+
+	it.each([[1000], [1326], [800]])(
+		'keeps the counter and the page where they are while the state changes at %i px',
+		async (width) => {
+			await page.viewport(width, 900);
+			renderScreen({ content: doc('Nata'), version: 3 });
+			await userEvent.click(page.getByRole('button', { name: 'Modifica' }));
+			await expect.element(page.getByRole('status')).toHaveTextContent('Salvato');
+			const savedBar = headerHeight();
+			const savedWidth = counterWidth();
+			const savedBottom = controlsBottom();
+			await userEvent.click(page.getByRole('textbox', { name: 'La storia di Alira dei Salici' }));
+
+			await userEvent.keyboard('{Control>}{End}{/Control}!');
+
+			await expect.element(page.getByRole('status')).toHaveTextContent('Da salvare');
+			expect([headerHeight(), counterWidth(), controlsBottom()]).toEqual([
+				savedBar,
+				savedWidth,
+				savedBottom
+			]);
+		}
+	);
+
+	it('keeps the counter as wide with a long text as with a short one', async () => {
+		await page.viewport(1000, 900);
+		const short = render(BackgroundScreen, {
+			character,
+			initial: { content: doc('Nata'), version: 3 }
+		} as never);
+		await userEvent.click(page.getByRole('button', { name: 'Modifica' }));
+		const shortWidth = counterWidth();
+		await short.unmount();
+
+		renderScreen({ content: doc('a'.repeat(20_000)), version: 3 });
+		await userEvent.click(page.getByRole('button', { name: 'Modifica' }));
+
+		expect(counterWidth()).toBe(shortWidth);
+	});
+});
+
 describe('story screen on small screens', () => {
 	it.each([[320], [390], [820]])('does not scroll sideways at %i px', async (width) => {
 		await page.viewport(width, 800);

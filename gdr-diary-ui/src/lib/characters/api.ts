@@ -27,14 +27,12 @@ export interface CharacterPage {
 export interface NewCharacter {
 	kind: CharacterKind;
 	name: string;
-	description: string;
 	campaignName: string;
 	backgroundColor: string;
 }
 
 export interface EditedCharacter {
 	name: string;
-	description: string;
 	campaignName: string;
 	backgroundColor: string;
 }
@@ -80,14 +78,12 @@ export async function createCharacter(
 	input: NewCharacter,
 	avatar: File | null
 ): Promise<CreatedCharacter> {
-	const description = input.description.trim();
 	const campaignName = input.campaignName.trim();
 	const { data, error } = await api.POST('/characters', {
 		body: {
 			name: input.name.trim(),
 			kind: input.kind,
 			backgroundColor: input.backgroundColor,
-			...(description === '' ? {} : { description }),
 			...(campaignName === '' ? {} : { campaignName })
 		}
 	});
@@ -118,7 +114,6 @@ export async function updateCharacter(
 		params: { path: { id } },
 		body: {
 			name: input.name.trim(),
-			description: input.description.trim(),
 			campaignName: input.campaignName.trim(),
 			backgroundColor: input.backgroundColor
 		}

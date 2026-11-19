@@ -55,7 +55,6 @@
 	let chosenKind = $state<CharacterKind>(initial?.kind ?? DEFAULT_KIND);
 	let name = $state(initial?.name ?? '');
 	let campaignName = $state(initial?.campaignName ?? '');
-	let description = $state(initial?.description ?? '');
 	let hex = $state<string>(
 		initial?.backgroundColor !== null &&
 			initial?.backgroundColor !== undefined &&
@@ -132,7 +131,7 @@
 		}
 		submitting = true;
 		try {
-			const fields = { name, description, campaignName, backgroundColor: hex.toUpperCase() };
+			const fields = { name, campaignName, backgroundColor: hex.toUpperCase() };
 			const result =
 				character?.id === undefined
 					? await createCharacter(getApi(), { kind: chosenKind, ...fields }, avatar)
@@ -251,13 +250,6 @@
 				bind:value={campaignName}
 				placeholder="Il Nord Spezzato"
 				maxlength={255}
-			/>
-			<TextField
-				label="Descrizione"
-				multiline
-				bind:value={description}
-				placeholder={copy.descriptionPlaceholder}
-				maxlength={2000}
 			/>
 			<ColorField
 				label="Colore della scheda"
