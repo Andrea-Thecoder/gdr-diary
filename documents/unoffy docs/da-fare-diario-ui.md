@@ -1,4 +1,4 @@
-# Da fare: frontend Diario GDR (gdr-diary-ui)
+# Da fare: frontend Liber Heroum (liber-heroum-ui)
 
 Aggiornato il 27 ottobre 2026. Elenco di quello che resta sul frontend. Lo stato del backend e le decisioni stanno in `claude/stato-lavori.md`.
 
@@ -13,7 +13,7 @@ Aggiornato il 27 ottobre 2026. Elenco di quello che resta sul frontend. Lo stato
 
 Finora il frontend è stato provato con test automatici ed e2e con servizi finti, non contro il backend acceso.
 
-- Il `check-sso` silenzioso: verificare che nel client `gdr-diary-api` del realm `gdr-diary-dev` sia valido il redirect `http://localhost:5173/silent-check-sso.html` e che l'origine dell'app sia tra le Web origins. In produzione app e Keycloak devono stare sullo stesso sito (per esempio `app.dominio.it` e `login.dominio.it`, con la variabile `VITE_THEME_COOKIE_DOMAIN`), altrimenti i cookie di terze parti bloccati fanno ricadere `keycloak-js` sul redirect a pagina intera.
+- Il `check-sso` silenzioso: verificare che nel client `liber-heroum-api` del realm `liber-heroum-dev` sia valido il redirect `http://localhost:5173/silent-check-sso.html` e che l'origine dell'app sia tra le Web origins. In produzione app e Keycloak devono stare sullo stesso sito (per esempio `app.dominio.it` e `login.dominio.it`, con la variabile `VITE_THEME_COOKIE_DOMAIN`), altrimenti i cookie di terze parti bloccati fanno ricadere `keycloak-js` sul redirect a pagina intera.
 - Salvataggio, conflitti 409 con due schede aperte sulla stessa pagina, cancellazione di pagine, diari e personaggi, rinumerazione, creazione delle pagine.
 - Cambio email: provare tutto il giro con Mailpit (link di conferma, rinvio, un solo link valido).
 

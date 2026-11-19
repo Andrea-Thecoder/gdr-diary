@@ -2,7 +2,7 @@
 
 Stato al 27 ottobre 2026.
 
-Fatta nel frontend (`gdr-diary-ui`): informativa ai sensi dell'art. 13 del GDPR in italiano semplice, con "In breve" e nove sezioni, un indice e il link al Garante. Il design è in `DESIGN.md` sezione 23. La regola è nel `CLAUDE.md` del frontend (sezione Privacy): ogni cookie, uso di storage, dato o fornitore nuovo aggiorna la pagina e la sua data nello stesso cambio.
+Fatta nel frontend (`liber-heroum-ui`): informativa ai sensi dell'art. 13 del GDPR in italiano semplice, con "In breve" e nove sezioni, un indice e il link al Garante. Il design è in `DESIGN.md` sezione 23. La regola è nel `CLAUDE.md` del frontend (sezione Privacy): ogni cookie, uso di storage, dato o fornitore nuovo aggiorna la pagina e la sua data nello stesso cambio.
 
 ## Da fornire o decidere prima di pubblicare
 
@@ -18,4 +18,4 @@ Fatta nel frontend (`gdr-diary-ui`): informativa ai sensi dell'art. 13 del GDPR 
 
 ## Dichiarato nella pagina (deve restare vero)
 
-Cookie di sessione di Keycloak, cookie `gdr-theme`, bozze in IndexedDB, `sessionStorage` (ultimo posto visitato e messaggio d'errore), nessuna analytics né risorsa di terzi.
+Cookie di sessione di Keycloak, cookie `lh-theme`, bozze in IndexedDB, `sessionStorage` (ultimo posto visitato e messaggio d'errore), nessuna analytics né risorsa di terzi.

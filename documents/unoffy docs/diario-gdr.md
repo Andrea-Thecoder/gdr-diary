@@ -1,14 +1,18 @@
-# Diario GDR
+# Liber Heroum
 
-Documento di progetto, versione 0.8, 27 ottobre 2026. Autore: Andrea.
+Documento di progetto, versione 0.8, 27 ottobre 2026 (nota sul nome aggiunta l'11 novembre 2026). Autore: Andrea.
 
 Qui c'è l'idea del progetto e le scelte principali. Per i dettagli: lo stato del backend è in `stato-lavori.md`, quello che resta sul frontend in `da-fare-diario-ui.md`, il design delle schermate in `landing-design.md`.
 
+## Nome
+
+**Il prodotto si chiama Liber Heroum** (deciso l'11 novembre 2026, sottotitolo "Le cronache dei tuoi eroi", monogramma "LH" solo dove serve una forma cortissima come il sigillo). Il 19 novembre 2026 sono stati rinominati tutti i nomi visibili (app, tema di Keycloak, email, documenti); i nomi tecnici (repository `liber-heroum-*`, package, realm, client, cookie) sono ancora quelli vecchi. Verifica del nome e cosa resta da fare sono in `rinomina-liber-heroum.md`.
+
 ## Cos'è
 
-Diario GDR è una web app per chi gioca di ruolo. Ogni giocatore crea i suoi personaggi, e per ogni personaggio tiene uno o più diari: veri diari con la copertina, le pagine da sfogliare e il testo scritto a mano libera. Un diario ha al massimo 100 pagine, come uno vero.
+Liber Heroum è una web app per chi gioca di ruolo. Ogni giocatore crea i suoi personaggi, e per ogni personaggio tiene uno o più diari: veri diari con la copertina, le pagine da sfogliare e il testo scritto a mano libera. Un diario ha al massimo 100 pagine, come uno vero.
 
-Gli strumenti che esistono (World Anvil, Kanka, Obsidian Portal, D&D Beyond, oppure Notion e Obsidian usati in modo creativo) ragionano per campagna o per mondo. Diario GDR parte invece dal personaggio. Quello che conta è il piacere di scrivere e di rileggere, non il numero di funzioni.
+Gli strumenti che esistono (World Anvil, Kanka, Obsidian Portal, D&D Beyond, oppure Notion e Obsidian usati in modo creativo) ragionano per campagna o per mondo. Liber Heroum parte invece dal personaggio. Quello che conta è il piacere di scrivere e di rileggere, non il numero di funzioni.
 
 Lo sto costruendo anche per imparare a fare un prodotto completo, dal database all'interfaccia, per usarlo davvero con il mio gruppo di gioco e magari, un giorno, per aprirlo ad altri. Lavoro a piccoli passi, nei tempi liberi, senza scadenze.
 
@@ -89,7 +93,7 @@ Licenza: entrambi i repository sono sotto PolyForm Noncommercial 1.0.0. Il codic
 
 ## I dati
 
-Il diagramma delle entity è in `diario-gdr-entities.mermaid`. In breve: un utente ha dei personaggi, un personaggio ha dei diari, un diario ha delle pagine, e le immagini sono documenti collegati a utente, personaggio o diario. Le regole importanti:
+Il diagramma delle entity è in `diario-lh-entities.mermaid`. In breve: un utente ha dei personaggi, un personaggio ha dei diari, un diario ha delle pagine, e le immagini sono documenti collegati a utente, personaggio o diario. Le regole importanti:
 
 - Ogni tabella ha un identificativo UUID, i campi di controllo (chi e quando ha creato e modificato) e una versione per il controllo delle modifiche concorrenti.
 - Il testo delle pagine è il JSON di Tiptap, salvato in una colonna `jsonb`. Il backend accetta solo i nodi e gli attributi che l'editor produce davvero e rifiuta il resto. Nelle pagine non si mostra mai HTML grezzo, per evitare problemi di sicurezza.
