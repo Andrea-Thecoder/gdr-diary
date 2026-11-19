@@ -1,4 +1,4 @@
-# Stato lavori di gdr-diary-api
+# Stato lavori di liber-heroum-api
 
 Aggiornato il 27 ottobre 2026. Le regole di codice del backend stanno nel `CLAUDE.md` del repository, qui c'è solo cosa è fatto, cosa è stato deciso e cosa resta. Per il frontend vedi `claude/da-fare-diario-ui.md`.
 
@@ -26,17 +26,17 @@ Aggiornato il 27 ottobre 2026. Le regole di codice del backend stanno nel `CLAUD
 ### Sicurezza
 
 - Ruoli `user` e `admin` letti da `realm_access.roles`. `/me/**` basta autenticati, il resto richiede un ruolo (403 altrimenti). Essere "master" non è un ruolo.
-- Il token deve avere `gdr-diary-backend` nell'audience: lo controlla Spring con la property `spring.security.oauth2.resourceserver.jwt.audiences`, lo scrive Keycloak con un mapper nel client `gdr-diary-api`.
+- Il token deve avere `liber-heroum-backend` nell'audience: lo controlla Spring con la property `spring.security.oauth2.resourceserver.jwt.audiences`, lo scrive Keycloak con un mapper nel client `liber-heroum-api`.
 - Ogni query verifica l'appartenenza dei dati all'utente.
 
 ### Keycloak e ambiente locale
 
-- Docker Compose con immagini a versione fissata: Keycloak 26.7.0, SeaweedFS 4.48, PostgreSQL 16, Mailpit 1.32.0. Keycloak importa il realm all'avvio da `docker-compose/keycloak/gdr-diary-dev-realm.json`.
-- Realm `gdr-diary-dev`: registrazione attiva con verifica email, ruoli `user` e `admin`, gruppo predefinito `users`, client pubblico `gdr-diary-api` con PKCE e mapper dell'audience, utenti di prova `user1` e `admin1` con password di sviluppo.
+- Docker Compose con immagini a versione fissata: Keycloak 26.7.0, SeaweedFS 4.48, PostgreSQL 16, Mailpit 1.32.0. Keycloak importa il realm all'avvio da `docker-compose/keycloak/liber-heroum-dev-realm.json`.
+- Realm `liber-heroum-dev`: registrazione attiva con verifica email, ruoli `user` e `admin`, gruppo predefinito `users`, client pubblico `liber-heroum-api` con PKCE e mapper dell'audience, utenti di prova `user1` e `admin1` con password di sviluppo.
 - Sessioni: "Ricordami" attivo. Sessione normale 30 minuti di inattività e 10 ore in totale. Con la spunta 15 giorni di inattività e 30 in totale. Tempo per completare il login 10 minuti, per le azioni 5 minuti. Rotazione del refresh token con 2 riusi tollerati. Durata dell'access token: 5 minuti (valore di default di Keycloak, non scritto nel JSON).
-- Tema di login e registrazione `gdr-diary` (modelli FreeMarker sopra il tema `base`), che sta nel repository del frontend in `keycloak-theme/` e viene montato nel compose. Il CSS è generato dagli stessi token del frontend, quindi non si può disallineare. È stato provato su Keycloak vero. Il tema chiaro e scuro segue il cookie `gdr-theme`.
-- Cambio email: lo fa Keycloak con l'azione `UPDATE_EMAIL` (funzione `update-email` attiva nel compose). L'estensione `keycloak-extensions/gdr-diary-kc-extension` evita che l'accesso resti bloccato mentre il nuovo indirizzo attende la conferma, permette di rimandare la mail e fa valere solo l'ultimo link. Si costruisce con `build-keycloak-extensions.sh`.
-- Email del realm: tema `gdr-diary` anche per le email, inviate a Mailpit in locale (`http://localhost:8025`).
+- Tema di login e registrazione `liber-heroum` (modelli FreeMarker sopra il tema `base`), che sta nel repository del frontend in `keycloak-theme/` e viene montato nel compose. Il CSS è generato dagli stessi token del frontend, quindi non si può disallineare. È stato provato su Keycloak vero. Il tema chiaro e scuro segue il cookie `lh-theme`.
+- Cambio email: lo fa Keycloak con l'azione `UPDATE_EMAIL` (funzione `update-email` attiva nel compose). L'estensione `keycloak-extensions/liber-heroum-kc-extension` evita che l'accesso resti bloccato mentre il nuovo indirizzo attende la conferma, permette di rimandare la mail e fa valere solo l'ultimo link. Si costruisce con `build-keycloak-extensions.sh`.
+- Email del realm: tema `liber-heroum` anche per le email, inviate a Mailpit in locale (`http://localhost:8025`).
 
 ## Decisioni
 
@@ -51,7 +51,7 @@ Aggiornato il 27 ottobre 2026. Le regole di codice del backend stanno nel `CLAUD
 - Ruoli: assegnati solo da Keycloak. `user` a chi si registra (gruppo predefinito), `admin` a mano dalla console. Il backend li legge e non li assegna mai.
 - Realm: l'importazione del JSON avviene solo alla prima creazione. Se il file cambia va azzerato il volume `postgres-keycloak-data` e ricreato il contenitore, oppure si cambiano le impostazioni dalla console e si riportano a mano nel JSON. Un ruolo composito che include ruoli predefiniti come `uma_authorization` fa fallire l'importazione: il ruolo predefinito si dà con un gruppo predefinito.
 - Sessione nel frontend: token e refresh token solo in memoria. Tra una ricarica e l'altra l'utente lo riconosce il cookie di sessione di Keycloak tramite `check-sso`, con "Ricordami" per la durata lunga. Scartato salvare il refresh token in `localStorage` o `sessionStorage`.
-- Nomi di package: il backend usa direttamente `it.gdr.diary`, le estensioni di Keycloak `it.gdr.diary.keycloak`.
+- Nomi di package: il backend usa direttamente `it.liberheroum`, le estensioni di Keycloak `it.liberheroum.keycloak`.
 
 ## Da fare
 
@@ -71,7 +71,7 @@ Aggiornato il 27 ottobre 2026. Le regole di codice del backend stanno nel `CLAUD
 
 Non è mai stato provato con backend e Keycloak veri:
 
-- Audience: fare login con `user1`, controllare che l'access token abbia `"aud": "gdr-diary-backend"` e chiamare un endpoint (200); poi chiamarlo con un token di un altro client, per esempio `account` (deve dare 401). Se il secondo caso passa, la property non viene applicata in Spring Boot 4.1 e serve un `JwtDecoder` con validatore in `SecurityConfig`. I token emessi prima del cambio non hanno l'audience: serve un nuovo login.
+- Audience: fare login con `user1`, controllare che l'access token abbia `"aud": "liber-heroum-backend"` e chiamare un endpoint (200); poi chiamarlo con un token di un altro client, per esempio `account` (deve dare 401). Se il secondo caso passa, la property non viene applicata in Spring Boot 4.1 e serve un `JwtDecoder` con validatore in `SecurityConfig`. I token emessi prima del cambio non hanno l'audience: serve un nuovo login.
 - Transazioni, cascata e lock: cancellare un personaggio con più diari e pagine e controllare database e bucket; sostituire due volte un avatar; aggiornare la stessa pagina da due schede e controllare che compaia il conflitto; creare 5 pagine, cancellare la 2 e controllare che i numeri siano 1, 2, 3, 4.
 - Cose scritte sulla documentazione e non verificate su Ebean 19: `ExpressionList.delete()` come cancellazione di massa, `database.deleteAll`, il passaggio di `createImageDocument` nella transazione aperta dal service, e `select("pageNumber")` parziale con `saveAll` e `@Version` (se dà errore, togliere il `select`).
 - Il controllo dei caratteri NUL e delle surrogate spaiate nel testo: non provato su un PostgreSQL vero.

@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest';
+import {
+	DEFAULT_MAX_BACKGROUND_CHARS,
+	DEFAULT_MAX_SHEETS,
+	parseEnv,
+	parseMaxBackgroundChars,
+	parseMaxSheets,
+	parsePrivacyContact,
+	parseThemeCookieDomain
+} from '#lib/env.js';
+
+const valid = {
+	VITE_KEYCLOAK_URL: 'http://localhost:8180',
+	VITE_KEYCLOAK_REALM: 'liber-heroum-dev',
+	VITE_KEYCLOAK_CLIENT_ID: 'liber-heroum-api',
+	VITE_API_BASE_URL: 'http://localhost:8080/api/v1/liber-heroum-api'
+};
+
+describe('parseEnv', () => {
+	it('accepts a complete configuration', () => {
+		expect(parseEnv(valid).VITE_KEYCLOAK_REALM).toBe('liber-heroum-dev');
+	});
+
+	it('rejects a missing variable with a readable message', () => {
+		const incomplete: Record<string, string> = { ...valid };
+		delete incomplete['VITE_API_BASE_URL'];
+		expect(() => parseEnv(incomplete)).toThrow(/VITE_API_BASE_URL/);
+	});
+
+	it('rejects an invalid url', () => {
+		expect(() => parseEnv({ ...valid, VITE_KEYCLOAK_URL: 'not-a-url' })).toThrow(
+			/VITE_KEYCLOAK_URL/
+		);
+	});
+});
+
+describe('parseThemeCookieDomain', () => {
+	it('returns the domain when it is set', () => {
+		expect(parseThemeCookieDomain('example.com')).toBe('example.com');
+		expect(parseThemeCookieDomain('  .example.com ')).toBe('.example.com');
+	});
+
+	it('returns nothing when it is missing or empty', () => {
+		expect(parseThemeCookieDomain(undefined)).toBeUndefined();
+		expect(parseThemeCookieDomain('')).toBeUndefined();
+		expect(parseThemeCookieDomain('   ')).toBeUndefined();
+	});
+});
+
+describe('parsePrivacyContact', () => {
+	it('returns the controller name and email when both are set', () => {
+		expect(
+			parsePrivacyContact({
+				VITE_PRIVACY_CONTROLLER_NAME: ' Andrea ',
+				VITE_PRIVACY_CONTACT_EMAIL: 'privacy@example.com'
+			})
+		).toEqual({ name: 'Andrea', email: 'privacy@example.com' });
+	});
+
+	it('returns nothing when one of them is missing, empty or not an email', () => {
+		expect(parsePrivacyContact({})).toBeUndefined();
+		expect(parsePrivacyContact({ VITE_PRIVACY_CONTROLLER_NAME: 'Andrea' })).toBeUndefined();
+		expect(
+			parsePrivacyContact({
+				VITE_PRIVACY_CONTROLLER_NAME: '  ',
+				VITE_PRIVACY_CONTACT_EMAIL: 'privacy@example.com'
+			})
+		).toBeUndefined();
+		expect(
+			parsePrivacyContact({
+				VITE_PRIVACY_CONTROLLER_NAME: 'Andrea',
+				VITE_PRIVACY_CONTACT_EMAIL: 'not-an-email'
+			})
+		).toBeUndefined();
+	});
+});
+
+describe('parseMaxSheets', () => {
+	it('reads the limit from the variable, as text or as a number', () => {
+		expect(parseMaxSheets('25')).toBe(25);
+		expect(parseMaxSheets(7)).toBe(7);
+	});
+
+	it('falls back to the default when it is missing or not usable', () => {
+		expect(parseMaxSheets(undefined)).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('molte')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('0')).toBe(DEFAULT_MAX_SHEETS);
+		expect(parseMaxSheets('2.5')).toBe(DEFAULT_MAX_SHEETS);
+	});
+});
+
+describe('parseMaxBackgroundChars', () => {
+	it('reads the limit from the variable, as text or as a number', () => {
+		expect(parseMaxBackgroundChars('20000')).toBe(20000);
+		expect(parseMaxBackgroundChars(8000)).toBe(8000);
+	});
+
+	it.each([undefined, '', 'tanti', '0', '2.5', '-4'])(
+		'falls back to the default when the value is %s',
+		(value) => {
+			expect(parseMaxBackgroundChars(value)).toBe(DEFAULT_MAX_BACKGROUND_CHARS);
+		}
+	);
+});

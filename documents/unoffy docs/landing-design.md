@@ -2,7 +2,7 @@
 
 Versione 0.8, 27 ottobre 2026.
 
-Design delle schermate di Diario GDR (SvelteKit e Tailwind, solo frontend): la home pubblica (sezioni 1-9) e le schermate dopo il login: personaggi (sezione 10), profilo (11), impostazioni (12), diari del personaggio (13), diario aperto per scrivere (14) e layout per tablet (15).
+Design delle schermate di Liber Heroum (SvelteKit e Tailwind, solo frontend): la home pubblica (sezioni 1-9) e le schermate dopo il login: personaggi (sezione 10), profilo (11), impostazioni (12), diari del personaggio (13), diario aperto per scrivere (14) e layout per tablet (15).
 
 Questo documento descrive le tele di progetto e le decisioni di design. Le misure e i valori effettivamente usati nel codice stanno nel file `DESIGN.md` del repository del frontend, che è il riferimento quando i due documenti differiscono: lì, per esempio, il tema scuro usa un nero quasi puro con accento `#3C0366` al posto del viola della tela. Le tele sono private, le apre solo chi ha accesso:
 
@@ -22,8 +22,8 @@ La home promette solo ciò che l'MVP ha già: personaggi, diari, pagine (al mass
 
 ## 2. Sezioni della landing, in ordine
 
-1. Header: logo (penna e "Diario GDR"), link "Come funziona", "La scrittura", "Per chi è", pulsante contornato "Accedi". Su schermo stretto va a capo, sotto i 900 px diventa un menu a burger.
-2. Hero: etichetta "Il diario di ogni avventuriero", titolo "Ogni eroe merita il suo diario." (la parola diario in accento), sottotitolo, pulsante "Apri il tuo diario" e link "Scopri come funziona". A destra un diario aperto su due pagine scritte a mano, con segnalibro, sigillo di cera e un cerchio arcano sottile dietro.
+1. Header: logo (penna e "Liber Heroum"), link "Come funziona", "La scrittura", "Per chi è", pulsante contornato "Accedi". Su schermo stretto va a capo, sotto i 900 px diventa un menu a burger.
+2. Hero: etichetta "Le cronache dei tuoi eroi", titolo "Ogni eroe merita il suo diario." (la parola diario in accento), sottotitolo, pulsante "Apri il tuo diario" e link "Scopri come funziona". A destra un diario aperto su due pagine scritte a mano, con segnalibro, sigillo di cera e un cerchio arcano sottile dietro.
 3. Come funziona: titolo "Tre passi dalla taverna alla prima pagina." Tre card con numeri romani: "Forgia il personaggio" (nome, volto, campagna), "Rilega un diario" (titolo, colore della copertina, quanti vuoi), "Scrivi, pagina dopo pagina" (100 pagine, in coda, sempre in ordine). Ogni card ha una miniatura con i campi veri delle entity.
 4. La scrittura: titolo "Scrivi come uno scriba, rileggi come un libro antico." Capolettera miniata e tre punti: "Due pagine alla volta", "Testo ricco, nessuna distrazione" (titoli, grassetto, corsivo, elenchi), "Solo tuo". A destra la barra strumenti, una pagina in scrittura con cursore e i comandi "Pagine 7 e 8 di 100".
 5. Per chi è (fascia scura): titolo "Per l'avventuriero e per il master." Tre card: diario del personaggio, appunti del master (un profilo di tipo Master), anche dal telefono.

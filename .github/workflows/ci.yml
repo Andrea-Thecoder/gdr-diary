@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 45
     defaults:
       run:
-        working-directory: gdr-diary-api
+        working-directory: liber-heroum-api
     steps:
       - uses: actions/checkout@v4
 
@@ -29,7 +29,7 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-          cache-dependency-path: gdr-diary-api/pom.xml
+          cache-dependency-path: liber-heroum-api/pom.xml
 
       - name: Unit and integration tests
         run: ./mvnw -B -ntp verify
@@ -40,8 +40,8 @@ jobs:
         with:
           name: backend-test-reports
           path: |
-            gdr-diary-api/target/surefire-reports
-            gdr-diary-api/target/failsafe-reports
+            liber-heroum-api/target/surefire-reports
+            liber-heroum-api/target/failsafe-reports
           retention-days: 7
 
   frontend:
@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 30
     defaults:
       run:
-        working-directory: gdr-diary-ui
+        working-directory: liber-heroum-ui
     steps:
       - uses: actions/checkout@v4
 
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: gdr-diary-ui/package-lock.json
+          cache-dependency-path: liber-heroum-ui/package-lock.json
 
       - name: Install dependencies
         run: npm ci

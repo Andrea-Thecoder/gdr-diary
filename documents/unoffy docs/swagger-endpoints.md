@@ -2,13 +2,13 @@
 
 Aggiornato il 27 ottobre 2026.
 
-Il backend `gdr-diary-api` documenta l'API con springdoc-openapi, scritto dal codice (code first). Gira sulla porta 8080 con context path `/api/v1/gdr-diary-api`. Non ci sono property `springdoc.*` personalizzate, quindi i percorsi sono quelli di default prefissati dal context path. Sono pubblici (`permitAll` in `SecurityConfig`) e non serve il token: in produzione vanno chiusi o limitati.
+Il backend `liber-heroum-api` documenta l'API con springdoc-openapi, scritto dal codice (code first). Gira sulla porta 8080 con context path `/api/v1/liber-heroum-api`. Non ci sono property `springdoc.*` personalizzate, quindi i percorsi sono quelli di default prefissati dal context path. Sono pubblici (`permitAll` in `SecurityConfig`) e non serve il token: in produzione vanno chiusi o limitati.
 
 Indirizzi in sviluppo locale:
 
-- Swagger UI: http://localhost:8080/api/v1/gdr-diary-api/swagger-ui.html
-- OpenAPI in JSON: http://localhost:8080/api/v1/gdr-diary-api/v3/api-docs
-- OpenAPI in YAML: http://localhost:8080/api/v1/gdr-diary-api/v3/api-docs.yaml
+- Swagger UI: http://localhost:8080/api/v1/liber-heroum-api/swagger-ui.html
+- OpenAPI in JSON: http://localhost:8080/api/v1/liber-heroum-api/v3/api-docs
+- OpenAPI in YAML: http://localhost:8080/api/v1/liber-heroum-api/v3/api-docs.yaml
 
 ## Endpoint attuali
 
